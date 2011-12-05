@@ -1,0 +1,238 @@
+﻿grammar guard;
+options {
+    language=CSharp3;
+    TokenLabelType=CommonToken;
+    output=AST;
+    ASTLabelType=CommonTree;
+	backtrack=true;
+}
+
+tokens
+{
+	RESET_VARIABLE;
+	RESET_INDEXED_VARIABLE;
+	DYNAMICS_VARIABLE;
+	DYNAMICS_INDEXED_VARIABLE;
+	VARIABLE;
+	INDEXED_VARIABLE;
+	QUANTIFIER_FORALL;
+	QUANTIFIER_EXISTS;
+	NEGATE;
+}
+
+// these directives MUST appear AFTER tokens
+@parser::namespace{phyea.controller.parsing.math}
+@lexer::namespace{phyea.controller.parsing.math}
+
+@members {
+	ArrayList exceptions = new ArrayList();
+
+	public override void ReportError(RecognitionException e)
+	{
+		exceptions.Add(e);
+	}
+
+	public bool HasError
+	{
+		get { return exceptions.Count > 0; }
+	}
+
+	public string ErrorMessage
+	{
+		get { return this.GetErrorMessage(exceptions[0] as RecognitionException, this.TokenNames); }
+	}
+
+	public string ErrorPosition
+	{
+		get { return this.GetErrorHeader(exceptions[0] as RecognitionException); }
+	}
+}
+
+@header {
+	using System.Collections;
+}
+
+expression
+	: 	logicalExpression EOF!
+	;
+		
+logicalExpression
+	:	booleanAndExpression ((OR | XOR | IMPLY | IFF)^ booleanAndExpression )*
+	|	ITE  logicalExpression logicalExpression logicalExpression
+	;
+
+OR 	: 	'||' | 'or';
+XOR :	'xor';
+IMPLY	:	'implies' | 'imply' | '=>' | '=&gt;';
+IFF	:	'iff' | 'xnor' | '<=>' | '&lt;=&gt;';
+ITE :	'ite' | 'ifthenelse';
+// todo ite: buggy, need to fix precedence
+	
+booleanAndExpression
+	:	equalityExpression (AND^ equalityExpression)*
+	;
+
+AND 	: 	'&&' | 'and';
+
+equalityExpression
+	:	relationalExpression ((EQUALS|NEQUALS)^ relationalExpression)*
+	;
+
+EQUALS	:	'='		| '==';
+NEQUALS	:	'!='	| '~=';
+
+relationalExpression
+	:	additiveExpression ( (LT|LTEQ|GT|GTEQ)^ additiveExpression )*
+	;
+
+LT		:	'<'		| '&lt;';
+LTEQ	:	'<='	| '&lt;=';
+GT		:	'>'		| '&gt;';
+GTEQ	:	'>='	| '&gt;=';
+
+additiveExpression
+	:	multiplicativeExpression ( (PLUS|MINUS)^ multiplicativeExpression )*
+	;
+
+PLUS	:	'+';
+MINUS	:	'-';
+
+multiplicativeExpression 
+	:	powerExpression ( (MULT|DIV|MOD)^ powerExpression )*
+	;
+	
+MULT	:	'*';
+DIV		:	'/';
+MOD		:	'%';
+
+powerExpression 
+	:	unaryExpression ( POW^ unaryExpression )*
+	;
+	
+POW	:	'^';
+
+unaryExpression
+	:	primaryExpression
+    	|	NOT^ primaryExpression
+    	|	MINUS primaryExpression -> ^(NEGATE primaryExpression)
+   	;
+  
+NOT	:	'!' | 'not';
+
+primaryExpression
+	:	'('! logicalExpression ')'!
+	|	value
+	;
+
+//DISTINCT	:	'distinct';
+
+value	
+	: 	INTEGER
+	|	FLOAT
+	|	BOOLEAN
+	|	function
+	|	reset_indexed_variable
+	|	reset_variable
+	|	dynamics_indexed_variable
+	|	dynamics_variable
+	|	indexed_variable
+	|	quantifier_forall
+	|	quantifier_exists
+	|	variable
+	;
+
+INTEGER
+	:	DIGIT+
+	;
+
+FLOAT
+	:	DIGIT* '.' DIGIT+ E?
+	|    DIGIT+ E
+	;
+
+E    :    ('E'|'e') ('+'|'-')? DIGIT+ 
+    ;    
+
+BOOLEAN
+	:	'true'
+	|	'false'
+	;
+
+// declare after the BOOLEAN token
+function
+	:	ID '(' ( logicalExpression (',' logicalExpression)* )? ')' -> ^(ID logicalExpression*)
+	;
+
+quantifier_forall
+	:	'forall' variable+ logicalExpression+ -> ^(QUANTIFIER_FORALL variable+ logicalExpression+)
+	;
+
+quantifier_exists
+	:	'exists' variable+ logicalExpression+ -> ^(QUANTIFIER_EXISTS variable+ logicalExpression+)
+	;
+
+// declare after the function token
+reset_indexed_variable
+	:	indexed_variable ('\'' | '&apos;') -> ^(RESET_INDEXED_VARIABLE indexed_variable?)
+	;
+
+reset_variable
+	:	(variable) ('\'' | '&apos;') -> ^(RESET_VARIABLE variable?)
+	;
+
+// declare after the function token
+dynamics_indexed_variable
+	:	indexed_variable '_dot' -> ^(DYNAMICS_INDEXED_VARIABLE indexed_variable?)
+	;
+
+// declare after the function token
+dynamics_variable
+	:	(variable) '_dot' -> ^(DYNAMICS_VARIABLE variable?)
+	;
+
+indexed_variable
+	:	ID ('[' ID ']' | '[' indexed_variable ']') -> ^(INDEXED_VARIABLE ID ID* indexed_variable*)
+	;
+
+// declare after all the other tokens
+variable
+	:	ID -> ^(VARIABLE ID?)
+	;
+
+ID 
+	:	LETTER (LETTER | DIGIT)*
+	;
+
+fragment LETTER
+	:	'a'..'z'
+	|	'A'..'Z'
+	|	'_'
+	;
+
+fragment DIGIT
+    :    '0'..'9'
+    ;
+
+fragment EscapeSequence 
+	:	'\\'
+  	(	
+  		'n' 
+	|	'r' 
+	|	't'
+	|	'\'' 
+	|	'\\'
+	|	UnicodeEscape
+	)
+  ;
+
+fragment UnicodeEscape
+    	:    	'u' HexDigit HexDigit HexDigit HexDigit 
+    	;
+
+fragment HexDigit 
+	: 	('0'..'9'|'a'..'f'|'A'..'F') ;
+
+/* Ignore white spaces */	
+WS	:  (' '|'\r'|'\t'|'\u000C'|'\n') {$channel=Hidden;}
+	;
+
