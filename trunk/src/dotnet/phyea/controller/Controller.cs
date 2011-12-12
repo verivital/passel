@@ -89,6 +89,8 @@ namespace phyea.controller
          */
         private Sort _indexType;
 
+        private Term _indexSet;
+
         /**
          * Real number sort
          */
@@ -104,6 +106,10 @@ namespace phyea.controller
          */
         public Term IntOne;
 
+        public Term IndexNone;
+        public Term IndexOne;
+        public Term IndexN;
+
         /**
          * Real value of zero
          */
@@ -114,7 +120,22 @@ namespace phyea.controller
          */
         private String _inoutPath;
 
+        /**
+         * filename
+         */
         private String _inputFile;
+
+        public enum IndexOptionType { integer, enumeration };
+
+        public enum ExistsOptionType { implies, and }; // implies is weak, and is strict
+
+        public enum TimeOptionType { conjunction, separated }; // conjunction uses a conjunction of implications on control locations in the time transition, whereas separated checks the time transition repeatedly based on each location
+
+        public IndexOptionType IndexOption = IndexOptionType.integer;
+
+        public ExistsOptionType ExistsOption = ExistsOptionType.and;
+
+        public TimeOptionType TimeOption = TimeOptionType.conjunction;
 
         /**
          * Singleton constructor
@@ -123,7 +144,10 @@ namespace phyea.controller
         {
             Config c = new Config();
             c.SetParamValue("MODEL", "true");
-            c.SetParamValue("MBQI_MAX_ITERATIONS", "100000");
+
+            c.SetParamValue("QI_PROFILE", "true");
+            c.SetParamValue("QI_PROFILE_FREQ", "1000");
+
             c.SetParamValue("ELIM_QUANTIFIERS", "true");
             c.SetParamValue("STRONG_CONTEXT_SIMPLIFIER", "true");
             c.SetParamValue("CONTEXT_SIMPLIFIER", "true");
@@ -131,6 +155,7 @@ namespace phyea.controller
             c.SetParamValue("EMATCHING", "true");
             c.SetParamValue("MACRO_FINDER", "true");
             c.SetParamValue("MBQI", "true"); //  (see http://research.microsoft.com/en-us/um/redmond/projects/z3/mbqi-tutorial/)
+            c.SetParamValue("MBQI_MAX_ITERATIONS", "100000");
             c.SetParamValue("MBQI_TRACE", "true");
             c.SetParamValue("PI_PULL_QUANTIFIERS", "true");
             c.SetParamValue("PULL_NESTED_QUANTIFIERS", "true");
@@ -153,28 +178,26 @@ namespace phyea.controller
 
             //todo: SOFT_TIMEOUT // can use this option to force queries to return unknown instead of running forever
 
-            //c.SetParamValue("SPC", "true");
+            c.SetParamValue("SPC", "true");
 
             //c.SetParamValue("STATISTICS", "true"); // crashes
 
-            /*
-            //c.SetParamValue("ARITH_SOLVER", "2"); // simplex solver
-            c.SetParamValue("NL_ARITH", "true"); // nonlinear arithmetic support: requires arith_solver 2
-            c.SetParamValue("NL_ARITH_GB_EQS", "true");
-            c.SetParamValue("ARITH_ADAPTIVE", "true");
-            c.SetParamValue("ARITH_PROCESS_ALL_EQS", "true");
-            */
+
+            c.SetParamValue("ARITH_SOLVER", "2"); // simplex solver
+//            c.SetParamValue("NL_ARITH", "true"); // nonlinear arithmetic support: requires arith_solver 2
+//            c.SetParamValue("NL_ARITH_GB_EQS", "true");
+//            c.SetParamValue("ARITH_ADAPTIVE", "true");
+//            c.SetParamValue("ARITH_PROCESS_ALL_EQS", "true");
 
             //c.SetParamValue("CHECK_PROOF", "true");
             c.SetParamValue("DISPLAY_ERROR_FOR_VISUAL_STUDIO", "true");
-            //c.SetParamValue("DISTRIBUTE_FORALL", "true");
+            c.SetParamValue("DISTRIBUTE_FORALL", "true");
             //c.SetParamValue("DL_COMPILE_WITH_WIDENING", "true");
             //c.SetParamValue("DACK", "2");
             //c.SetParamValue("DACK_EQ", "true");
-            //c.SetParamValue("PULL_CHEAP_ITE_TREES", "true");
-            //c.SetParamValue("QI_LAZY_INSTANTIATION", "true");
-
-            //c.SetParamValue("ELIM_BOUNDS", "true");
+            
+            c.SetParamValue("QI_LAZY_INSTANTIATION", "true");
+            c.SetParamValue("ELIM_BOUNDS", "true");
 
             // some bugs in the next ones
             //c.SetParamValue("ELIM_NLARITH_QUANTIFIERS", "true");
@@ -184,17 +207,20 @@ namespace phyea.controller
             //c.SetParamValue("MODEL_VALIDATE", "true"); // corrupts memory?
             // end buggy ones
 
-            //c.SetParamValue("ELIM_TERM_ITE", "true");
-            //c.SetParamValue("LOOKAHEAD_DISEQ", "true");
-            //c.SetParamValue("LIFT_ITE", "2");
+            
+            c.SetParamValue("LOOKAHEAD_DISEQ", "true");
 
-            //c.SetParamValue("MINIMIZE_LEMMAS_STRUCT", "true");
+            c.SetParamValue("PULL_CHEAP_ITE_TREES", "true");
+            c.SetParamValue("LIFT_ITE", "2");
+            c.SetParamValue("ELIM_TERM_ITE", "true");
+
+            c.SetParamValue("MINIMIZE_LEMMAS_STRUCT", "true");
             //c.SetParamValue("MODEL_COMPLETION", "true");
-            //c.SetParamValue("MODEL_DISPLAY_ARG_SORT", "true");
+            c.SetParamValue("MODEL_DISPLAY_ARG_SORT", "true");
 
             //c.SetParamValue("ARITH_EUCLIDEAN_SOLVER", "true");
             //c.SetParamValue("ARITH_FORCE_SIMPLEX", "true");
-            //c.SetParamValue("ARITH_MAX_LEMMA_SIZE", "512"); // default 128
+            c.SetParamValue("ARITH_MAX_LEMMA_SIZE", "512"); // default 128
 
             //c.SetParamValue("enable-cores", "true");
 
@@ -208,14 +234,33 @@ namespace phyea.controller
             this._intType = Z3.MkIntSort();
             this._realType = Z3.MkRealSort();
 
-            //Constructor c = Z3.MkConstructor(
-            //this._indexType = Z3.MkDataType("index", 
-            this._indexType = this._intType; // todo
-
-
             this._realZero = Z3.MkRealNumeral(0);
             this._intZero = Z3.MkIntNumeral(0);
             this.IntOne = Z3.MkIntNumeral(1);
+
+            switch (this.IndexOption)
+            {
+                case IndexOptionType.integer:
+                    {
+                        //this._indexType = Z3.MkSetSort(Z3.MkIntSort());
+                        this._indexType = Z3.MkIntSort();
+                        this.IndexOne = Z3.MkIntNumeral(1);
+                        break;
+                    }
+                case IndexOptionType.enumeration:
+                default:
+                    {
+                        //this._indexType = Z3.MkEnumerationSort("index", new string[] { "i1", "i2", "i3", "i4" }, new FuncDecl[4], new FuncDecl[4]);
+                        this._indexType = Z3.MkEnumerationSort("index", new string[] { "i0", "i1", "i2", "i3", "i4" }, new FuncDecl[5], new FuncDecl[5]);
+                        this.IndexOne = Z3.MkConst("i1", this.IndexType);
+                        this.IndexNone = Z3.MkConst("i0", this.IndexType);
+                        this.IndexN = Z3.MkConst("iN", this.IndexType);
+                        break;
+                    }
+            }
+
+            this._indexSet = Z3.MkFullSet(this._indexType);
+
 
             this.IndexedVariableDecl = new Dictionary<String,FuncDecl>();
             this.IndexedVariableDeclPrimed = new Dictionary<String, FuncDecl>();
@@ -235,6 +280,8 @@ namespace phyea.controller
             {
                 this._inoutPath = "D:\\Dropbox\\SmallModels\\code\\input\\";
             }
+
+            this.Z3.EnableDebugTrace("debug");
         }
 
         /**
@@ -280,6 +327,11 @@ namespace phyea.controller
         public Sort IndexType
         {
             get { return this._indexType; }
+        }
+
+        public Term IndexSet
+        {
+            get { return this._indexSet; }
         }
 
         /**
@@ -365,7 +417,7 @@ namespace phyea.controller
         {
             String choice;
             Boolean fileSelected = false;
-            Console.WriteLine("Select an input file option: \n\r[0] smt_fischer_hyxml.xml (default)\n\r[1] smt_sats_hyxml.xml\n\r[2] enter custom file\n\r");
+            Console.WriteLine("Select an input file option: \n\r[0] smt_fischer_hyxml.xml (default)\n\r[1] smt_fischer_buggy_hyxml.xml\n\r[2] smt_sats_hyxml.xml\n\r[3] smt_sats_buggy_hyxml.xml\n\r[4] smt_nfa_hyxml.xml\n\r[5] smt_nfa_buggy_hyxml.xml\n\r[6] smt_ta_hyxml.xml\n\r[7] smt_ta_buggy_hyxml.xml\n\r[8] smt_gv_hyxml.xml\n\r[9] smt_gv_buggy_hyxml.xml\n\r[10] smt_sats_timed_hyxml.xml\n\r[11] smt_sats_timed_buggy_hyxml.xml\n\r[256] enter custom file\n\r");
 
             while (true)
             {
@@ -385,10 +437,60 @@ namespace phyea.controller
                                 }
                             case 1:
                                 {
-                                    Instance._inputFile = Instance._inoutPath + "smt_sats_hyxml.xml";
+                                    Instance._inputFile = Instance._inoutPath + "smt_fischer_buggy_hyxml.xml";
                                     break;
                                 }
                             case 2:
+                                {
+                                    Instance._inputFile = Instance._inoutPath + "smt_sats_hyxml.xml";
+                                    break;
+                                }
+                            case 3:
+                                {
+                                    Instance._inputFile = Instance._inoutPath + "smt_sats_buggy_hyxml.xml";
+                                    break;
+                                }
+                            case 4:
+                                {
+                                    Instance._inputFile = Instance._inoutPath + "smt_nfa_hyxml.xml";
+                                    break;
+                                }
+                            case 5:
+                                {
+                                    Instance._inputFile = Instance._inoutPath + "smt_nfa_buggy_hyxml.xml";
+                                    break;
+                                }
+                            case 6:
+                                {
+                                    Instance._inputFile = Instance._inoutPath + "smt_ta_hyxml.xml";
+                                    break;
+                                }
+                            case 7:
+                                {
+                                    Instance._inputFile = Instance._inoutPath + "smt_ta_buggy_hyxml.xml";
+                                    break;
+                                }
+                            case 8:
+                                {
+                                    Instance._inputFile = Instance._inoutPath + "smt_gv_hyxml.xml";
+                                    break;
+                                }
+                            case 9:
+                                {
+                                    Instance._inputFile = Instance._inoutPath + "smt_gv_buggy_hyxml.xml";
+                                    break;
+                                }
+                            case 10:
+                                {
+                                    Instance._inputFile = Instance._inoutPath + "smt_sats_timed_hyxml.xml";
+                                    break;
+                                }
+                            case 11:
+                                {
+                                    Instance._inputFile = Instance._inoutPath + "smt_sats_timed_buggy_hyxml.xml";
+                                    break;
+                                }
+                            case 256:
                                 {
                                     Console.WriteLine("Using path " + Instance._inoutPath);
                                     Instance._inputFile = Instance._inoutPath + Console.ReadLine();
@@ -455,10 +557,9 @@ namespace phyea.controller
 
             // process index variables
             Instance._indices = new Dictionary<String, Term>();
-            Instance._indices.Add("i", Instance.Z3.MkConst("i", Instance.IntType));
-            Instance._indices.Add("j", Instance.Z3.MkConst("j", Instance.IntType));
-            Instance._indices.Add("k", Instance.Z3.MkConst("k", Instance.IntType));
-            Instance._indices.Add("h", Instance.Z3.MkConst("h", Instance.IntType));
+            Instance._indices.Add("i", Instance.Z3.MkConst("i", Instance.IndexType));
+            Instance._indices.Add("j", Instance.Z3.MkConst("j", Instance.IndexType));
+            Instance._indices.Add("h", Instance.Z3.MkConst("h", Instance.IndexType));
 
             FuncDecl q = Instance.Z3.MkFuncDecl("q", Instance.IndexType, Instance.IntType); // control location; todo: should map to finite control state (just hack to use integers for now)
             Instance.IndexedVariableDecl.Add("q", q);
@@ -470,6 +571,9 @@ namespace phyea.controller
             {
                 Instance.Q.Add(pair.Key, Instance.Z3.MkApp(q, pair.Value));
                 Instance.QPrimed.Add(pair.Key, Instance.Z3.MkApp(qPrime, pair.Value));
+                
+                //Instance.Q.Add(pair.Key, Instance.Z3.MkApp(q, Instance.Z3.MkSetMember(pair.Value, Instance.IndexSet)));
+                //Instance.QPrimed.Add(pair.Key, Instance.Z3.MkApp(qPrime, pair.Value));
             }
 
             Instance.Sys = ParseHyXML.ParseFile(Instance._inputFile);

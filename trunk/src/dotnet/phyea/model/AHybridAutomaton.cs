@@ -144,8 +144,8 @@ namespace phyea.model
                 case AVariable.VarType.nnreal:
                     {
                         // todo: pull these common parts out for all "real" types (then only enforce the nnreal or posreal part)
-                        v.Value = Controller.Instance.Z3.MkFuncDecl(v.Name, Controller.Instance.IntType, Controller.Instance.RealType);
-                        v.ValuePrimed = Controller.Instance.Z3.MkFuncDecl(v.Name + "'", Controller.Instance.IntType, Controller.Instance.RealType);
+                        v.Value = Controller.Instance.Z3.MkFuncDecl(v.Name, Controller.Instance.IndexType, Controller.Instance.RealType);
+                        v.ValuePrimed = Controller.Instance.Z3.MkFuncDecl(v.Name + "'", Controller.Instance.IndexType, Controller.Instance.RealType);
 
                         // add function declaration to global function declarations
                         if (!Controller.Instance.IndexedVariableDecl.ContainsValue(v.Value))
@@ -227,7 +227,7 @@ namespace phyea.model
         public void finishConstruction()
         {
             UInt32 max = 0;
-            List<Term> initial = new List<Term>();
+            List<Term> initialStates = new List<Term>();
             foreach (AConcreteLocation acl in this.Locations)
             {
                 max = Math.Max(max, acl.Value);
@@ -235,32 +235,40 @@ namespace phyea.model
                 // disjunction of all states specified as initial
                 if (acl.Initial)
                 {
-                    initial.Add(Controller.Instance.Z3.MkEq(Controller.Instance.Q["i"], acl.StateValue));
+                    initialStates.Add(Controller.Instance.Z3.MkEq(Controller.Instance.Q["i"], acl.StateValue));
                 }
             }
-            this._initial = Controller.Instance.Z3.MkEq(Controller.Instance.IndexedVariables[new KeyValuePair<string, string>("x", "i")], Controller.Instance.RealZero); // todo: generalize to allow initial conditions on variables
-            this._initial = Controller.Instance.Z3.MkForall(0, new Term[] { Controller.Instance.Indices["i"] }, null, Controller.Instance.Z3.MkAnd(this._initial, Controller.Instance.Z3.MkOr(initial.ToArray()))); // todo: generalize to arbitrary numbers of processes, e.g., forall i, j, k, etc.
 
             // parse initial condition string
-            Antlr.Runtime.Tree.CommonTree tmptree = phyea.controller.parsing.math.Expression.Parse(this.InitialString);
-            this._initial = phyea.controller.parsing.math.ast.LogicalExpression.CreateTerm(tmptree);
+            if (this.InitialString != null)
+            {
+                Antlr.Runtime.Tree.CommonTree tmptree = phyea.controller.parsing.math.Expression.Parse(this.InitialString);
+                this._initial = phyea.controller.parsing.math.ast.LogicalExpression.CreateTerm(tmptree);
+                this._initial = this._initial & Controller.Instance.Z3.MkForall(0, new Term[] { Controller.Instance.Indices["i"] }, null, Controller.Instance.Z3.MkOr(initialStates.ToArray())); // note the or, this is correct, non-deterministic start state
+            }
+            else
+            {
+                this._initial = Controller.Instance.Z3.MkForall(0, new Term[] { Controller.Instance.Indices["i"] }, null, Controller.Instance.Z3.MkOr(initialStates.ToArray())); // note the or, this is correct, non-deterministic start state
+            }
+
+            //Controller.Instance.Z3.AssertCnstr(this._initial); // assert the initial constraint; actually, don't want to assert this for inductive invariant checking
 
             Term int_maxState = Controller.Instance.Z3.MkIntNumeral(max);
 
             // bound domain of control locations
-            foreach (var pair in Controller.Instance.Q)
-            {
-                // q
-                Term h = Controller.Instance.Z3.MkConst("h", Controller.Instance.IndexType);
-                Term cnstr = Controller.Instance.Z3.MkApp(Controller.Instance.IndexedVariableDecl["q"], h) >= Controller.Instance.IntZero & Controller.Instance.Z3.MkApp(Controller.Instance.IndexedVariableDecl["q"], h) <= int_maxState;
-                Controller.Instance.Z3.AssertCnstr(Controller.Instance.Z3.MkForall(0, new Term[] { h }, null, cnstr));
+            // q
+            Term h = Controller.Instance.Z3.MkConst("h", Controller.Instance.IndexType);
+            Term cnstr = Controller.Instance.Z3.MkApp(Controller.Instance.IndexedVariableDecl["q"], h) >= Controller.Instance.IntZero & Controller.Instance.Z3.MkApp(Controller.Instance.IndexedVariableDecl["q"], h) <= int_maxState;
+            Term fc = Controller.Instance.Z3.MkForall(0, new Term[] { h }, null, cnstr); // forall indices h, enforce location bounds on q
+            Controller.Instance.Z3.AssertCnstr(fc);
 
-                // q'
-                h = Controller.Instance.Z3.MkConst("h", Controller.Instance.IndexType);
-                //Controller.Instance.IntOne <= h & h <= Controller.Instance.Params["N"] &
-                cnstr = Controller.Instance.Z3.MkApp(Controller.Instance.IndexedVariableDeclPrimed["q"], h) >= Controller.Instance.IntZero & Controller.Instance.Z3.MkApp(Controller.Instance.IndexedVariableDeclPrimed["q"], h) <= int_maxState;
-                Controller.Instance.Z3.AssertCnstr(Controller.Instance.Z3.MkForall(0, new Term[] { h }, null, cnstr));
-            }
+            // q'
+            h = Controller.Instance.Z3.MkConst("h", Controller.Instance.IndexType);
+            //Controller.Instance.IntOne <= h & h <= Controller.Instance.Params["N"] &
+            cnstr = Controller.Instance.Z3.MkApp(Controller.Instance.IndexedVariableDeclPrimed["q"], h) >= Controller.Instance.IntZero & Controller.Instance.Z3.MkApp(Controller.Instance.IndexedVariableDeclPrimed["q"], h) <= int_maxState;
+            fc = Controller.Instance.Z3.MkForall(0, new Term[] { h }, null, cnstr);
+            Controller.Instance.Z3.AssertCnstr(fc);
+
             Controller.Instance.N = Controller.Instance.Params["N"];
         }
     }

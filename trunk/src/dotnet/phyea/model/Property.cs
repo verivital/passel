@@ -16,7 +16,8 @@ namespace phyea.model
     {
         disproved,
         proved,
-        unknown
+        unknown,
+        toProcess
     }
 
     /**
@@ -27,11 +28,15 @@ namespace phyea.model
         private Term _formula;
         private String _formulaStr;
         private PropertyType _type;
-        public StatusTypes Status;
+        public StatusTypes Status = StatusTypes.toProcess;
         public List<Counterexample> Counterexamples = new List<Counterexample>();
-        public Term InductiveInvariant;
-        public Term TimedInductiveInvariant;
+        public List<Term> InductiveInvariants = new List<Term>();
 
+        public void addInductiveInvariant(Term ii)
+        {
+            InductiveInvariants.Add(ii);
+        }
+        
         public Term Formula
         {
             get

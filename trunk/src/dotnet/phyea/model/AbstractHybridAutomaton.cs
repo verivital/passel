@@ -91,8 +91,9 @@ namespace phyea.model
             {
                 foreach (EnvironmentState ea in qa.EnvironmentStates)
                 {
+                    Term[] core;
                     Model m = null;
-                    if (Controller.Instance.Z3.proveTerm(Controller.Instance.Z3.MkImplies(this._cha.Initial, ea.EnvironmentPredicate), out m))
+                    if (Controller.Instance.Z3.proveTerm(Controller.Instance.Z3.MkImplies(this._cha.Initial, ea.EnvironmentPredicate), out m, out core))
                     {
                         qa.Initial = true;
                         initialConcrete.Add(qa.Concretization());
@@ -123,6 +124,7 @@ namespace phyea.model
             TreeReach reachset = new TreeReach(initial, null);
             TreeReach reachset_root = reachset; // reference to root of the tree
             HashSet<TreeReach> toProcess = new HashSet<TreeReach>();
+            Term[] core;
             toProcess.Add(reachset);
 
             while (toProcess.Count > 0)
@@ -130,7 +132,7 @@ namespace phyea.model
                 // safety check (see if intersection of bad and newly reached is non-empty by checking satisfiability of their conjunction)
                 Console.WriteLine("Safety check for iteration " + iteration.ToString());
                 Model m = null;
-                if (Controller.Instance.Z3.checkTerm(Controller.Instance.Z3.MkAnd(reached, bad), out m, debug))
+                if (Controller.Instance.Z3.checkTerm(Controller.Instance.Z3.MkAnd(reached, bad), out m, out core, debug))
                 {
                     return false;
                 }
@@ -144,7 +146,7 @@ namespace phyea.model
                 {
                     // check to see if each element of newlyReached is satisfiable; if not, it's not needed
                     // (e.g., prestate is not satisfied: if a transition requires q_i = 0, but q_i = 1, don't include this)
-                    if (Controller.Instance.Z3.checkTerm(t, out m))
+                    if (Controller.Instance.Z3.checkTerm(t, out m, out core))
                     {
                         newlyReachedFeasible.Add(t);
                         TreeReach newt = new TreeReach(t, null);
@@ -158,7 +160,7 @@ namespace phyea.model
                 // fixed point check (prove that the k^th iteration contains the k+1^st iteration)
                 // unsat of: not (reach_{k+1} => reach_k) to prove reach_{k+1} \subseteq reach_k
                 Console.WriteLine("Fixpoint check for iteration " + iteration.ToString());
-                if (Controller.Instance.Z3.proveTerm(Controller.Instance.Z3.MkImplies(newlyReachedDisjunction, reached), out m, debug))
+                if (Controller.Instance.Z3.proveTerm(Controller.Instance.Z3.MkImplies(newlyReachedDisjunction, reached), out m, out core, debug))
                 //if (!Controller.Instance.Z3.checkTerm(Controller.Instance.Z3.MkNot(Controller.Instance.Z3.MkImplies(newlyReachedDisjunction, reached)), debug))
                 {
                     // safe
@@ -423,7 +425,8 @@ namespace phyea.model
                     //       note that this prevents the environment process from being in two locations simultaneously---is this okay? seems like we might allow this
                     //       if this is okay, then just use the intra-predicate predicate (.predicate) and not the environment predicate (.envpred) (doing this for now for testing)
                     Model m = null;
-                    if (Controller.Instance.Z3.checkTerm(p, out m) && !ac.Concretization().ToString().Equals("false"))
+                    Term[] core;
+                    if (Controller.Instance.Z3.checkTerm(p, out m, out core) && !ac.Concretization().ToString().Equals("false"))
                     {
                         this._valuations.Add(ac);
                     }
@@ -471,7 +474,8 @@ namespace phyea.model
                                 // reference process block set (use predicate, not environmentpredicate which also has control location information)
                                 Term ts = Controller.Instance.Z3.MkImplies(ea.Predicate, Controller.Instance.Z3.MkNot(t.Guard));
                                 Model m = null;
-                                if (Controller.Instance.Z3.checkTerm(ts, out m))
+                                Term[] core;
+                                if (Controller.Instance.Z3.checkTerm(ts, out m, out core))
                                 {
                                     t.addBlockingRef(ea.Predicate);
                                 }
@@ -521,7 +525,8 @@ namespace phyea.model
                                 Term tg = Controller.Instance.Z3.MkAnd(tu, ea.EnvironmentPredicate);
 
                                 Model m = null;
-                                if (Controller.Instance.Z3.checkTerm(tg, out m))
+                                Term[] core;
+                                if (Controller.Instance.Z3.checkTerm(tg, out m, out core))
                                 {
                                     Console.WriteLine("Satisfiable: " + tg.ToString());
                                 }
@@ -584,7 +589,8 @@ namespace phyea.model
                                 //ts = Controller.Instance.Z3.Simplify(ts);
 
                                 Model m = null;
-                                if (Controller.Instance.Z3.checkTerm(ts, out m))
+                                Term[] core;
+                                if (Controller.Instance.Z3.checkTerm(ts, out m, out core))
                                 {
                                     sa.addTransition(new Transition(sb, ATransition.AbstractTransitionType.ref_ctrl));
                                 }

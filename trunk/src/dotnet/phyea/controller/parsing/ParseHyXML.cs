@@ -184,7 +184,7 @@ namespace phyea.controller.parsing
                                         switch ((ParameterTypes)Enum.Parse(typeof(ParameterTypes), type, true))
                                         {
                                             case ParameterTypes.index:
-                                                param = Controller.Instance.Z3.MkConst(name, Controller.Instance.IntType);
+                                                param = Controller.Instance.Z3.MkConst(name, Controller.Instance.IndexType);
                                                 if (update_type != null)
                                                 {
                                                     Variable v = new Variable();
@@ -192,7 +192,7 @@ namespace phyea.controller.parsing
                                                     v.Type = AVariable.VarType.index;
                                                     v.UpdateType = (AVariable.VarUpdateType)Enum.Parse(typeof(AVariable.VarUpdateType), update_type, true);
                                                     sys.Variables.Add(v);
-                                                    paramPrime = Controller.Instance.Z3.MkConst(name + "'", Controller.Instance.IntType);
+                                                    paramPrime = Controller.Instance.Z3.MkConst(name + "'", Controller.Instance.IndexType);
                                                 }
                                                 break;
 
@@ -297,6 +297,11 @@ namespace phyea.controller.parsing
                                             throw new System.Exception("Error parsing transition: location not specified properly before reaching differntial equation.");
                                         }
 
+                                        // todo: this currently has a lot of assumptions about how the diffeq should appear
+                                        // todo: probably the easiest way to accomodate this would be to require a different <dai> block in the xml file for each variable
+                                        //       but obviously this could have limitations for linear / affine dynamics, but... maybe not?
+                                        //       let's think about it more
+
                                         String flow = reader.GetAttribute(FlowAttributes.equn.ToString());
                                         if (flow.Length > 0)
                                         {
@@ -305,7 +310,7 @@ namespace phyea.controller.parsing
                                             List<String> pvars = LogicalExpression.findParams(tmptree);
                                             List<String> constants = LogicalExpression.findAllRealConstants(tmptree);
                                             Term expr = LogicalExpression.CreateTerm(tmptree);
-                                            Term delta = Controller.Instance.Z3.MkConst("delta", Controller.Instance.RealType);
+                                            Term t1 = Controller.Instance.Z3.MkConst("t_1", Controller.Instance.RealType);
 
                                             foreach (var v in vars)
                                             {
@@ -316,7 +321,7 @@ namespace phyea.controller.parsing
                                                     foreach (var y in pvars)
                                                     {
                                                         // todo: generalize, this is pretty nasty, and currently only supports dynamics of the form: v[i] R y, where R is an order/equivalence relation (e.g., >, <, >=, <=, =, etc.)
-                                                        Term addDeltaMin = Controller.Instance.IndexedVariables[new KeyValuePair<string, string>(v, "i")] + (Controller.Instance.Params[y] * delta);
+                                                        Term addDeltaMin = Controller.Instance.IndexedVariables[new KeyValuePair<string, string>(v, "i")] + (Controller.Instance.Params[y] * t1);
                                                         Controller.Instance.Z3.replaceTerm(ref expr, expr, Controller.Instance.Params[y], addDeltaMin, false);
                                                     }
                                                 }
@@ -325,7 +330,7 @@ namespace phyea.controller.parsing
                                                     foreach (var cs in constants)
                                                     {
                                                         Term c = Controller.Instance.Z3.MkRealNumeral((int)float.Parse(cs));
-                                                        Term addDeltaMin = Controller.Instance.IndexedVariables[new KeyValuePair<string, string>(v, "i")] + (c * delta);
+                                                        Term addDeltaMin = Controller.Instance.IndexedVariables[new KeyValuePair<string, string>(v, "i")] + (c * t1);
                                                         Controller.Instance.Z3.replaceTerm(ref expr, expr, c, addDeltaMin, false);
                                                     }
                                                 }

@@ -276,10 +276,31 @@ namespace phyea.controller.smt.z3
                 outside_forall.Add(Controller.Instance.Z3.MkEq(Controller.Instance.Params[v], Controller.Instance.ParamsPrimed[v]));
             }
             List<Term> ibds = new List<Term>();
-            ibds.Add(Controller.Instance.Indices[idx] >= Controller.Instance.IntOne);
-            ibds.Add(Controller.Instance.Indices[idx] <= Controller.Instance.N);
-            //return Controller.Instance.Z3.MkAnd(outside_forall.ToArray()) & Controller.Instance.Z3.MkForall(0, bound.ToArray(), null, Controller.Instance.Z3.MkImplies(Controller.Instance.Z3.MkAnd(ibds.ToArray()) & Controller.Instance.Z3.MkDistinct(bound.First(), indexMakingMove), Controller.Instance.Z3.MkAnd(f.ToArray()))); // todo: check order of this distinct...in antecedent or consequent?
-            return Controller.Instance.Z3.MkAnd(outside_forall.ToArray()) & Controller.Instance.Z3.MkForall(0, bound.ToArray(), null, Controller.Instance.Z3.MkImplies( Controller.Instance.Z3.MkImplies(Controller.Instance.Z3.MkAnd(ibds.ToArray()), Controller.Instance.Z3.MkDistinct(bound.First(), indexMakingMove)), Controller.Instance.Z3.MkAnd(f.ToArray()))); // todo: check order of this distinct...in antecedent or consequent?
+            if (Controller.Instance.IndexOption == Controller.IndexOptionType.integer)
+            {
+                ibds.Add(Controller.Instance.Indices[idx] >= Controller.Instance.IntOne);
+                ibds.Add(Controller.Instance.Indices[idx] <= Controller.Instance.N);
+            }
+
+            Term ret;
+            switch (Controller.Instance.IndexOption)
+            {
+                case Controller.IndexOptionType.integer:
+                    ret = Controller.Instance.Z3.MkForall(0, bound.ToArray(), null, Controller.Instance.Z3.MkImplies(Controller.Instance.Z3.MkAnd(ibds.ToArray()) & Controller.Instance.Z3.MkDistinct(bound.First(), indexMakingMove), Controller.Instance.Z3.MkAnd(f.ToArray()))); // todo: check order of this distinct...in antecedent or consequent?
+                    break;
+                case Controller.IndexOptionType.enumeration:
+                default:
+                    ret = Controller.Instance.Z3.MkForall(0, bound.ToArray(), null, Controller.Instance.Z3.MkImplies(Controller.Instance.Z3.MkDistinct(bound.First(), indexMakingMove), Controller.Instance.Z3.MkAnd(f.ToArray()))); // todo: check order of this distinct...in antecedent or consequent?
+                    break;
+            }
+
+            // only add the outside forall constraints if there are any
+            if (outside_forall.Count > 0)
+            {
+                outside_forall.Add(ret); // prettier printing (fewer ands)
+                ret = Controller.Instance.Z3.MkAnd(outside_forall.ToArray());
+            }
+            return ret;
         }
 
         /**
@@ -319,7 +340,67 @@ namespace phyea.controller.smt.z3
                 }
             }
 
-            return Controller.Instance.Z3.MkAnd(f.ToArray());
+            if (f.Count > 1)
+            {
+                return Controller.Instance.Z3.MkAnd(f.ToArray());
+            }
+            else if (f.Count == 1)
+            {
+                return f[0];
+            }
+            else
+            {
+                return Controller.Instance.Z3.MkTrue();
+            }
+        }
+
+        /**
+         * Identity function for all continuous variables
+         * I.e., forall j \neq i . q[j]' = q[j] /\ \ldots /\ g' = g, if global var g is not modified in transition of i
+         * 
+         * indexForall is the name of the universally quantified index
+         */
+        public Term timeNoFlowIdentity(Term indexForall)
+        {
+            List<Term> f = new List<Term>();
+
+            // set equality on all non-clock variables
+            foreach (var v in Controller.Instance.IndexedVariableDecl)
+            {
+                if (v.Key.Equals("Q", StringComparison.InvariantCultureIgnoreCase))
+                {
+                    continue;
+                }
+                foreach (var ha in Controller.Instance.Sys.HybridAutomata)
+                {
+                    if (ha.GetVariableByName(v.Key).UpdateType == AVariable.VarUpdateType.continuous)
+                    {
+                        //grab only the universally quantified one
+                        f.Add(Controller.Instance.Z3.MkEq(Controller.Instance.Z3.MkApp(v.Value, indexForall), Controller.Instance.Z3.MkApp(Controller.Instance.IndexedVariableDeclPrimed[v.Key], indexForall)));
+                    }
+                }
+            }
+
+            // set equality on all global variables
+            foreach (var v in Controller.Instance.Sys.Variables)
+            {
+                if (v.UpdateType == AVariable.VarUpdateType.continuous)
+                {
+                    f.Add(Controller.Instance.Z3.MkEq(Controller.Instance.Params[v.Name], Controller.Instance.ParamsPrimed[v.Name]));
+                }
+            }
+
+            if (f.Count > 1)
+            {
+                return Controller.Instance.Z3.MkAnd(f.ToArray());
+            }
+            else if (f.Count == 1)
+            {
+                return f[0];
+            }
+            else{
+                return Controller.Instance.Z3.MkTrue();
+            }
         }
 
         /**
@@ -396,7 +477,7 @@ namespace phyea.controller.smt.z3
         /**
          * Check a term
          */
-        public Boolean checkTerm(Term t, out Model model, params Boolean[] options)
+        public Boolean checkTerm(Term t, out Model model, out Term[] core, params Boolean[] options)
         {
             Boolean debug = false;
             try
@@ -417,12 +498,14 @@ namespace phyea.controller.smt.z3
             this.Push();
 
             this.AssertCnstr(t);
+            Term[] assumptions = null;
+            //Term[] assumptions = new Term[] { t };
+            
 
             Term proof = null;
-            Term[] core;
             //switch (this.CheckAndGetModel(out model))
             //switch (this.CheckAssumptions(out model, new Term[] {this.GetAssignments()}, out proof, out core))
-            switch (this.CheckAssumptions(out model, null, out proof, out core))
+            switch (this.CheckAssumptions(out model, assumptions, out proof, out core))
             {
                 case LBool.False:
                     if (debug)
@@ -465,7 +548,7 @@ namespace phyea.controller.smt.z3
         /**
          * Prove a term (negation is unsat)
          */
-        public Boolean proveTerm(Term t, out Model model, params Boolean[] options)
+        public Boolean proveTerm(Term t, out Model model, out Term[] core, params Boolean[] options)
         {
             Boolean debug = false;
             try
@@ -486,15 +569,16 @@ namespace phyea.controller.smt.z3
             this.Push();
 
             this.AssertCnstr( !t); // proved if negation is unsat
+            Term[] assumptions = null;
+            //Term[] assumptions = new Term[] { !t };
             
             this.Push();
-            Console.WriteLine("\n\r\n\rAttempting to prove the following: \n\r" + this.GetAssignments().ToString() + "\n\r\n\r\n\r");
+            Console.WriteLine("\n\r\n\rAttempting to prove the following: \n\r" + this.GetAssignments().ToString() + "\n\r\n\r");
             this.Pop(1);
 
             Term proof = null;
-            Term[] core;
             //switch (this.CheckAndGetModel(out model))
-            switch (this.CheckAssumptions(out model, null, out proof, out core))
+            switch (this.CheckAssumptions(out model, assumptions, out proof, out core))
             {
                 case LBool.False:
                     if (debug)
