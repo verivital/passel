@@ -76,16 +76,68 @@ namespace phyea.controller.parsing.math.ast
                                 Controller.Instance.Indices.Add(name, t);
                             }
 
-                            // enforce index constraints
-                            indexConstraints.Add(t >= Controller.Instance.IntOne);
-                            indexConstraints.Add(t <= Controller.Instance.Params["N"]);
+                            if (Controller.Instance.IndexOption == Controller.IndexOptionType.integer)
+                            {
+                                // enforce index constraints
+                                indexConstraints.Add(t >= Controller.Instance.IndexOne);
+                                indexConstraints.Add(t <= Controller.Instance.Params["N"]);
+                            }
                             bound.Add(t);
                             i++;
                         }
 
-                        return Controller.Instance.Z3.MkExists(0, bound.ToArray(), null, Controller.Instance.Z3.MkImplies(Controller.Instance.Z3.MkAnd(indexConstraints.ToArray()) & Controller.Instance.Z3.MkDistinct(bound.ToArray()), CreateTerm((CommonTree)ast.GetChild(i))));
-                        //return Controller.Instance.Z3.MkExists(0, bound.ToArray(), null, Controller.Instance.Z3.MkAnd(Controller.Instance.Z3.MkAnd(indexConstraints.ToArray()) & Controller.Instance.Z3.MkDistinct(bound.ToArray()), CreateTerm((CommonTree)ast.GetChild(i))));
-                        //return Controller.Instance.Z3.MkExists(0, bound.ToArray(), null, Controller.Instance.Z3.MkAnd(Controller.Instance.Z3.MkAnd(indexConstraints.ToArray()), CreateTerm((CommonTree)ast.GetChild(i))));
+                        switch (Controller.Instance.IndexOption)
+                        {
+                            case Controller.IndexOptionType.enumeration:
+                                switch (Controller.Instance.ExistsOption)
+                                {
+                                    case Controller.ExistsOptionType.and:
+                                        if (bound.Count > 1)
+                                        {
+                                            return Controller.Instance.Z3.MkExists(0, bound.ToArray(), null, Controller.Instance.Z3.MkAnd(Controller.Instance.Z3.MkDistinct(bound.ToArray()), CreateTerm((CommonTree)ast.GetChild(i))));
+                                        }
+                                        else
+                                        {
+                                            return Controller.Instance.Z3.MkExists(0, bound.ToArray(), null, CreateTerm((CommonTree)ast.GetChild(i)));
+                                        }
+                                    case Controller.ExistsOptionType.implies:
+                                    default:
+                                        if (bound.Count > 1)
+                                        {
+                                            return Controller.Instance.Z3.MkExists(0, bound.ToArray(), null, Controller.Instance.Z3.MkImplies(Controller.Instance.Z3.MkDistinct(bound.ToArray()), CreateTerm((CommonTree)ast.GetChild(i))));
+                                        }
+                                        else
+                                        {
+                                            return Controller.Instance.Z3.MkExists(0, bound.ToArray(), null, CreateTerm((CommonTree)ast.GetChild(i)));
+                                        }
+                                }
+
+                            case Controller.IndexOptionType.integer:
+                            default:
+                                switch (Controller.Instance.ExistsOption)
+                                {
+                                    case Controller.ExistsOptionType.and:
+                                        if (bound.Count > 1)
+                                        {
+                                            return Controller.Instance.Z3.MkExists(0, bound.ToArray(), null, Controller.Instance.Z3.MkAnd(Controller.Instance.Z3.MkAnd(indexConstraints.ToArray()) & Controller.Instance.Z3.MkDistinct(bound.ToArray()), CreateTerm((CommonTree)ast.GetChild(i))));
+                                        }
+                                        else
+                                        {
+                                            return Controller.Instance.Z3.MkExists(0, bound.ToArray(), null, Controller.Instance.Z3.MkAnd(Controller.Instance.Z3.MkAnd(indexConstraints.ToArray()), CreateTerm((CommonTree)ast.GetChild(i))));
+                                        }
+                                    case Controller.ExistsOptionType.implies:
+                                    default:
+                                        if (bound.Count > 1)
+                                        {
+                                            return Controller.Instance.Z3.MkExists(0, bound.ToArray(), null, Controller.Instance.Z3.MkImplies(Controller.Instance.Z3.MkAnd(indexConstraints.ToArray()) & Controller.Instance.Z3.MkDistinct(bound.ToArray()), CreateTerm((CommonTree)ast.GetChild(i))));
+                                        }
+                                        else
+                                        {
+                                            return Controller.Instance.Z3.MkExists(0, bound.ToArray(), null, Controller.Instance.Z3.MkImplies(Controller.Instance.Z3.MkAnd(indexConstraints.ToArray()), CreateTerm((CommonTree)ast.GetChild(i))));
+                                        }
+                                }
+                                //return Controller.Instance.Z3.MkExists(0, bound.ToArray(), null, Controller.Instance.Z3.MkAnd(Controller.Instance.Z3.MkAnd(indexConstraints.ToArray()), CreateTerm((CommonTree)ast.GetChild(i))));
+                        }
                     }
 
 
@@ -106,19 +158,45 @@ namespace phyea.controller.parsing.math.ast
                             }
                             else
                             {
-                                t = Controller.Instance.Z3.MkConst(name, Controller.Instance.IntType);
+                                t = Controller.Instance.Z3.MkConst(name, Controller.Instance.IndexType);
                                 Controller.Instance.Indices.Add(name, t);
                             }
 
-                            // enforce index constraints
-                            indexConstraints.Add(t >= Controller.Instance.IntOne);
-                            indexConstraints.Add(t <= Controller.Instance.Params["N"]);
+                            if (Controller.Instance.IndexOption == Controller.IndexOptionType.integer)
+                            {
+                                // enforce index constraints
+                                indexConstraints.Add(t >= Controller.Instance.IndexOne);
+                                indexConstraints.Add(t <= Controller.Instance.Params["N"]);
+                            }
+
                             bound.Add(t);
                             i++;
                         }
 
-                        return Controller.Instance.Z3.MkForall(0, bound.ToArray(), null, Controller.Instance.Z3.MkImplies(Controller.Instance.Z3.MkAnd(indexConstraints.ToArray()) & Controller.Instance.Z3.MkDistinct(bound.ToArray()), CreateTerm((CommonTree)ast.GetChild(i))));
-                        //return Controller.Instance.Z3.MkForall(0, bound.ToArray(), null, Controller.Instance.Z3.MkImplies(Controller.Instance.Z3.MkAnd(indexConstraints.ToArray()), CreateTerm((CommonTree)ast.GetChild(i))));
+                        switch (Controller.Instance.IndexOption)
+                        {
+                            case Controller.IndexOptionType.enumeration:
+                                if (bound.Count > 1)
+                                {
+                                    return Controller.Instance.Z3.MkForall(0, bound.ToArray(), null, Controller.Instance.Z3.MkImplies(Controller.Instance.Z3.MkDistinct(bound.ToArray()), CreateTerm((CommonTree)ast.GetChild(i))));
+                                }
+                                else
+                                {
+                                    return Controller.Instance.Z3.MkForall(0, bound.ToArray(), null, CreateTerm((CommonTree)ast.GetChild(i)));
+                                }
+                            case Controller.IndexOptionType.integer:
+                            default:
+                                if (bound.Count > 1)
+                                {
+                                    return Controller.Instance.Z3.MkForall(0, bound.ToArray(), null, Controller.Instance.Z3.MkImplies(Controller.Instance.Z3.MkAnd(indexConstraints.ToArray()) & Controller.Instance.Z3.MkDistinct(bound.ToArray()), CreateTerm((CommonTree)ast.GetChild(i))));
+                                    //return Controller.Instance.Z3.MkForall(0, bound.ToArray(), null, Controller.Instance.Z3.MkImplies(Controller.Instance.Z3.MkAnd(indexConstraints.ToArray()), CreateTerm((CommonTree)ast.GetChild(i))));
+                                }
+                                else
+                                {
+                                    return Controller.Instance.Z3.MkForall(0, bound.ToArray(), null, Controller.Instance.Z3.MkImplies(Controller.Instance.Z3.MkAnd(indexConstraints.ToArray()), CreateTerm((CommonTree)ast.GetChild(i))));
+                                }
+                                
+                        }
                     }
 
 
@@ -128,7 +206,7 @@ namespace phyea.controller.parsing.math.ast
                     {
                         return Controller.Instance.IndexedVariables[new KeyValuePair<String, String>(ast.GetChild(0).Text, ast.GetChild(1).Text)];
                     }
-                    else if (ast.GetChild(0).Text.Equals("q"))
+                    else if (ast.GetChild(0).Text.Equals("q") && ast.GetChild(1).Type != guardLexer.INDEXED_VARIABLE)
                     {
                         if (!Controller.Instance.Q.ContainsKey(ast.GetChild(1).Text))
                         {
@@ -243,8 +321,8 @@ namespace phyea.controller.parsing.math.ast
                 case guardLexer.NOT:
                     return !CreateTerm((CommonTree)ast.GetChild(0));
 
-                case guardLexer.NEGATE:
-                    return !CreateTerm((CommonTree)ast.GetChild(0));
+                case guardLexer.UNARY_MINUS:
+                    return Controller.Instance.Z3.MkUnaryMinus(CreateTerm((CommonTree)ast.GetChild(0)));
 
                 case guardLexer.MULT:
                     return CreateTerm((CommonTree)ast.GetChild(0)) * CreateTerm((CommonTree)ast.GetChild(1));
@@ -458,7 +536,7 @@ namespace phyea.controller.parsing.math.ast
                 case guardLexer.NOT:
                     return new UnaryExpression(UnaryExpressionType.Not, Create((CommonTree)ast.GetChild(0)));
 
-                case guardLexer.NEGATE:
+                case guardLexer.UNARY_MINUS:
                     return new UnaryExpression(UnaryExpressionType.Negate, Create((CommonTree)ast.GetChild(0)));
 
                 case guardLexer.MULT:

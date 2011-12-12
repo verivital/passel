@@ -17,7 +17,7 @@ tokens
 	INDEXED_VARIABLE;
 	QUANTIFIER_FORALL;
 	QUANTIFIER_EXISTS;
-	NEGATE;
+	UNARY_MINUS;
 }
 
 // these directives MUST appear AFTER tokens
@@ -114,7 +114,7 @@ POW	:	'^';
 unaryExpression
 	:	primaryExpression
     	|	NOT^ primaryExpression
-    	|	MINUS primaryExpression -> ^(NEGATE primaryExpression)
+    	|	MINUS primaryExpression -> ^(UNARY_MINUS primaryExpression)
    	;
   
 NOT	:	'!' | 'not';
