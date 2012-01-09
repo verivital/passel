@@ -76,7 +76,7 @@ namespace phyea.controller.parsing.math.ast
                                 Controller.Instance.Indices.Add(name, t);
                             }
 
-                            if (Controller.Instance.IndexOption == Controller.IndexOptionType.integer)
+                            if (Controller.Instance.IndexOption == Controller.IndexOptionType.naturalOneToN)
                             {
                                 // enforce index constraints
                                 indexConstraints.Add(t >= Controller.Instance.IndexOne);
@@ -112,7 +112,31 @@ namespace phyea.controller.parsing.math.ast
                                         }
                                 }
 
-                            case Controller.IndexOptionType.integer:
+                            case Controller.IndexOptionType.integer: // no constraint, use all integers
+                                switch (Controller.Instance.ExistsOption)
+                                {
+                                    case Controller.ExistsOptionType.and:
+                                        if (bound.Count > 1)
+                                        {
+                                            return Controller.Instance.Z3.MkExists(0, bound.ToArray(), null, Controller.Instance.Z3.MkAnd(Controller.Instance.Z3.MkDistinct(bound.ToArray()), CreateTerm((CommonTree)ast.GetChild(i))));
+                                        }
+                                        else
+                                        {
+                                            return Controller.Instance.Z3.MkExists(0, bound.ToArray(), null, CreateTerm((CommonTree)ast.GetChild(i)));
+                                        }
+                                    case Controller.ExistsOptionType.implies:
+                                    default:
+                                        if (bound.Count > 1)
+                                        {
+                                            return Controller.Instance.Z3.MkExists(0, bound.ToArray(), null, Controller.Instance.Z3.MkImplies(Controller.Instance.Z3.MkDistinct(bound.ToArray()), CreateTerm((CommonTree)ast.GetChild(i))));
+                                        }
+                                        else
+                                        {
+                                            return Controller.Instance.Z3.MkExists(0, bound.ToArray(), null, CreateTerm((CommonTree)ast.GetChild(i)));
+                                        }
+                                }
+
+                            case Controller.IndexOptionType.naturalOneToN:
                             default:
                                 switch (Controller.Instance.ExistsOption)
                                 {
@@ -162,7 +186,7 @@ namespace phyea.controller.parsing.math.ast
                                 Controller.Instance.Indices.Add(name, t);
                             }
 
-                            if (Controller.Instance.IndexOption == Controller.IndexOptionType.integer)
+                            if (Controller.Instance.IndexOption == Controller.IndexOptionType.naturalOneToN)
                             {
                                 // enforce index constraints
                                 indexConstraints.Add(t >= Controller.Instance.IndexOne);
@@ -185,6 +209,16 @@ namespace phyea.controller.parsing.math.ast
                                     return Controller.Instance.Z3.MkForall(0, bound.ToArray(), null, CreateTerm((CommonTree)ast.GetChild(i)));
                                 }
                             case Controller.IndexOptionType.integer:
+                                if (bound.Count > 1)
+                                {
+                                    return Controller.Instance.Z3.MkForall(0, bound.ToArray(), null, CreateTerm((CommonTree)ast.GetChild(i)));
+                                    //return Controller.Instance.Z3.MkForall(0, bound.ToArray(), null, Controller.Instance.Z3.MkImplies(Controller.Instance.Z3.MkAnd(indexConstraints.ToArray()), CreateTerm((CommonTree)ast.GetChild(i))));
+                                }
+                                else
+                                {
+                                    return Controller.Instance.Z3.MkForall(0, bound.ToArray(), null, CreateTerm((CommonTree)ast.GetChild(i)));
+                                }
+                            case Controller.IndexOptionType.naturalOneToN:
                             default:
                                 if (bound.Count > 1)
                                 {
@@ -215,10 +249,29 @@ namespace phyea.controller.parsing.math.ast
                             {
                                 Controller.Instance.Indices.Add(ast.GetChild(1).Text, Controller.Instance.Z3.MkConst(ast.GetChild(1).Text, Controller.Instance.IndexType)); // create the index
                             }
-                            if (!Controller.Instance.Q.ContainsKey(ast.GetChild(1).Text))
+
+                            switch (Controller.Instance.DataOption)
                             {
-                                Controller.Instance.Q.Add(ast.GetChild(1).Text, Controller.Instance.Z3.MkApp(Controller.Instance.IndexedVariableDecl[ast.GetChild(0).Text], Controller.Instance.Indices[ast.GetChild(1).Text])); // create the indexed variable (i.e., function application with the just created index)
-                                Controller.Instance.QPrimed.Add(ast.GetChild(1).Text, Controller.Instance.Z3.MkApp(Controller.Instance.IndexedVariableDeclPrimed[ast.GetChild(0).Text], Controller.Instance.Indices[ast.GetChild(1).Text]));
+                                case Controller.DataOptionType.array:
+                                    {
+                                        if (!Controller.Instance.Q.ContainsKey(ast.GetChild(1).Text))
+                                        {
+                                            // todo next: probably don't want this as a store, may need to create this as a store, select, etc., then depending upon usage, pick the correct one, i.e., have several lists Q and QPrimed, such as QStore, QSelect, etc.
+                                            Controller.Instance.Q.Add(ast.GetChild(1).Text, Controller.Instance.Z3.MkArraySelect(Controller.Instance.DataA.IndexedVariableDecl[ast.GetChild(0).Text], Controller.Instance.Indices[ast.GetChild(1).Text])); // create the indexed variable (i.e., function application with the just created index)
+                                            Controller.Instance.QPrimed.Add(ast.GetChild(1).Text, Controller.Instance.Z3.MkArraySelect(Controller.Instance.DataA.IndexedVariableDeclPrimed[ast.GetChild(0).Text], Controller.Instance.Indices[ast.GetChild(1).Text]));
+                                        }
+                                        break;
+                                    }
+                                case Controller.DataOptionType.uninterpreted_function:
+                                default:
+                                    {
+                                        if (!Controller.Instance.Q.ContainsKey(ast.GetChild(1).Text))
+                                        {
+                                            Controller.Instance.Q.Add(ast.GetChild(1).Text, Controller.Instance.Z3.MkApp(Controller.Instance.DataU.IndexedVariableDecl[ast.GetChild(0).Text], Controller.Instance.Indices[ast.GetChild(1).Text])); // create the indexed variable (i.e., function application with the just created index)
+                                            Controller.Instance.QPrimed.Add(ast.GetChild(1).Text, Controller.Instance.Z3.MkApp(Controller.Instance.DataU.IndexedVariableDeclPrimed[ast.GetChild(0).Text], Controller.Instance.Indices[ast.GetChild(1).Text]));
+                                        }
+                                        break;
+                                    }
                             }
                         }
                         return Controller.Instance.Q[ast.GetChild(1).Text];
@@ -227,7 +280,18 @@ namespace phyea.controller.parsing.math.ast
                     else if (ast.GetChild(1).Type == guardLexer.INDEXED_VARIABLE)
                     {
                         // very nasty, generalize later
-                        return Controller.Instance.Z3.MkApp(Controller.Instance.IndexedVariableDecl[ast.GetChild(0).Text], getIndexedVariable(ast.GetChild(1).GetChild(0).Text, ast.GetChild(1).GetChild(1).Text));
+                        switch (Controller.Instance.DataOption)
+                        {
+                            case Controller.DataOptionType.array:
+                                {
+                                    return Controller.Instance.Z3.MkArraySelect(Controller.Instance.DataA.IndexedVariableDecl[ast.GetChild(0).Text], getIndexedVariable(ast.GetChild(1).GetChild(0).Text, ast.GetChild(1).GetChild(1).Text));
+                                }
+                            case Controller.DataOptionType.uninterpreted_function:
+                            default:
+                                {
+                                    return Controller.Instance.Z3.MkApp(Controller.Instance.DataU.IndexedVariableDecl[ast.GetChild(0).Text], getIndexedVariable(ast.GetChild(1).GetChild(0).Text, ast.GetChild(1).GetChild(1).Text));
+                                }
+                        }
                     }
                     else
                     {
@@ -237,8 +301,22 @@ namespace phyea.controller.parsing.math.ast
                         }
                         if (!Controller.Instance.IndexedVariables.ContainsKey(new KeyValuePair<string,string>(ast.GetChild(0).Text, ast.GetChild(1).Text)))
                         {
-                            Controller.Instance.IndexedVariables.Add(new KeyValuePair<string,string>(ast.GetChild(0).Text, ast.GetChild(1).Text), Controller.Instance.Z3.MkApp(Controller.Instance.IndexedVariableDecl[ast.GetChild(0).Text], Controller.Instance.Indices[ast.GetChild(1).Text])); // create the indexed variable (i.e., function application with the just created index)
-                            Controller.Instance.IndexedVariablesPrimed.Add(new KeyValuePair<string,string>(ast.GetChild(0).Text, ast.GetChild(1).Text), Controller.Instance.Z3.MkApp(Controller.Instance.IndexedVariableDeclPrimed[ast.GetChild(0).Text], Controller.Instance.Indices[ast.GetChild(1).Text]));
+                            switch (Controller.Instance.DataOption)
+                            {
+                                case Controller.DataOptionType.array:
+                                    {
+                                        Controller.Instance.IndexedVariables.Add(new KeyValuePair<string, string>(ast.GetChild(0).Text, ast.GetChild(1).Text), Controller.Instance.Z3.MkArraySelect(Controller.Instance.DataA.IndexedVariableDecl[ast.GetChild(0).Text], Controller.Instance.Indices[ast.GetChild(1).Text])); // create the indexed variable (i.e., function application with the just created index)
+                                        Controller.Instance.IndexedVariablesPrimed.Add(new KeyValuePair<string, string>(ast.GetChild(0).Text, ast.GetChild(1).Text), Controller.Instance.Z3.MkArraySelect(Controller.Instance.DataA.IndexedVariableDeclPrimed[ast.GetChild(0).Text], Controller.Instance.Indices[ast.GetChild(1).Text]));
+                                        break;
+                                    }
+                                case Controller.DataOptionType.uninterpreted_function:
+                                default:
+                                    {
+                                        Controller.Instance.IndexedVariables.Add(new KeyValuePair<string, string>(ast.GetChild(0).Text, ast.GetChild(1).Text), Controller.Instance.Z3.MkApp(Controller.Instance.DataU.IndexedVariableDecl[ast.GetChild(0).Text], Controller.Instance.Indices[ast.GetChild(1).Text])); // create the indexed variable (i.e., function application with the just created index)
+                                        Controller.Instance.IndexedVariablesPrimed.Add(new KeyValuePair<string, string>(ast.GetChild(0).Text, ast.GetChild(1).Text), Controller.Instance.Z3.MkApp(Controller.Instance.DataU.IndexedVariableDeclPrimed[ast.GetChild(0).Text], Controller.Instance.Indices[ast.GetChild(1).Text]));
+                                        break;
+                                    }
+                            }
                         }
                         return Controller.Instance.IndexedVariables[new KeyValuePair<String, String>(ast.GetChild(0).Text, ast.GetChild(1).Text)];
                         //throw new Exception("Problem parsing indexed variable declaration.");
@@ -482,10 +560,27 @@ namespace phyea.controller.parsing.math.ast
 
             for (int i = 0; i < vars.Count; i++)
             {
-                if (!Controller.Instance.IndexedVariableDecl.ContainsKey(vars[i]) && !Controller.Instance.VariableDecl.ContainsKey(vars[i]))
+                switch (Controller.Instance.DataOption)
                 {
-                    vars.RemoveAt(i);
-                    i--;
+                    case Controller.DataOptionType.array:
+                        {
+                            if (!Controller.Instance.DataA.IndexedVariableDecl.ContainsKey(vars[i]) && !Controller.Instance.DataA.VariableDecl.ContainsKey(vars[i]))
+                            {
+                                vars.RemoveAt(i);
+                                i--;
+                            }
+                            break;
+                        }
+                    case Controller.DataOptionType.uninterpreted_function:
+                    default:
+                        {
+                            if (!Controller.Instance.DataU.IndexedVariableDecl.ContainsKey(vars[i]) && !Controller.Instance.DataU.VariableDecl.ContainsKey(vars[i]))
+                            {
+                                vars.RemoveAt(i);
+                                i--;
+                            }
+                            break;
+                        }
                 }
             }
             return vars;

@@ -12,7 +12,7 @@ namespace phyea.model
     /**
      * Environment states
      */
-    public class EnvironmentState : ALocation {
+    public class EnvironmentState : Location {
         /**
          * 
          */

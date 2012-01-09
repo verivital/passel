@@ -11,12 +11,43 @@ using phyea.controller.smt.z3;
 
 namespace phyea.model
 {
-    public class AbstractHybridAutomaton : AAbstractHybridAutomaton
+    public class AbstractHybridAutomaton : AHybridAutomaton
     {
+        /**
+         * States of the abstracted hybrid automaton
+         */
+        protected ISet<AbstractState> _states = new HashSet<AbstractState>();
+
+        /**
+         * Valuations of the abstracted hybrid automaton
+         */
+        protected ISet<AbstractState> _valuations = new HashSet<AbstractState>();
+
+        /**
+         * Default constructor
+         */
+        public AbstractHybridAutomaton(Holism parent)
+            : base(parent)
+        {
+        }
+
+        public ISet<AbstractState> States
+        {
+            get { return this._states; }
+            set { this._states = value; }
+        }
+
+        public ISet<AbstractState> Valuations
+        {
+            get { return this._valuations; }
+            set { this._valuations = value; }
+        }
+
+
         /**
          * Reference to the concrete hybrid automaton for which this is an abstraction
          */
-        private AConcreteHybridAutomaton _cha;
+        private ConcreteHybridAutomaton _cha;
 
         private ISet<Term> _predicates;
 
@@ -38,7 +69,7 @@ namespace phyea.model
         /**
          * Given a concrete hybrid automaton, compute the abstraction
          */
-        public AbstractHybridAutomaton(AHolism parent, AConcreteHybridAutomaton cha)
+        public AbstractHybridAutomaton(Holism parent, ConcreteHybridAutomaton cha)
             : base(parent)
         {
             this._cha = cha;
@@ -93,7 +124,8 @@ namespace phyea.model
                 {
                     Term[] core;
                     Model m = null;
-                    if (Controller.Instance.Z3.proveTerm(Controller.Instance.Z3.MkImplies(this._cha.Initial, ea.EnvironmentPredicate), out m, out core))
+                    String nstr;
+                    if (Controller.Instance.Z3.proveTerm(Controller.Instance.Z3.MkImplies(this._cha.Initial, ea.EnvironmentPredicate), out m, out core, out nstr))
                     {
                         qa.Initial = true;
                         initialConcrete.Add(qa.Concretization());
@@ -160,7 +192,8 @@ namespace phyea.model
                 // fixed point check (prove that the k^th iteration contains the k+1^st iteration)
                 // unsat of: not (reach_{k+1} => reach_k) to prove reach_{k+1} \subseteq reach_k
                 Console.WriteLine("Fixpoint check for iteration " + iteration.ToString());
-                if (Controller.Instance.Z3.proveTerm(Controller.Instance.Z3.MkImplies(newlyReachedDisjunction, reached), out m, out core, debug))
+                String nstr;
+                if (Controller.Instance.Z3.proveTerm(Controller.Instance.Z3.MkImplies(newlyReachedDisjunction, reached), out m, out core, out nstr, debug))
                 //if (!Controller.Instance.Z3.checkTerm(Controller.Instance.Z3.MkNot(Controller.Instance.Z3.MkImplies(newlyReachedDisjunction, reached)), debug))
                 {
                     // safe
@@ -190,9 +223,9 @@ namespace phyea.model
         {
             List<Term> succs = new List<Term>();
 
-            foreach (ALocation la in this._cha.Locations)
+            foreach (Location la in this._cha.Locations)
             {
-                foreach (ATransition t in la.Transitions)
+                foreach (Transition t in la.Transitions)
                 {
                     // todo: just want to do this over the concrete system?
 
@@ -309,9 +342,9 @@ namespace phyea.model
             }
 
             // add a predicate for every guard and its negation
-            foreach (AConcreteLocation l in this._cha.Locations)
+            foreach (ConcreteLocation l in this._cha.Locations)
             {
-                foreach (ATransition t in l.Transitions)
+                foreach (Transition t in l.Transitions)
                 {
                     // predicate abstraction: for each guard, take predicates as the guard and its negation
                     // heuristic: only add new predicates
@@ -353,11 +386,11 @@ namespace phyea.model
                 throw new Exception("Error generating abstract state space, no predicates were specified to be used in the abstraction.");
             }
 
-            IEnumerable<ALocation> query = this._cha.Locations.OrderBy(loc => loc.Value);
-            foreach (ALocation lref in query)
+            IEnumerable<Location> query = this._cha.Locations.OrderBy(loc => loc.Value);
+            foreach (Location lref in query)
             {
                 List<EnvironmentState> es = new List<EnvironmentState>();
-                foreach (ALocation lenv in query)
+                foreach (Location lenv in query)
                 {
                     foreach (Term p in this.Predicates)
                     {
@@ -369,7 +402,7 @@ namespace phyea.model
                 }
 
                 // finish enumerating states by adding a copy of es for each control location of the reference process
-                this._states.Add(new AbstractState((AConcreteLocation)lref, es));
+                this._states.Add(new AbstractState((ConcreteLocation)lref, es));
             }
         }
 
@@ -379,12 +412,12 @@ namespace phyea.model
          */
         private void makeAbstractStateValuations()
         {
-            foreach (AAbstractState a in this._states)
+            foreach (AbstractState a in this._states)
             {
                 for (UInt64 i = 0; i < Math.Pow(4, a.EnvironmentStates.Count); i++) // todo: change 4 to: cardinality of {None, All, AllButOne, One, \ldots, Cutoff}
                 {
                     Term p = Controller.Instance.Z3.MkTrue();
-                    AAbstractState ac = ((AAbstractState)a.Clone());
+                    AbstractState ac = ((AbstractState)a.Clone());
 
                     for (int j = 0; j < a.EnvironmentStates.Count; j++)
                     {
@@ -461,9 +494,9 @@ namespace phyea.model
             // compute block set as: for every guarded transition with guard G(i,j), for every environment predicate (i.e., the tuple e_a), check if e_a(i,j) => !G(i,j)
             foreach (ConcreteLocation cl in _cha.Locations)
             {
-                foreach (ATransition t in cl.Transitions)
+                foreach (Transition t in cl.Transitions)
                 {
-                    foreach (AAbstractState sa in this._valuations)
+                    foreach (AbstractState sa in this._valuations)
                     {
                         foreach (EnvironmentState ea in sa.EnvironmentStates)
                         {
@@ -537,15 +570,15 @@ namespace phyea.model
             }
 
             // for each pair <sa, sb> of abstract states, determine if there is an edge from ea to eb
-            foreach (AAbstractState sa in this._valuations)
+            foreach (AbstractState sa in this._valuations)
             {
                 foreach (EnvironmentState ea in sa.EnvironmentStates)
                 {
-                    foreach (AAbstractState sb in this._valuations)
+                    foreach (AbstractState sb in this._valuations)
                     {
                         foreach (EnvironmentState eb in sb.EnvironmentStates)
                         {
-                            foreach (ATransition t in sa.ReferenceState.Transitions)
+                            foreach (Transition t in sa.ReferenceState.Transitions)
                             {
                                 List<Term> rel = new List<Term>();
                                 rel.Add(sa.Concretization());
@@ -592,7 +625,7 @@ namespace phyea.model
                                 Term[] core;
                                 if (Controller.Instance.Z3.checkTerm(ts, out m, out core))
                                 {
-                                    sa.addTransition(new Transition(sb, ATransition.AbstractTransitionType.ref_ctrl));
+                                    sa.addTransition(new Transition(sb, Transition.AbstractTransitionType.ref_ctrl));
                                 }
 
                                 //if (Controller.Instance.Z3.MkAnd(sa.Concretization())
@@ -604,12 +637,12 @@ namespace phyea.model
                                 // 2. blocking set for reference process has all corresponding e_i == 0
                                 if (t.Guard != null && t.Reset == null && t.NextStates.Contains(sb.ReferenceState) && t.BlockingSetRef.Contains(ea.Predicate) && ea.Count == Counter.None)
                                 {
-                                    sa.addTransition(new Transition(sb, ATransition.AbstractTransitionType.ref_ctrl));
+                                    sa.addTransition(new Transition(sb, Transition.AbstractTransitionType.ref_ctrl));
                                 }
                                 // no guard on the transition, i.e., the transition has a guard of the form: "\forall otr \neq slf . true", so just add an edge for this one
                                 else if (t.Guard == null && t.Reset == null && t.NextStates.Contains(sb.ReferenceState))
                                 {
-                                    sa.addTransition(new Transition(sb, ATransition.AbstractTransitionType.ref_ctrl));
+                                    sa.addTransition(new Transition(sb, Transition.AbstractTransitionType.ref_ctrl));
                                 }
 
                                 // time transition
@@ -617,24 +650,24 @@ namespace phyea.model
                                 {
                                     if (sa.ReferenceState.VariableRates != null)
                                     {
-                                        foreach (AVariable v in this._cha.Variables)
+                                        foreach (Variable v in this._cha.Variables)
                                         {
                                             if (sa.ReferenceState.VariableRates.ContainsKey(v))
                                             {
                                                 // if vars + dynamics can yield state sb /\ eb...
-                                                sa.addTransition(new Transition(sb, ATransition.AbstractTransitionType.time));
+                                                sa.addTransition(new Transition(sb, Transition.AbstractTransitionType.time));
                                             }
                                         }
                                     }
 
                                     if (ea.VariableRates != null && ea.Count >= Counter.One)
                                     {
-                                        foreach (AVariable v in this._cha.Variables)
+                                        foreach (Variable v in this._cha.Variables)
                                         {
                                             if (ea.VariableRates.ContainsKey(v))
                                             {
                                                 // if vars + dynamics can yield state sb /\ eb...
-                                                sa.addTransition(new Transition(sb, ATransition.AbstractTransitionType.time));
+                                                sa.addTransition(new Transition(sb, Transition.AbstractTransitionType.time));
                                             }
                                         }
                                     }

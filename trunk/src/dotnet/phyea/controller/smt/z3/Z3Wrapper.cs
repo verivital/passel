@@ -97,12 +97,31 @@ namespace phyea.controller.smt.z3
         {
             List<String> vars = new List<String>();
 
-            foreach (var v in Controller.Instance.IndexedVariableDeclPrimed)
+            switch (Controller.Instance.DataOption)
             {
-                if (!v.Key.Contains("q") && !this.findFunc(reset, v.Key, false))
-                {
-                    vars.Add(v.Key);
-                }
+                case Controller.DataOptionType.array:
+                    {
+                        foreach (var v in Controller.Instance.DataA.IndexedVariableDeclPrimed)
+                        {
+                            if (!v.Key.Contains("q") && !this.findFunc(reset, v.Key, false))
+                            {
+                                vars.Add(v.Key);
+                            }
+                        }
+                        break;
+                    }
+                case Controller.DataOptionType.uninterpreted_function:
+                default:
+                    {
+                        foreach (var v in Controller.Instance.DataU.IndexedVariableDeclPrimed)
+                        {
+                            if (!v.Key.Contains("q") && !this.findFunc(reset, v.Key, false))
+                            {
+                                vars.Add(v.Key);
+                            }
+                        }
+                        break;
+                    }
             }
             return vars;
         }
@@ -225,9 +244,25 @@ namespace phyea.controller.smt.z3
          */
         public void primeAllVariables(ref Term origReplaced)
         {
-            foreach (var v in Controller.Instance.IndexedVariableDecl)
+            switch (Controller.Instance.DataOption)
             {
-                replaceFuncDecl(ref origReplaced, origReplaced, v.Value, Controller.Instance.IndexedVariableDeclPrimed[v.Key], false);
+                case Controller.DataOptionType.array:
+                    {
+                        foreach (var v in Controller.Instance.DataA.IndexedVariableDecl)
+                        {
+                            replaceTerm(ref origReplaced, origReplaced, v.Value, Controller.Instance.DataA.IndexedVariableDeclPrimed[v.Key], false);
+                        }
+                        break;
+                    }
+                case Controller.DataOptionType.uninterpreted_function:
+                default:
+                    {
+                        foreach (var v in Controller.Instance.DataU.IndexedVariableDecl)
+                        {
+                            replaceFuncDecl(ref origReplaced, origReplaced, v.Value, Controller.Instance.DataU.IndexedVariableDeclPrimed[v.Key], false);
+                        }
+                        break;
+                    }
             }
 
             foreach (var v in Controller.Instance.ParamsPrimed)
@@ -258,16 +293,46 @@ namespace phyea.controller.smt.z3
             bound.Add(Controller.Instance.Indices[idx]);
 
             // set equality on unprimed pre-state and primed post-state for all indexed variables of all other processes (those not making the move) (e.g., q[j]' == q[j])
-            foreach (var v in Controller.Instance.IndexedVariableDecl)
+            switch (Controller.Instance.DataOption)
             {
-                //grab only idx
-                f.Add(Controller.Instance.Z3.MkEq(Controller.Instance.Z3.MkApp(v.Value, Controller.Instance.Indices[idx]), Controller.Instance.Z3.MkApp(Controller.Instance.IndexedVariableDeclPrimed[v.Key], Controller.Instance.Indices[idx])));
+                case Controller.DataOptionType.array:
+                    {
+                        foreach (var v in Controller.Instance.DataA.IndexedVariableDecl)
+                        {
+                            //grab only idx
+                            f.Add(Controller.Instance.Z3.MkEq(Controller.Instance.Z3.MkArraySelect(v.Value, Controller.Instance.Indices[idx]), Controller.Instance.Z3.MkArraySelect(Controller.Instance.DataA.IndexedVariableDeclPrimed[v.Key], Controller.Instance.Indices[idx])));
+                        }
+                        break;
+                    }
+                case Controller.DataOptionType.uninterpreted_function:
+                default:
+                    {
+                        foreach (var v in Controller.Instance.DataU.IndexedVariableDecl)
+                        {
+                            //grab only idx
+                            f.Add(Controller.Instance.Z3.MkEq(Controller.Instance.Z3.MkApp(v.Value, Controller.Instance.Indices[idx]), Controller.Instance.Z3.MkApp(Controller.Instance.DataU.IndexedVariableDeclPrimed[v.Key], Controller.Instance.Indices[idx])));
+                        }
+                        break;
+                    }
             }
 
             // set equality on all unprimed pre-state and primed post-state of all indexed variables ***NOT APPEARING IN THE RESET*** for the process making the move (e.g., x[h]' == x[h], if x[h] is not reset)
             foreach (var v in indexVariableResets)
             {
-                outside_forall.Add(Controller.Instance.Z3.MkEq(Controller.Instance.Z3.MkApp(Controller.Instance.IndexedVariableDecl[v], indexMakingMove), Controller.Instance.Z3.MkApp(Controller.Instance.IndexedVariableDeclPrimed[v], indexMakingMove)));
+                switch (Controller.Instance.DataOption)
+                {
+                    case Controller.DataOptionType.array:
+                        {
+                            outside_forall.Add(Controller.Instance.Z3.MkEq(Controller.Instance.Z3.MkArraySelect(Controller.Instance.DataA.IndexedVariableDecl[v], indexMakingMove), Controller.Instance.Z3.MkArraySelect(Controller.Instance.DataA.IndexedVariableDeclPrimed[v], indexMakingMove)));
+                            break;
+                        }
+                    case Controller.DataOptionType.uninterpreted_function:
+                    default:
+                        {
+                            outside_forall.Add(Controller.Instance.Z3.MkEq(Controller.Instance.Z3.MkApp(Controller.Instance.DataU.IndexedVariableDecl[v], indexMakingMove), Controller.Instance.Z3.MkApp(Controller.Instance.DataU.IndexedVariableDeclPrimed[v], indexMakingMove)));
+                            break;
+                        }
+                }
             }
 
             // set equality on all unprimed pre-state and primed post-tate of all global variables ***NOT APPEARING IN THE RESET*** (e.g., g' == g, if g is not reset)
@@ -276,7 +341,7 @@ namespace phyea.controller.smt.z3
                 outside_forall.Add(Controller.Instance.Z3.MkEq(Controller.Instance.Params[v], Controller.Instance.ParamsPrimed[v]));
             }
             List<Term> ibds = new List<Term>();
-            if (Controller.Instance.IndexOption == Controller.IndexOptionType.integer)
+            if (Controller.Instance.IndexOption == Controller.IndexOptionType.naturalOneToN)
             {
                 ibds.Add(Controller.Instance.Indices[idx] >= Controller.Instance.IntOne);
                 ibds.Add(Controller.Instance.Indices[idx] <= Controller.Instance.N);
@@ -286,6 +351,9 @@ namespace phyea.controller.smt.z3
             switch (Controller.Instance.IndexOption)
             {
                 case Controller.IndexOptionType.integer:
+                    ret = Controller.Instance.Z3.MkForall(0, bound.ToArray(), null, Controller.Instance.Z3.MkImplies(Controller.Instance.Z3.MkDistinct(bound.First(), indexMakingMove), Controller.Instance.Z3.MkAnd(f.ToArray()))); // todo: check order of this distinct...in antecedent or consequent?
+                    break;
+                case Controller.IndexOptionType.naturalOneToN:
                     ret = Controller.Instance.Z3.MkForall(0, bound.ToArray(), null, Controller.Instance.Z3.MkImplies(Controller.Instance.Z3.MkAnd(ibds.ToArray()) & Controller.Instance.Z3.MkDistinct(bound.First(), indexMakingMove), Controller.Instance.Z3.MkAnd(f.ToArray()))); // todo: check order of this distinct...in antecedent or consequent?
                     break;
                 case Controller.IndexOptionType.enumeration:
@@ -314,27 +382,55 @@ namespace phyea.controller.smt.z3
             List<Term> f = new List<Term>();
 
             // set equality on all non-clock variables
-            foreach (var v in Controller.Instance.IndexedVariableDecl)
+            switch (Controller.Instance.DataOption)
             {
-                if (v.Key.Equals("Q", StringComparison.InvariantCultureIgnoreCase))
-                {
-                    f.Add(Controller.Instance.Z3.MkEq(Controller.Instance.Z3.MkApp(v.Value, indexForall), Controller.Instance.Z3.MkApp(Controller.Instance.IndexedVariableDeclPrimed[v.Key], indexForall)));
-                    continue;
-                }
-                foreach (var ha in Controller.Instance.Sys.HybridAutomata)
-                {
-                    if (ha.GetVariableByName(v.Key).UpdateType != AVariable.VarUpdateType.continuous)
+                case Controller.DataOptionType.array:
                     {
-                        //grab only the universally quantified one
-                        f.Add(Controller.Instance.Z3.MkEq(Controller.Instance.Z3.MkApp(v.Value, indexForall), Controller.Instance.Z3.MkApp(Controller.Instance.IndexedVariableDeclPrimed[v.Key], indexForall)));
+                        foreach (var v in Controller.Instance.DataA.IndexedVariableDecl)
+                        {
+                            if (v.Key.Equals("Q", StringComparison.InvariantCultureIgnoreCase))
+                            {
+                                f.Add(Controller.Instance.Z3.MkEq(Controller.Instance.Z3.MkArraySelect(v.Value, indexForall), Controller.Instance.Z3.MkArraySelect(Controller.Instance.DataA.IndexedVariableDeclPrimed[v.Key], indexForall)));
+                                continue;
+                            }
+                            foreach (var ha in Controller.Instance.Sys.HybridAutomata)
+                            {
+                                if (ha.GetVariableByName(v.Key).UpdateType != Variable.VarUpdateType.continuous)
+                                {
+                                    //grab only the universally quantified one
+                                    f.Add(Controller.Instance.Z3.MkEq(Controller.Instance.Z3.MkArraySelect(v.Value, indexForall), Controller.Instance.Z3.MkArraySelect(Controller.Instance.DataA.IndexedVariableDeclPrimed[v.Key], indexForall)));
+                                }
+                            }
+                        }
+                        break;
                     }
-                }
+                case Controller.DataOptionType.uninterpreted_function:
+                default:
+                    {
+                        foreach (var v in Controller.Instance.DataU.IndexedVariableDecl)
+                        {
+                            if (v.Key.Equals("Q", StringComparison.InvariantCultureIgnoreCase))
+                            {
+                                f.Add(Controller.Instance.Z3.MkEq(Controller.Instance.Z3.MkApp(v.Value, indexForall), Controller.Instance.Z3.MkApp(Controller.Instance.DataU.IndexedVariableDeclPrimed[v.Key], indexForall)));
+                                continue;
+                            }
+                            foreach (var ha in Controller.Instance.Sys.HybridAutomata)
+                            {
+                                if (ha.GetVariableByName(v.Key).UpdateType != Variable.VarUpdateType.continuous)
+                                {
+                                    //grab only the universally quantified one
+                                    f.Add(Controller.Instance.Z3.MkEq(Controller.Instance.Z3.MkApp(v.Value, indexForall), Controller.Instance.Z3.MkApp(Controller.Instance.DataU.IndexedVariableDeclPrimed[v.Key], indexForall)));
+                                }
+                            }
+                        }
+                        break;
+                    }
             }
 
             // set equality on all global variables
             foreach (var v in Controller.Instance.Sys.Variables)
             {
-                if (v.UpdateType != AVariable.VarUpdateType.continuous)
+                if (v.UpdateType != Variable.VarUpdateType.continuous)
                 {
                     f.Add(Controller.Instance.Z3.MkEq(Controller.Instance.Params[v.Name], Controller.Instance.ParamsPrimed[v.Name]));
                 }
@@ -365,26 +461,53 @@ namespace phyea.controller.smt.z3
             List<Term> f = new List<Term>();
 
             // set equality on all non-clock variables
-            foreach (var v in Controller.Instance.IndexedVariableDecl)
+            switch (Controller.Instance.DataOption)
             {
-                if (v.Key.Equals("Q", StringComparison.InvariantCultureIgnoreCase))
-                {
-                    continue;
-                }
-                foreach (var ha in Controller.Instance.Sys.HybridAutomata)
-                {
-                    if (ha.GetVariableByName(v.Key).UpdateType == AVariable.VarUpdateType.continuous)
+                case Controller.DataOptionType.array:
+                        {
+                            foreach (var v in Controller.Instance.DataA.IndexedVariableDecl)
+                            {
+                                if (v.Key.Equals("Q", StringComparison.InvariantCultureIgnoreCase))
+                                {
+                                    continue;
+                                }
+                                foreach (var ha in Controller.Instance.Sys.HybridAutomata)
+                                {
+                                    if (ha.GetVariableByName(v.Key).UpdateType == Variable.VarUpdateType.continuous)
+                                    {
+                                        //grab only the universally quantified one
+                                        f.Add(Controller.Instance.Z3.MkEq(Controller.Instance.Z3.MkArraySelect(v.Value, indexForall), Controller.Instance.Z3.MkArraySelect(Controller.Instance.DataA.IndexedVariableDeclPrimed[v.Key], indexForall)));
+                                    }
+                                }
+                            }
+                            break;
+                        }
+                case Controller.DataOptionType.uninterpreted_function:
+                default:
                     {
-                        //grab only the universally quantified one
-                        f.Add(Controller.Instance.Z3.MkEq(Controller.Instance.Z3.MkApp(v.Value, indexForall), Controller.Instance.Z3.MkApp(Controller.Instance.IndexedVariableDeclPrimed[v.Key], indexForall)));
+                        foreach (var v in Controller.Instance.DataU.IndexedVariableDecl)
+                        {
+                            if (v.Key.Equals("Q", StringComparison.InvariantCultureIgnoreCase))
+                            {
+                                continue;
+                            }
+                            foreach (var ha in Controller.Instance.Sys.HybridAutomata)
+                            {
+                                if (ha.GetVariableByName(v.Key).UpdateType == Variable.VarUpdateType.continuous)
+                                {
+                                    //grab only the universally quantified one
+                                    f.Add(Controller.Instance.Z3.MkEq(Controller.Instance.Z3.MkApp(v.Value, indexForall), Controller.Instance.Z3.MkApp(Controller.Instance.DataU.IndexedVariableDeclPrimed[v.Key], indexForall)));
+                                }
+                            }
+                        }
+                        break;
                     }
-                }
             }
 
             // set equality on all global variables
             foreach (var v in Controller.Instance.Sys.Variables)
             {
-                if (v.UpdateType == AVariable.VarUpdateType.continuous)
+                if (v.UpdateType == Variable.VarUpdateType.continuous)
                 {
                     f.Add(Controller.Instance.Z3.MkEq(Controller.Instance.Params[v.Name], Controller.Instance.ParamsPrimed[v.Name]));
                 }
@@ -500,7 +623,6 @@ namespace phyea.controller.smt.z3
             this.AssertCnstr(t);
             Term[] assumptions = null;
             //Term[] assumptions = new Term[] { t };
-            
 
             Term proof = null;
             //switch (this.CheckAndGetModel(out model))
@@ -539,6 +661,7 @@ namespace phyea.controller.smt.z3
             {
                 this.DisplayStatistics(Console.Out);
             }
+            //statistics = this.StatisticsToString();
 
             this.Pop(1);
 
@@ -548,7 +671,7 @@ namespace phyea.controller.smt.z3
         /**
          * Prove a term (negation is unsat)
          */
-        public Boolean proveTerm(Term t, out Model model, out Term[] core, params Boolean[] options)
+        public Boolean proveTerm(Term t, out Model model, out Term[] core, out String statistics, params Boolean[] options)
         {
             Boolean debug = false;
             try
@@ -613,6 +736,7 @@ namespace phyea.controller.smt.z3
             {
                 this.DisplayStatistics(Console.Out);
             }
+            statistics = this.StatisticsToString();
 
             /* restore context */
             this.Pop(1);
