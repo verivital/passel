@@ -116,6 +116,7 @@ namespace phyea.controller.parsing
 
     public enum FlowAttributes
     {
+        variable,
         equn,
     };
 
@@ -152,12 +153,12 @@ namespace phyea.controller.parsing
          * Todo:
          * 1) Eventually modify HyLink to generate HyXML using MathML for guards, invariants, and resets
          */
-        public static AHolism ParseFile(String path)
+        public static Holism ParseFile(String path)
         {
-            AHolism sys = new Holism();
-            AConcreteHybridAutomaton h = null;
-            ATransition t = null;
-            AConcreteLocation l = null;
+            Holism sys = new Holism();
+            ConcreteHybridAutomaton h = null;
+            Transition t = null;
+            ConcreteLocation l = null;
             ElementNames n = ElementNames.parameter;
 
             XmlTextReader reader = new XmlTextReader(path);
@@ -189,8 +190,8 @@ namespace phyea.controller.parsing
                                                 {
                                                     Variable v = new Variable();
                                                     v.Name = name;
-                                                    v.Type = AVariable.VarType.index;
-                                                    v.UpdateType = (AVariable.VarUpdateType)Enum.Parse(typeof(AVariable.VarUpdateType), update_type, true);
+                                                    v.Type = Variable.VarType.index;
+                                                    v.UpdateType = (Variable.VarUpdateType)Enum.Parse(typeof(Variable.VarUpdateType), update_type, true);
                                                     sys.Variables.Add(v);
                                                     paramPrime = Controller.Instance.Z3.MkConst(name + "'", Controller.Instance.IndexType);
                                                 }
@@ -202,8 +203,8 @@ namespace phyea.controller.parsing
                                                 {
                                                     Variable v = new Variable();
                                                     v.Name = name;
-                                                    v.Type = AVariable.VarType.integer;
-                                                    v.UpdateType = (AVariable.VarUpdateType)Enum.Parse(typeof(AVariable.VarUpdateType), update_type, true);
+                                                    v.Type = Variable.VarType.integer;
+                                                    v.UpdateType = (Variable.VarUpdateType)Enum.Parse(typeof(Variable.VarUpdateType), update_type, true);
                                                     sys.Variables.Add(v);
                                                     paramPrime = Controller.Instance.Z3.MkConst(name + "'", Controller.Instance.IntType);
                                                 }
@@ -214,8 +215,8 @@ namespace phyea.controller.parsing
                                                 {
                                                     Variable v = new Variable();
                                                     v.Name = name;
-                                                    v.Type = AVariable.VarType.integer;
-                                                    v.UpdateType = (AVariable.VarUpdateType)Enum.Parse(typeof(AVariable.VarUpdateType), update_type, true);
+                                                    v.Type = Variable.VarType.integer;
+                                                    v.UpdateType = (Variable.VarUpdateType)Enum.Parse(typeof(Variable.VarUpdateType), update_type, true);
                                                     sys.Variables.Add(v);
                                                     paramPrime = Controller.Instance.Z3.MkConst(name + "'", Controller.Instance.RealType);
                                                 }
@@ -302,41 +303,72 @@ namespace phyea.controller.parsing
                                         //       but obviously this could have limitations for linear / affine dynamics, but... maybe not?
                                         //       let's think about it more
 
+                                        String variable = reader.GetAttribute(FlowAttributes.variable.ToString());
                                         String flow = reader.GetAttribute(FlowAttributes.equn.ToString());
-                                        if (flow.Length > 0)
+
+                                        if (variable != null && flow != null && variable.Length > 0 && flow.Length > 0)
                                         {
+                                            String[] vns = variable.Split('[');
+                                            String variableName = vns[0]; // todo: error handling
+
+
                                             Antlr.Runtime.Tree.CommonTree tmptree = math.Expression.Parse(flow);
                                             List<String> vars = LogicalExpression.findContinuousVars(tmptree);
                                             List<String> pvars = LogicalExpression.findParams(tmptree);
                                             List<String> constants = LogicalExpression.findAllRealConstants(tmptree);
                                             Term expr = LogicalExpression.CreateTerm(tmptree);
+                                            List<Term> flows = new List<Term>();
                                             Term t1 = Controller.Instance.Z3.MkConst("t_1", Controller.Instance.RealType);
 
-                                            foreach (var v in vars)
+                                            // todo: add global variable support, currently assumes indexed
+
+                                            // prime all variables
+                                            switch (Controller.Instance.DataOption)
                                             {
-                                                // prime all variables
-                                                Controller.Instance.Z3.replaceFuncDecl(ref expr, expr, Controller.Instance.IndexedVariableDecl[v], Controller.Instance.IndexedVariableDeclPrimed[v], false);
-                                                if (pvars.Count > 0)
-                                                {
-                                                    foreach (var y in pvars)
+                                                case Controller.DataOptionType.array:
                                                     {
-                                                        // todo: generalize, this is pretty nasty, and currently only supports dynamics of the form: v[i] R y, where R is an order/equivalence relation (e.g., >, <, >=, <=, =, etc.)
-                                                        Term addDeltaMin = Controller.Instance.IndexedVariables[new KeyValuePair<string, string>(v, "i")] + (Controller.Instance.Params[y] * t1);
-                                                        Controller.Instance.Z3.replaceTerm(ref expr, expr, Controller.Instance.Params[y], addDeltaMin, false);
+                                                        Controller.Instance.Z3.replaceTerm(ref expr, expr, Controller.Instance.DataA.IndexedVariableDecl[variableName], Controller.Instance.DataA.IndexedVariableDeclPrimed[variableName], false);
+                                                        break;
                                                     }
+                                                case Controller.DataOptionType.uninterpreted_function:
+                                                default:
+                                                    {
+                                                        Controller.Instance.Z3.replaceFuncDecl(ref expr, expr, Controller.Instance.DataU.IndexedVariableDecl[variableName], Controller.Instance.DataU.IndexedVariableDeclPrimed[variableName], false);
+                                                        break;
+                                                    }
+                                            }
+                                            if (pvars.Count > 0)
+                                            {
+                                                foreach (var y in pvars)
+                                                {
+                                                    // todo: generalize, this is pretty nasty, and currently only supports dynamics of the form: v[i] R y, where R is an order/equivalence relation (e.g., >, <, >=, <=, =, etc.)
+                                                    Term addDeltaMin = Controller.Instance.IndexedVariables[new KeyValuePair<string, string>(variableName, "i")] + (Controller.Instance.Params[y] * t1);
+                                                    Controller.Instance.Z3.replaceTerm(ref expr, expr, Controller.Instance.Params[y], addDeltaMin, false);
                                                 }
-                                                else if (constants.Count > 0)
+                                            }
+                                            else if (constants.Count > 0)
+                                            {
+                                                foreach (var cs in constants)
                                                 {
-                                                    foreach (var cs in constants)
-                                                    {
-                                                        Term c = Controller.Instance.Z3.MkRealNumeral((int)float.Parse(cs));
-                                                        Term addDeltaMin = Controller.Instance.IndexedVariables[new KeyValuePair<string, string>(v, "i")] + (c * t1);
-                                                        Controller.Instance.Z3.replaceTerm(ref expr, expr, c, addDeltaMin, false);
-                                                    }
+                                                    Term c = Controller.Instance.Z3.MkRealNumeral((int)float.Parse(cs));
+                                                    Term addDeltaMin = Controller.Instance.IndexedVariables[new KeyValuePair<string, string>(variableName, "i")] + (c * t1);
+                                                    Controller.Instance.Z3.replaceTerm(ref expr, expr, c, addDeltaMin, false);
                                                 }
                                             }
 
-                                            l.Flow = expr;
+                                            // todo: generalize: we assume anything with a 0 in it is constant dynamics
+                                            if (!Controller.Instance.Z3.findTerm(expr, Controller.Instance.RealZero, true))
+                                            {
+                                                // todo: move zero diffeq detection to this part, as currently we may be removing some actual diffeqs if any of them are 0
+                                                if (l.Flow != null)
+                                                {
+                                                    l.Flow = l.Flow & expr;
+                                                }
+                                                else
+                                                {
+                                                    l.Flow = expr;
+                                                }
+                                            }
                                         }
                                         //todo: set dynamics for location
                                         //r.setRateEqualForVar(varX, real_one);
@@ -492,7 +524,7 @@ namespace phyea.controller.parsing
                                             String varName = split[0];
                                             String indexName = split[1];
 
-                                            h.addIndexedVariable(varName, (AVariable.VarType)Enum.Parse(typeof(AVariable.VarType), type, true), (AVariable.VarUpdateType)Enum.Parse(typeof(AVariable.VarUpdateType), update_type, true));
+                                            h.addIndexedVariable(varName, (Variable.VarType)Enum.Parse(typeof(Variable.VarType), type, true), (Variable.VarUpdateType)Enum.Parse(typeof(Variable.VarUpdateType), update_type, true));
                                             //r.setRateEqualForVar(varX, real_one);
                                             // todo: parse the variables
                                         }
@@ -527,7 +559,7 @@ namespace phyea.controller.parsing
 
                                         foreach (var v in sys.Variables)
                                         {
-                                            if (v.UpdateType == AVariable.VarUpdateType.discrete && v.Type == AVariable.VarType.index)
+                                            if (v.UpdateType == Variable.VarUpdateType.discrete && v.Type == Variable.VarType.index)
                                             {
                                                 Controller.Instance.Z3.AssertCnstr(Controller.Instance.IntZero <= Controller.Instance.Params[v.Name] & Controller.Instance.Params[v.Name] <= Controller.Instance.Params["N"]);
                                                 Controller.Instance.Z3.AssertCnstr(Controller.Instance.IntZero <= Controller.Instance.ParamsPrimed[v.Name] & Controller.Instance.ParamsPrimed[v.Name] <= Controller.Instance.Params["N"]);

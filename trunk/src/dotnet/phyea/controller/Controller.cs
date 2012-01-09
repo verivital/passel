@@ -3,6 +3,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 
+using System.Diagnostics;
+using System.Threading;
+
 using System.IO;
 
 using Microsoft.Z3;
@@ -121,21 +124,31 @@ namespace phyea.controller
         private String _inoutPath;
 
         /**
+         * theory used to model variables of each agent in the system
+         */
+        public enum DataOptionType { array, uninterpreted_function };
+
+        public DataOptionType DataOption = DataOptionType.array;
+
+        /**
          * filename
          */
         private String _inputFile;
 
-        public enum IndexOptionType { integer, enumeration };
+        public enum IndexOptionType { integer, natural, naturalOneToN, enumeration };
 
         public enum ExistsOptionType { implies, and }; // implies is weak, and is strict
 
         public enum TimeOptionType { conjunction, separated }; // conjunction uses a conjunction of implications on control locations in the time transition, whereas separated checks the time transition repeatedly based on each location
 
-        public IndexOptionType IndexOption = IndexOptionType.integer;
+        public IndexOptionType IndexOption = IndexOptionType.naturalOneToN;
 
         public ExistsOptionType ExistsOption = ExistsOptionType.and;
 
         public TimeOptionType TimeOption = TimeOptionType.conjunction;
+
+        public Stopwatch TimerStats = new Stopwatch();
+
 
         /**
          * Singleton constructor
@@ -143,6 +156,9 @@ namespace phyea.controller
         private Controller()
         {
             Config c = new Config();
+
+            c.SetParamValue("AUTO_CONFIG", "false");
+
             c.SetParamValue("MODEL", "true");
 
             c.SetParamValue("QI_PROFILE", "true");
@@ -155,11 +171,11 @@ namespace phyea.controller
             c.SetParamValue("EMATCHING", "true");
             c.SetParamValue("MACRO_FINDER", "true");
             c.SetParamValue("MBQI", "true"); //  (see http://research.microsoft.com/en-us/um/redmond/projects/z3/mbqi-tutorial/)
-            c.SetParamValue("MBQI_MAX_ITERATIONS", "100000");
+            c.SetParamValue("MBQI_MAX_ITERATIONS", "50000");
             c.SetParamValue("MBQI_TRACE", "true");
             c.SetParamValue("PI_PULL_QUANTIFIERS", "true");
             c.SetParamValue("PULL_NESTED_QUANTIFIERS", "true");
-            //c.SetParamValue("MODEL_PARTIAL", "true");
+            c.SetParamValue("MODEL_PARTIAL", "true");
             c.SetParamValue("MODEL_V2", "true");
             c.SetParamValue("VERBOSE", "10");
 
@@ -178,12 +194,12 @@ namespace phyea.controller
 
             //todo: SOFT_TIMEOUT // can use this option to force queries to return unknown instead of running forever
 
-            c.SetParamValue("SPC", "true");
+            //c.SetParamValue("SPC", "true");
 
             //c.SetParamValue("STATISTICS", "true"); // crashes
 
 
-            c.SetParamValue("ARITH_SOLVER", "2"); // simplex solver
+            //c.SetParamValue("ARITH_SOLVER", "2"); // simplex solver
 //            c.SetParamValue("NL_ARITH", "true"); // nonlinear arithmetic support: requires arith_solver 2
 //            c.SetParamValue("NL_ARITH_GB_EQS", "true");
 //            c.SetParamValue("ARITH_ADAPTIVE", "true");
@@ -191,13 +207,13 @@ namespace phyea.controller
 
             //c.SetParamValue("CHECK_PROOF", "true");
             c.SetParamValue("DISPLAY_ERROR_FOR_VISUAL_STUDIO", "true");
-            c.SetParamValue("DISTRIBUTE_FORALL", "true");
+            //c.SetParamValue("DISTRIBUTE_FORALL", "true");
             //c.SetParamValue("DL_COMPILE_WITH_WIDENING", "true");
             //c.SetParamValue("DACK", "2");
             //c.SetParamValue("DACK_EQ", "true");
             
-            c.SetParamValue("QI_LAZY_INSTANTIATION", "true");
-            c.SetParamValue("ELIM_BOUNDS", "true");
+            //c.SetParamValue("QI_LAZY_INSTANTIATION", "true");
+            //c.SetParamValue("ELIM_BOUNDS", "true");
 
             // some bugs in the next ones
             //c.SetParamValue("ELIM_NLARITH_QUANTIFIERS", "true");
@@ -208,11 +224,11 @@ namespace phyea.controller
             // end buggy ones
 
             
-            c.SetParamValue("LOOKAHEAD_DISEQ", "true");
+            //c.SetParamValue("LOOKAHEAD_DISEQ", "true");
 
-            c.SetParamValue("PULL_CHEAP_ITE_TREES", "true");
-            c.SetParamValue("LIFT_ITE", "2");
-            c.SetParamValue("ELIM_TERM_ITE", "true");
+            //c.SetParamValue("PULL_CHEAP_ITE_TREES", "true");
+            //c.SetParamValue("LIFT_ITE", "2"); // buggy: get memory corruption sometimes
+            //c.SetParamValue("ELIM_TERM_ITE", "true"); // buggy: get memory corruption sometimes
 
             c.SetParamValue("MINIMIZE_LEMMAS_STRUCT", "true");
             //c.SetParamValue("MODEL_COMPLETION", "true");
@@ -220,7 +236,7 @@ namespace phyea.controller
 
             //c.SetParamValue("ARITH_EUCLIDEAN_SOLVER", "true");
             //c.SetParamValue("ARITH_FORCE_SIMPLEX", "true");
-            c.SetParamValue("ARITH_MAX_LEMMA_SIZE", "512"); // default 128
+            //c.SetParamValue("ARITH_MAX_LEMMA_SIZE", "512"); // default 128
 
             //c.SetParamValue("enable-cores", "true");
 
@@ -247,11 +263,23 @@ namespace phyea.controller
                         this.IndexOne = Z3.MkIntNumeral(1);
                         break;
                     }
+                case IndexOptionType.natural:
+                    {
+                        this._indexType = Z3.MkIntSort();
+                        this.IndexOne = Z3.MkIntNumeral(1);
+                        break;
+                    }
+                case IndexOptionType.naturalOneToN:
+                    {
+                        this._indexType = Z3.MkIntSort();
+                        this.IndexOne = Z3.MkIntNumeral(1);
+                        break;
+                    }
                 case IndexOptionType.enumeration:
                 default:
                     {
                         //this._indexType = Z3.MkEnumerationSort("index", new string[] { "i1", "i2", "i3", "i4" }, new FuncDecl[4], new FuncDecl[4]);
-                        this._indexType = Z3.MkEnumerationSort("index", new string[] { "i0", "i1", "i2", "i3", "i4" }, new FuncDecl[5], new FuncDecl[5]);
+                        this._indexType = Z3.MkEnumerationSort("index", new string[] { "i0", "i1", "i2", "i3", "i4" }, new FuncDecl[5], new FuncDecl[5]); // todo: parse the value of N, then create a sort with this many distinct elements
                         this.IndexOne = Z3.MkConst("i1", this.IndexType);
                         this.IndexNone = Z3.MkConst("i0", this.IndexType);
                         this.IndexN = Z3.MkConst("iN", this.IndexType);
@@ -261,12 +289,27 @@ namespace phyea.controller
 
             this._indexSet = Z3.MkFullSet(this._indexType);
 
+            switch (this.DataOption)
+            {
+                case DataOptionType.array:
+                    {
+                        this.DataA.IndexedVariableDecl = new Dictionary<String, Term>();
+                        this.DataA.IndexedVariableDeclPrimed = new Dictionary<String, Term>();
+                        this.DataA.VariableDecl = new Dictionary<String, Term>();
+                        this.DataA.VariableDeclPrimed = new Dictionary<String, Term>();
+                        break;
+                    }
 
-            this.IndexedVariableDecl = new Dictionary<String,FuncDecl>();
-            this.IndexedVariableDeclPrimed = new Dictionary<String, FuncDecl>();
-
-            this.VariableDecl = new Dictionary<String, FuncDecl>();
-            this.VariableDeclPrimed = new Dictionary<String, FuncDecl>();
+                case DataOptionType.uninterpreted_function:
+                default:
+                    {
+                        this.DataU.IndexedVariableDecl = new Dictionary<String, FuncDecl>();
+                        this.DataU.IndexedVariableDeclPrimed = new Dictionary<String, FuncDecl>();
+                        this.DataU.VariableDecl = new Dictionary<String, FuncDecl>();
+                        this.DataU.VariableDeclPrimed = new Dictionary<String, FuncDecl>();
+                        break;
+                    }
+            }
 
             if (System.Environment.MachineName.ToLower().StartsWith("johnso99"))
             {
@@ -400,15 +443,12 @@ namespace phyea.controller
             set { this._locations = value; }
         }
 
-        public Dictionary<String,FuncDecl> IndexedVariableDecl;
-        public Dictionary<String, FuncDecl> IndexedVariableDeclPrimed;
-
-        public Dictionary<String, FuncDecl> VariableDecl;
-        public Dictionary<String, FuncDecl> VariableDeclPrimed;
+        public AgentDataArray DataA = new AgentDataArray(); // todo: refactor, use AAgentDataTheory super class with appropriate generics
+        public AgentDataUninterpreted DataU = new AgentDataUninterpreted(); // todo: refactor
 
         public Term N;
 
-        public AHolism Sys;
+        public Holism Sys;
 
         /**
          * @param args
@@ -417,7 +457,7 @@ namespace phyea.controller
         {
             String choice;
             Boolean fileSelected = false;
-            Console.WriteLine("Select an input file option: \n\r[0] smt_fischer_hyxml.xml (default)\n\r[1] smt_fischer_buggy_hyxml.xml\n\r[2] smt_sats_hyxml.xml\n\r[3] smt_sats_buggy_hyxml.xml\n\r[4] smt_nfa_hyxml.xml\n\r[5] smt_nfa_buggy_hyxml.xml\n\r[6] smt_ta_hyxml.xml\n\r[7] smt_ta_buggy_hyxml.xml\n\r[8] smt_gv_hyxml.xml\n\r[9] smt_gv_buggy_hyxml.xml\n\r[10] smt_sats_timed_hyxml.xml\n\r[11] smt_sats_timed_buggy_hyxml.xml\n\r[256] enter custom file\n\r");
+            Console.WriteLine("Select an input file option: \n\r[0] smt_fischer_hyxml.xml (default)\n\r[1] smt_fischer_buggy_hyxml.xml\n\r[2] smt_sats_hyxml.xml\n\r[3] smt_sats_buggy_hyxml.xml\n\r[4] smt_nfa_hyxml.xml\n\r[5] smt_nfa_buggy_hyxml.xml\n\r[6] smt_ta_hyxml.xml\n\r[7] smt_ta_buggy_hyxml.xml\n\r[8] smt_gv_hyxml.xml\n\r[9] smt_gv_buggy_hyxml.xml\n\r[10] smt_sats_timed_hyxml.xml\n\r[11] smt_sats_timed_buggy_hyxml.xml\n\r[12] smt_flocking_hyxml.xml\n\r[13] smt_flocking_buggy_hyxml.xml\n\r[256] enter custom file\n\r");
 
             while (true)
             {
@@ -490,6 +530,16 @@ namespace phyea.controller
                                     Instance._inputFile = Instance._inoutPath + "smt_sats_timed_buggy_hyxml.xml";
                                     break;
                                 }
+                            case 12:
+                                {
+                                    Instance._inputFile = Instance._inoutPath + "smt_flocking_hyxml.xml";
+                                    break;
+                                }
+                            case 13:
+                                {
+                                    Instance._inputFile = Instance._inoutPath + "smt_flocking_buggy_hyxml.xml";
+                                    break;
+                                }
                             case 256:
                                 {
                                     Console.WriteLine("Using path " + Instance._inoutPath);
@@ -547,6 +597,8 @@ namespace phyea.controller
                 Console.SetOut(fileOutput); // do the redirect
             }
 
+            Console.Write("File: {0}\n\r\n\r", Instance._inputFile);
+
             ISmtSymbols smtSymbols = new SymbolsZ3();
 
             // constants
@@ -561,19 +613,40 @@ namespace phyea.controller
             Instance._indices.Add("j", Instance.Z3.MkConst("j", Instance.IndexType));
             Instance._indices.Add("h", Instance.Z3.MkConst("h", Instance.IndexType));
 
-            FuncDecl q = Instance.Z3.MkFuncDecl("q", Instance.IndexType, Instance.IntType); // control location; todo: should map to finite control state (just hack to use integers for now)
-            Instance.IndexedVariableDecl.Add("q", q);
-            FuncDecl qPrime = Instance.Z3.MkFuncDecl("q'", Instance.IndexType, Instance.IntType); // control location; todo: should map to finite control state (just hack to use integers for now)
-            Instance.IndexedVariableDeclPrimed.Add("q", qPrime);
-
-            // apply each index to the control location function
-            foreach (var pair in Instance._indices)
+            switch (Instance.DataOption)
             {
-                Instance.Q.Add(pair.Key, Instance.Z3.MkApp(q, pair.Value));
-                Instance.QPrimed.Add(pair.Key, Instance.Z3.MkApp(qPrime, pair.Value));
-                
-                //Instance.Q.Add(pair.Key, Instance.Z3.MkApp(q, Instance.Z3.MkSetMember(pair.Value, Instance.IndexSet)));
-                //Instance.QPrimed.Add(pair.Key, Instance.Z3.MkApp(qPrime, pair.Value));
+                case DataOptionType.array:
+                    {
+                        Sort locSort = Instance.Z3.MkArraySort(Instance.IndexType, Instance.IntType);
+                        Term q = Instance.Z3.MkConst("q", locSort); // control location; todo: should map to finite control state (just hack to use integers for now)
+                        Instance.DataA.IndexedVariableDecl.Add("q", q);
+                        Term qPrime = Instance.Z3.MkConst("q'", locSort); ; // control location; todo: should map to finite control state (just hack to use integers for now)
+                        Instance.DataA.IndexedVariableDeclPrimed.Add("q", qPrime);
+
+                        // apply each index to the control location function
+                        foreach (var pair in Instance.Indices)
+                        {
+                            Instance.Q.Add(pair.Key, Instance.Z3.MkArraySelect(q, pair.Value));
+                            Instance.QPrimed.Add(pair.Key, Instance.Z3.MkArraySelect(qPrime, pair.Value));
+                        }
+                        break;
+                    }
+                case DataOptionType.uninterpreted_function:
+                default:
+                    {
+                        FuncDecl q = Instance.Z3.MkFuncDecl("q", Instance.IndexType, Instance.IntType); // control location; todo: should map to finite control state (just hack to use integers for now)
+                        Instance.DataU.IndexedVariableDecl.Add("q", q);
+                        FuncDecl qPrime = Instance.Z3.MkFuncDecl("q'", Instance.IndexType, Instance.IntType); // control location; todo: should map to finite control state (just hack to use integers for now)
+                        Instance.DataU.IndexedVariableDeclPrimed.Add("q", qPrime);
+
+                        // apply each index to the control location function
+                        foreach (var pair in Instance.Indices)
+                        {
+                            Instance.Q.Add(pair.Key, Instance.Z3.MkApp(q, pair.Value));
+                            Instance.QPrimed.Add(pair.Key, Instance.Z3.MkApp(qPrime, pair.Value));
+                        }
+                        break;
+                    }
             }
 
             Instance.Sys = ParseHyXML.ParseFile(Instance._inputFile);

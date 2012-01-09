@@ -11,7 +11,7 @@ namespace phyea.model
     {
         public Model Model;
         public Term Claim;
-        public ATransition Transition;
+        public Transition Transition;
 
         public Counterexample(Model m)
         {
@@ -24,7 +24,7 @@ namespace phyea.model
             this.Claim = c;
         }
 
-        public Counterexample(Model m, Term c, ATransition t)
+        public Counterexample(Model m, Term c, Transition t)
         {
             this.Model = m;
             this.Claim = c;

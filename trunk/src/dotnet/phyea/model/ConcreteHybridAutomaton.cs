@@ -5,9 +5,9 @@ using System.Text;
 
 namespace phyea.model
 {
-    public class ConcreteHybridAutomaton : AConcreteHybridAutomaton {
+    public class ConcreteHybridAutomaton : AHybridAutomaton {
 
-        public ConcreteHybridAutomaton(AHolism parent)
+        public ConcreteHybridAutomaton(Holism parent)
             : base(parent)
         {
         }

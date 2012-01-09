@@ -28,7 +28,7 @@ namespace phyea.model
         /**
          * Transitions: edges to other states
          */
-        private List<ATransition> _transitions;
+        private List<Transition> _transitions;
 
         public AState()
         {
@@ -41,7 +41,7 @@ namespace phyea.model
             this._initial = initial;
         }
 
-        public AState(String label, UInt32 value, Boolean initial, List<ATransition> transitions)
+        public AState(String label, UInt32 value, Boolean initial, List<Transition> transitions)
         {
             this._label = label;
             this._value = value;
@@ -74,13 +74,13 @@ namespace phyea.model
 
         public abstract object Clone();
 
-        public List<ATransition> Transitions
+        public List<Transition> Transitions
         {
             get
             {
                 if (this._transitions == null)
                 {
-                    this._transitions = new List<ATransition>();
+                    this._transitions = new List<Transition>();
                 }
                 return this._transitions;
             }
@@ -93,7 +93,7 @@ namespace phyea.model
          */
         public Boolean containsTransitionToNext(List<AState> states)
         {
-            foreach (ATransition t in this._transitions)
+            foreach (Transition t in this._transitions)
             {
                 foreach (AState s in states)
                 {
@@ -109,11 +109,11 @@ namespace phyea.model
         /**
          * Add a transition to this state
          */
-        public void addTransition(ATransition t)
+        public void addTransition(Transition t)
         {
             if (this._transitions == null)
             {
-                this._transitions = new List<ATransition>();
+                this._transitions = new List<Transition>();
             }
             
             if (!this._transitions.Contains(t) && !this.containsTransitionToNext(t.NextStates))

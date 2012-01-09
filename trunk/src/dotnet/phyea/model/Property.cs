@@ -15,7 +15,8 @@ namespace phyea.model
     public enum StatusTypes
     {
         disproved,
-        proved,
+        inductive,
+        inductiveInvariant,
         unknown,
         toProcess
     }
@@ -25,12 +26,16 @@ namespace phyea.model
      */
     public class Property
     {
+        public Term InductiveFormula;
         private Term _formula;
         private String _formulaStr;
         private PropertyType _type;
         public StatusTypes Status = StatusTypes.toProcess;
         public List<Counterexample> Counterexamples = new List<Counterexample>();
         public List<Term> InductiveInvariants = new List<Term>();
+        public List<String> Statistics = new List<String>();
+
+        public TimeSpan Time;
 
         public void addInductiveInvariant(Term ii)
         {

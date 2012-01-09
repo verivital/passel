@@ -54,14 +54,14 @@ namespace phyea.controller.output
                         sw.WriteLine("// # valuations (pruned): " + aha.Valuations.Count);
                         sw.WriteLine();
 
-                        foreach (AAbstractState s in aha.Valuations)
+                        foreach (AbstractState s in aha.Valuations)
                         {
                             sw.WriteLine("// " + s.Concretization().ToString().Replace(System.Environment.NewLine, "").Replace("\n", "").Replace("\r", "").Replace("  ", ""));
                             sw.Write("loc " + s.ToString() + ": ");
                             sw.WriteLine("while true wait {t' == 0 };");
                             // todo: iterate over all the transitions and print them here as roughly
                             sw.WriteLine("\t// number of transitions out: " + s.Transitions.Count);
-                            foreach (ATransition t in s.Transitions)
+                            foreach (Transition t in s.Transitions)
                             {
                                 foreach (AState l in t.NextStates)
                                 {
