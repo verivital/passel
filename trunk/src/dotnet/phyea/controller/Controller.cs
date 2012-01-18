@@ -124,22 +124,31 @@ namespace phyea.controller
         private String _inoutPath;
 
         /**
-         * theory used to model variables of each agent in the system
-         */
-        public enum DataOptionType { array, uninterpreted_function };
-
-        public DataOptionType DataOption = DataOptionType.array;
-
-        /**
          * filename
          */
         private String _inputFile;
 
+        /**
+         * theory used to model variables of each agent in the system
+         */
+        public enum DataOptionType { array, uninterpreted_function };
+
+        /**
+         * set used to model indices of processes
+         */
         public enum IndexOptionType { integer, natural, naturalOneToN, enumeration };
 
-        public enum ExistsOptionType { implies, and }; // implies is weak, and is strict
+        /**
+         * implies is weak, and is strict
+         */
+        public enum ExistsOptionType { implies, and };
 
-        public enum TimeOptionType { conjunction, separated }; // conjunction uses a conjunction of implications on control locations in the time transition, whereas separated checks the time transition repeatedly based on each location
+        /**
+         * conjunction uses a conjunction of implications on control locations in the time transition, whereas separated checks the time transition repeatedly based on each location
+         */
+        public enum TimeOptionType { conjunction, separated };
+
+        public DataOptionType DataOption = DataOptionType.uninterpreted_function;
 
         public IndexOptionType IndexOption = IndexOptionType.naturalOneToN;
 
@@ -157,7 +166,14 @@ namespace phyea.controller
         {
             Config c = new Config();
 
-            c.SetParamValue("AUTO_CONFIG", "false");
+            c.SetParamValue("AUTO_CONFIG", "false"); // disable auto-configuration (use all logics)
+
+            /*c.SetParamValue("ARRAY_CANONIZE", "true");
+            c.SetParamValue("ARRAY_CG", "true");
+            c.SetParamValue("ARRAY_LAZY_IEQ", "true");
+            c.SetParamValue("ARRAY_WEAK", "true");
+             */
+            //c.SetParamValue("ARRAY_SOLVER", "1"); // 0 to 3
 
             c.SetParamValue("MODEL", "true");
 
@@ -179,7 +195,8 @@ namespace phyea.controller
             c.SetParamValue("MODEL_V2", "true");
             c.SetParamValue("VERBOSE", "10");
 
-            c.SetParamValue("MODEL_COMPACT", "true");
+            c.SetParamValue("MODEL_COMPACT", "true"); // slower, but more accurate (as in the models are more useful) it seems
+
             c.SetParamValue("MODEL_ON_FINAL_CHECK", "true");
 
             // bad syntax for next...
@@ -207,16 +224,16 @@ namespace phyea.controller
 
             //c.SetParamValue("CHECK_PROOF", "true");
             c.SetParamValue("DISPLAY_ERROR_FOR_VISUAL_STUDIO", "true");
-            //c.SetParamValue("DISTRIBUTE_FORALL", "true");
-            //c.SetParamValue("DL_COMPILE_WITH_WIDENING", "true");
+            c.SetParamValue("DISTRIBUTE_FORALL", "true");
+            c.SetParamValue("DL_COMPILE_WITH_WIDENING", "true");
             //c.SetParamValue("DACK", "2");
             //c.SetParamValue("DACK_EQ", "true");
             
-            //c.SetParamValue("QI_LAZY_INSTANTIATION", "true");
-            //c.SetParamValue("ELIM_BOUNDS", "true");
+            c.SetParamValue("QI_LAZY_INSTANTIATION", "true");
+            c.SetParamValue("ELIM_BOUNDS", "true");
 
             // some bugs in the next ones
-            //c.SetParamValue("ELIM_NLARITH_QUANTIFIERS", "true");
+            c.SetParamValue("ELIM_NLARITH_QUANTIFIERS", "true");
             //c.SetParamValue("FWD_SR_CHEAP", "true");
             //c.SetParamValue("LOOKAHEAD", "true");
             //c.SetParamValue("MBQI_MAX_CEXS", "true"); // crashes
@@ -226,12 +243,12 @@ namespace phyea.controller
             
             //c.SetParamValue("LOOKAHEAD_DISEQ", "true");
 
-            //c.SetParamValue("PULL_CHEAP_ITE_TREES", "true");
+            c.SetParamValue("PULL_CHEAP_ITE_TREES", "true");
             //c.SetParamValue("LIFT_ITE", "2"); // buggy: get memory corruption sometimes
             //c.SetParamValue("ELIM_TERM_ITE", "true"); // buggy: get memory corruption sometimes
 
             c.SetParamValue("MINIMIZE_LEMMAS_STRUCT", "true");
-            //c.SetParamValue("MODEL_COMPLETION", "true");
+            c.SetParamValue("MODEL_COMPLETION", "true");
             c.SetParamValue("MODEL_DISPLAY_ARG_SORT", "true");
 
             //c.SetParamValue("ARITH_EUCLIDEAN_SOLVER", "true");
@@ -261,18 +278,24 @@ namespace phyea.controller
                         //this._indexType = Z3.MkSetSort(Z3.MkIntSort());
                         this._indexType = Z3.MkIntSort();
                         this.IndexOne = Z3.MkIntNumeral(1);
+                        this.Params.Add("N", Z3.MkConst("N", this._intType));
+                        this.IndexN = this.Params["N"];
                         break;
                     }
                 case IndexOptionType.natural:
                     {
                         this._indexType = Z3.MkIntSort();
                         this.IndexOne = Z3.MkIntNumeral(1);
+                        this.Params.Add("N", Z3.MkConst("N", this._intType));
+                        this.IndexN = this.Params["N"];
                         break;
                     }
                 case IndexOptionType.naturalOneToN:
                     {
                         this._indexType = Z3.MkIntSort();
                         this.IndexOne = Z3.MkIntNumeral(1);
+                        this.Params.Add("N", Z3.MkConst("N", this._intType));
+                        this.IndexN = this.Params["N"];
                         break;
                     }
                 case IndexOptionType.enumeration:
@@ -445,8 +468,6 @@ namespace phyea.controller
 
         public AgentDataArray DataA = new AgentDataArray(); // todo: refactor, use AAgentDataTheory super class with appropriate generics
         public AgentDataUninterpreted DataU = new AgentDataUninterpreted(); // todo: refactor
-
-        public Term N;
 
         public Holism Sys;
 

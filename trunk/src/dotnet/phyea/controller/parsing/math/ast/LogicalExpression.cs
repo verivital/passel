@@ -222,7 +222,11 @@ namespace phyea.controller.parsing.math.ast
                             default:
                                 if (bound.Count > 1)
                                 {
-                                    return Controller.Instance.Z3.MkForall(0, bound.ToArray(), null, Controller.Instance.Z3.MkImplies(Controller.Instance.Z3.MkAnd(indexConstraints.ToArray()) & Controller.Instance.Z3.MkDistinct(bound.ToArray()), CreateTerm((CommonTree)ast.GetChild(i))));
+                                    // no distinct
+                                    return Controller.Instance.Z3.MkForall(0, bound.ToArray(), null, Controller.Instance.Z3.MkImplies(Controller.Instance.Z3.MkAnd(indexConstraints.ToArray()), CreateTerm((CommonTree)ast.GetChild(i))));
+
+                                    // with distinct
+                                    //return Controller.Instance.Z3.MkForall(0, bound.ToArray(), null, Controller.Instance.Z3.MkImplies(Controller.Instance.Z3.MkAnd(indexConstraints.ToArray()) & Controller.Instance.Z3.MkDistinct(bound.ToArray()), CreateTerm((CommonTree)ast.GetChild(i))));
                                     //return Controller.Instance.Z3.MkForall(0, bound.ToArray(), null, Controller.Instance.Z3.MkImplies(Controller.Instance.Z3.MkAnd(indexConstraints.ToArray()), CreateTerm((CommonTree)ast.GetChild(i))));
                                 }
                                 else
@@ -456,6 +460,7 @@ namespace phyea.controller.parsing.math.ast
 
                 case guardLexer.IMPLY:
                     return Controller.Instance.Z3.MkImplies(CreateTerm((CommonTree)ast.GetChild(0)), CreateTerm((CommonTree)ast.GetChild(1)));
+                    //return !CreateTerm((CommonTree)ast.GetChild(0)) | (CreateTerm((CommonTree)ast.GetChild(0)) & CreateTerm((CommonTree)ast.GetChild(1)));
 
                 case guardLexer.IFF:
                     return Controller.Instance.Z3.MkIff(CreateTerm((CommonTree)ast.GetChild(0)), CreateTerm((CommonTree)ast.GetChild(1)));

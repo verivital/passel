@@ -113,7 +113,7 @@ namespace phyea.model
 
                 if (restart)
                 {
-                    Controller.Instance.Z3.Push();
+                    Controller.Instance.Z3.Push(); // PUSH1_POP1
                     Controller.Instance.Z3.CheckAndGetModel(out model);
                     Term a = Controller.Instance.Z3.GetAssignments();
                     System.Console.WriteLine("\n\r\n\rASSUMPTIONS: \n\r" + a.ToString() + "\n\r\n\r");
@@ -155,7 +155,7 @@ namespace phyea.model
                         }
                         core = null;
                     }
-                    Controller.Instance.Z3.Pop();
+                    Controller.Instance.Z3.Pop(); // PUSH1_POP1
 
                     restart = false; // don't do this at every run
                     property_idx = 0; // start back over on the properties
@@ -180,6 +180,7 @@ namespace phyea.model
                 subpart = false;
                 iinv = true; // reset invariant shortcircuit var
                 inv = true;
+                Term hidx = Controller.Instance.Z3.MkConst("h", Controller.Instance.IndexType);
                 List<Transition> tViolate = new List<Transition>(); // list of transitions which violate invariant
 
                 /*
@@ -240,19 +241,23 @@ namespace phyea.model
                             locInvariant.Add(l.StatePredicate); // discrete location prestate   (e.g., loc[i]  = 1)
                             locInvariant.Add(t.ToTerm());       // discrete location post-state (e.g., loc'[i] = 2)
 
+                            // add guard, if one exists
+                            if (t.Guard != null)
+                            {
+                                locInvariant.Add(t.Guard);
+                            }
+
+                            // add invariant, if one exists
                             if (l.Invariant != null)
                             {
                                 locInvariant.Add(l.Invariant);
                             }
 
+                            // add stopping condition, if one exists
                             if (l.Stop != null)
                             {
                                 locInvariant.Add(l.Stop);
                             }
-
-                            List<Term> bound = new List<Term>();
-                            Term hidx = Controller.Instance.Z3.MkConst("h", Controller.Instance.IndexType);
-                            bound.Add(hidx);
 
                             List<String> globalVariableResets = new List<String>(); // global variables not reset
                             List<String> indexVariableResets = new List<String>();  // indexed variables of process moving that are not reset
@@ -271,26 +276,26 @@ namespace phyea.model
                                 indexVariableResets = Controller.Instance.Z3.findIndexedVariableResets(null);
                             }
 
-                            if (t.Guard != null)
-                            {
-                                locInvariant.Add(t.Guard);
-                            }
-
+                            // create conjunction of pre-state and post-state conditions
                             Term locInvariantAnd = Controller.Instance.Z3.MkAnd(locInvariant.ToArray());
+
+                            List<Term> bound = new List<Term>();
+                            hidx = Controller.Instance.Z3.MkConst("h", Controller.Instance.IndexType);
+                            bound.Add(hidx);
                             Controller.Instance.Z3.replaceTerm(ref locInvariantAnd, locInvariantAnd, Controller.Instance.Indices["i"], hidx, true); // replace i by h
 
-                            // todo next: try implies vs. and
+                            // add quantifiers based on pre-state and post-state, using implies vs. and options and indexing options
                             switch (Controller.Instance.IndexOption)
                             {
                                 case Controller.IndexOptionType.naturalOneToN:
                                     switch (Controller.Instance.ExistsOption)
                                     {
                                         case Controller.ExistsOptionType.and:
-                                            locInvariantAnd = Controller.Instance.Z3.MkAnd(hidx >= Controller.Instance.IntOne & hidx <= Controller.Instance.N, locInvariantAnd & Controller.Instance.Z3.forallIdentity(hidx, globalVariableResets, indexVariableResets)); // 1 <= h <= N, enforce identity for all other processes not moving
+                                            locInvariantAnd = Controller.Instance.Z3.MkAnd(hidx >= Controller.Instance.IntOne & hidx <= Controller.Instance.IndexN, locInvariantAnd & Controller.Instance.Z3.forallIdentity(hidx, globalVariableResets, indexVariableResets)); // 1 <= h <= N, enforce identity for all other processes not moving
                                             break;
                                         case Controller.ExistsOptionType.implies:
                                         default:
-                                            locInvariantAnd = Controller.Instance.Z3.MkImplies(hidx >= Controller.Instance.IntOne & hidx <= Controller.Instance.N, locInvariantAnd & Controller.Instance.Z3.forallIdentity(hidx, globalVariableResets, indexVariableResets)); // 1 <= h <= N, enforce identity for all other processes not moving
+                                            locInvariantAnd = Controller.Instance.Z3.MkImplies(hidx >= Controller.Instance.IntOne & hidx <= Controller.Instance.IndexN, locInvariantAnd & Controller.Instance.Z3.forallIdentity(hidx, globalVariableResets, indexVariableResets)); // 1 <= h <= N, enforce identity for all other processes not moving
                                             break;
                                     }
                                     break;
@@ -363,9 +368,6 @@ namespace phyea.model
                                         core = null;
                                     }
                                     // proved inductive invariant (for this transition)
-
-                                    // fine granularity lemmas: assert this as an inductive property
-                                    //Controller.Instance.Z3.AssertCnstr(claim);
                                     //subpart = true;
                                     proveCount++;
                                 }
@@ -383,12 +385,12 @@ namespace phyea.model
                             }
                         } // end discrete actions
 
-                        Term ht = Controller.Instance.Z3.MkConst("h", Controller.Instance.IndexType);
+                        hidx = Controller.Instance.Z3.MkConst("h", Controller.Instance.IndexType);
 
                         if (l.Flow == null)
                         {
-                            Term tmpterm = Controller.Instance.Z3.MkImplies(l.StatePredicate, Controller.Instance.Z3.timeNoFlowIdentity(ht));
-                            Controller.Instance.Z3.replaceTerm(ref tmpterm, tmpterm, Controller.Instance.Indices["i"], ht, true); // replace i by h
+                            Term tmpterm = Controller.Instance.Z3.MkImplies(l.StatePredicate, Controller.Instance.Z3.timeNoFlowIdentity(hidx));
+                            Controller.Instance.Z3.replaceTerm(ref tmpterm, tmpterm, Controller.Instance.Indices["i"], hidx, true); // replace i by h
 
                             timeall.Add(tmpterm);
 
@@ -466,9 +468,10 @@ namespace phyea.model
                             exprlist.Add(l.Flow);
                         }
                         // mkimplies: l.StatePredicate
+                        //l.StatePredicate;
                         List<Term> bt = new List<Term>();
-
-                        bt.Add(ht);
+                        hidx = Controller.Instance.Z3.MkConst("h", Controller.Instance.IndexType);
+                        bt.Add(hidx);
 
                         if (Controller.Instance.TimeOption == Controller.TimeOptionType.separated)
                         {
@@ -482,7 +485,7 @@ namespace phyea.model
                             expr = Controller.Instance.Z3.MkImplies(l.StatePredicate, expr); // control location, e.g., q[h] == 2 implies (inv, guard, flow, etc.)
                         }
 
-                        Controller.Instance.Z3.replaceTerm(ref expr, expr, Controller.Instance.Indices["i"], ht, true); // replace i by h
+                        Controller.Instance.Z3.replaceTerm(ref expr, expr, Controller.Instance.Indices["i"], hidx, true); // replace i by h
 
                         // if we haven't yet add every location's invariant, keep adding them on
                         if (Controller.Instance.TimeOption == Controller.TimeOptionType.conjunction && timeall.Count < h.Locations.Count)
@@ -505,11 +508,11 @@ namespace phyea.model
                                     switch (Controller.Instance.ExistsOption)
                                     {
                                         case Controller.ExistsOptionType.and:
-                                            expr = Controller.Instance.Z3.MkForall(0, bt.ToArray(), null, Controller.Instance.Z3.MkImplies(ht >= Controller.Instance.IntOne & ht <= Controller.Instance.N, expr & Controller.Instance.Z3.timeIdentity(ht)));
+                                            expr = Controller.Instance.Z3.MkForall(0, bt.ToArray(), null, Controller.Instance.Z3.MkImplies(hidx >= Controller.Instance.IndexOne & hidx <= Controller.Instance.IndexN, expr & Controller.Instance.Z3.timeIdentity(hidx)));
                                             break;
                                         case Controller.ExistsOptionType.implies:
                                         default:
-                                            expr = Controller.Instance.Z3.MkForall(0, bt.ToArray(), null, Controller.Instance.Z3.MkImplies(ht >= Controller.Instance.IntOne & ht <= Controller.Instance.N, expr & Controller.Instance.Z3.timeIdentity(ht)));
+                                            expr = Controller.Instance.Z3.MkForall(0, bt.ToArray(), null, Controller.Instance.Z3.MkImplies(hidx >= Controller.Instance.IndexOne & hidx <= Controller.Instance.IndexN, expr & Controller.Instance.Z3.timeIdentity(hidx)));
                                             break;
                                     }
                                     break;
@@ -517,7 +520,7 @@ namespace phyea.model
                             case Controller.IndexOptionType.integer:
                             case Controller.IndexOptionType.enumeration:
                             default:
-                                expr = Controller.Instance.Z3.MkForall(0, bt.ToArray(), null, expr & Controller.Instance.Z3.timeIdentity(ht));
+                                expr = Controller.Instance.Z3.MkForall(0, bt.ToArray(), null, expr & Controller.Instance.Z3.timeIdentity(hidx));
                                 break;
                         }
 
@@ -598,14 +601,8 @@ namespace phyea.model
                     Term simple_ii = Controller.Instance.Z3.MkImplies(p.Formula, formulaPrime);
                     Controller.Instance.Z3.AssertCnstr(simple_ii);
 
-                    //Controller.Instance.Z3.AssertCnstr(Controller.Instance.Z3.MkAnd(p.InductiveInvariants.ToArray()));
+                    //Controller.Instance.Z3.AssertCnstr(Controller.Instance.Z3.MkOr(p.InductiveInvariants.ToArray())); // disjunction of all transitions is the transition relation, not conjunction!
                     // also assert the inductive invariant claim since it is strictly stronger than an invariant property (i.e., ii => i, but ii !<= i necessarily)
-
-                    //foreach (var pt in p.InductiveInvariants)
-                    //{
-                    //    // assert the inductive property as a lemma
-                    //    Controller.Instance.Z3.AssertCnstr(pt);
-                    //}
                 }
 
 
@@ -623,16 +620,9 @@ namespace phyea.model
                         Console.WriteLine("\n\r\n\rProperty was inductive! Property checked was: \n\r" + p.Formula.ToString());
                         p.Status = StatusTypes.inductive;
 
-
                         //Controller.Instance.Z3.AssertCnstr(p.Formula); // probably don't want to assert this, as this would require it to be invariant
 
-                        p.InductiveFormula = Controller.Instance.Z3.MkAnd(p.InductiveInvariants.ToArray());
-
-                        foreach (var pt in p.InductiveInvariants)
-                        {
-                            // assert the inductive property as a lemma
-                            //Controller.Instance.Z3.AssertCnstr(pt);
-                        }
+                        p.InductiveFormula = Controller.Instance.Z3.MkOr(p.InductiveInvariants.ToArray());
                     }
                 }
                 Controller.Instance.TimerStats.Stop();
@@ -641,8 +631,6 @@ namespace phyea.model
                 if (subpart || iinv || inv)
                 {
                     restart = true;
-
-
 
                     foreach (var ptmp in this.Properties)
                     {
