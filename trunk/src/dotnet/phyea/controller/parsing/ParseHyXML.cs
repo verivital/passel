@@ -68,6 +68,13 @@ namespace phyea.controller.parsing
         type,
     };
 
+    public enum AssumptionTypes
+    {
+        invariant,
+        inductive_invariant,
+        none
+    };
+
     public enum VariableAttributes
     {
         name,
@@ -112,6 +119,7 @@ namespace phyea.controller.parsing
     {
         comment,
         equn,
+        type,
     };
 
     public enum FlowAttributes
@@ -225,7 +233,10 @@ namespace phyea.controller.parsing
 
                                         if (param != null)
                                         {
-                                            Controller.Instance.Params.Add(name, param);
+                                            if (!Controller.Instance.Params.ContainsKey(name))
+                                            {
+                                                Controller.Instance.Params.Add(name, param);
+                                            }
                                         }
                                         else
                                         {
@@ -256,16 +267,64 @@ namespace phyea.controller.parsing
                                         Property p = new Property(pstr, (Property.PropertyType)Enum.Parse(typeof(Property.PropertyType), type, true));
                                         sys.Properties.Add(p);
 
+
+                                        //Property pneg = new Property("! ( " + pstr + ")", (Property.PropertyType)Enum.Parse(typeof(Property.PropertyType), type, true));
+                                        //sys.Properties.Add(pneg);
+
+
+                                        //Property pneginside = p;
+                                        //p.Formula
+                                        //String pstr_repl = pstr;
+                                        //System.Text.RegularExpressions.Regex.Replace(pstr_repl, "forall [a-z]+\b",  
+                                        //Property pneginside = new Property(, (Property.PropertyType)Enum.Parse(typeof(Property.PropertyType), type, true));
+                                        //sys.Properties.Add(pneginside);
+
                                         break;
                                     }
                                 case ElementNames.assumption:
                                     {
                                         String assump = reader.GetAttribute(AssumptionAttributes.equn.ToString());
+                                        String type = reader.GetAttribute(AssumptionAttributes.type.ToString());
+
+                                        AssumptionTypes atype;
+
+                                        if (type != null)
+                                        {
+                                            atype = (AssumptionTypes)Enum.Parse(typeof(AssumptionTypes), type, true);
+                                        }
+                                        else
+                                        {
+                                            atype = AssumptionTypes.none;
+                                        }
+
                                         if (assump.Length > 0)
                                         {
                                             Antlr.Runtime.Tree.CommonTree tmptree = math.Expression.Parse(assump);
-                                            // assert the assumption
-                                            Controller.Instance.Z3.AssertCnstr(LogicalExpression.CreateTerm(tmptree));
+                                            Term assumpTerm = LogicalExpression.CreateTerm(tmptree);
+
+                                            switch (atype)
+                                            {
+                                                case AssumptionTypes.inductive_invariant:
+                                                    {
+                                                        // assert the assumption
+                                                        Term assumpTermPrime = assumpTerm;
+                                                        Controller.Instance.Z3.primeAllVariables(ref assumpTermPrime);
+
+                                                        Term assumpTermImplies = Controller.Instance.Z3.MkImplies(assumpTerm, assumpTermPrime); // inductive part
+
+                                                        Controller.Instance.Z3.AssertCnstr(assumpTerm); // invariant part
+                                                        Controller.Instance.Z3.AssertCnstr(assumpTermPrime);
+                                                        break;
+                                                    }
+                                                case AssumptionTypes.invariant:
+                                                case AssumptionTypes.none:
+                                                default:
+                                                    {
+                                                        // assert the assumption
+                                                        Controller.Instance.Z3.AssertCnstr(assumpTerm);
+                                                        break;
+                                                    }
+                                            }
                                         }
 
                                         break;

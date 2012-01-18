@@ -387,8 +387,6 @@ namespace phyea.model
                         break;
                     }
             }
-
-            Controller.Instance.N = Controller.Instance.Params["N"];
         }
     }
 }

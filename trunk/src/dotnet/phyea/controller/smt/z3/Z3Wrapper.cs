@@ -343,8 +343,8 @@ namespace phyea.controller.smt.z3
             List<Term> ibds = new List<Term>();
             if (Controller.Instance.IndexOption == Controller.IndexOptionType.naturalOneToN)
             {
-                ibds.Add(Controller.Instance.Indices[idx] >= Controller.Instance.IntOne);
-                ibds.Add(Controller.Instance.Indices[idx] <= Controller.Instance.N);
+                ibds.Add(Controller.Instance.Indices[idx] >= Controller.Instance.IndexOne);
+                ibds.Add(Controller.Instance.Indices[idx] <= Controller.Instance.IndexN);
             }
 
             Term ret;
@@ -595,6 +595,22 @@ namespace phyea.controller.smt.z3
                 }
             }
             return t;
+        }
+
+        /**
+         * Macro for a simple max term: if a >= b, then return a, else return b
+         */
+        public Term MkMax(Term a, Term b)
+        {
+            return this.MkIte(a >= b, a, b);
+        }
+
+        /**
+         * Macro for a simple min term: if a <= b, then return a, else return b
+         */
+        public Term MkMin(Term a, Term b)
+        {
+            return this.MkIte(a <= b, a, b);
         }
 
         /**
