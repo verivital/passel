@@ -99,6 +99,12 @@ namespace phyea.model
             int proveCount = 0;
             int property_idx = 0;
 
+            System.Console.WriteLine("Attempting to prove the following properties as inductive invariants: >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n\r");
+            foreach (Property p in this.Properties)
+            {
+                System.Console.WriteLine(p.Formula.ToString() + "\n\r");
+            }
+
             while (true)
             {
                 Model model = null;
@@ -398,6 +404,8 @@ namespace phyea.model
                             {
                                 continue; // no dynamics (e.g., x' == 0), skip time transition
                             }
+
+                            // todo: this makes the most sense, but should we allow the full generality of having an invariant and stopping condition even when we will have identity for time? (i.e., the stop/inv could force a transition, but it would sort of be illegal...)
                         }
 
                         Term timeii = p.Formula;
@@ -427,7 +435,16 @@ namespace phyea.model
                                         case Controller.DataOptionType.uninterpreted_function:
                                         default:
                                             {
-                                                Controller.Instance.Z3.replaceFuncDecl(ref tmpterm, tmpterm, Controller.Instance.DataU.IndexedVariableDecl[v.Name], Controller.Instance.DataU.IndexedVariableDeclPrimed[v.Name], false);
+                                                //Controller.Instance.Z3.replaceFuncDecl(ref tmpterm, tmpterm, Controller.Instance.DataU.IndexedVariableDecl[v.Name], Controller.Instance.DataU.IndexedVariableDeclPrimed[v.Name], false);
+
+                                                if (l.Flow != null)
+                                                {
+                                                    Term flowInv = l.Flow;
+                                                    flowInv = flowInv.GetAppArgs()[1]; // todo: rewrite
+                                                    Controller.Instance.Z3.replaceTerm(ref flowInv, flowInv, t1, t2, true); // replace t1 with t2
+
+                                                    Controller.Instance.Z3.replaceTerm(ref tmpterm, tmpterm, Controller.Instance.IndexedVariables[new KeyValuePair<string, string>(v.Name, "i")], flowInv, false);
+                                                }
                                                 break;
                                             }
                                     }
@@ -453,7 +470,19 @@ namespace phyea.model
                                         case Controller.DataOptionType.uninterpreted_function:
                                         default:
                                             {
-                                                Controller.Instance.Z3.replaceFuncDecl(ref tmpterm, tmpterm, Controller.Instance.DataU.IndexedVariableDecl[v.Name], Controller.Instance.DataU.IndexedVariableDeclPrimed[v.Name], false);
+                                                // as a function of t1 (wrong)
+                                                //Controller.Instance.Z3.replaceFuncDecl(ref tmpterm, tmpterm, Controller.Instance.DataU.IndexedVariableDecl[v.Name], Controller.Instance.DataU.IndexedVariableDeclPrimed[v.Name], false);
+
+                                                //Controller.Instance.Z3.replaceTerm(ref tmpterm, tmpterm, Controller.Instance.IndexedVariables[new KeyValuePair<string,string>(v.Name, "i")], l.Flow, false);
+
+
+                                                Term flowStop = l.Flow;
+                                                flowStop = flowStop.GetAppArgs()[1]; // todo: rewrite
+                                                Controller.Instance.Z3.replaceTerm(ref flowStop, flowStop, t1, t2, true); // replace t1 with t2
+
+
+
+                                                Controller.Instance.Z3.replaceTerm(ref tmpterm, tmpterm, Controller.Instance.IndexedVariables[new KeyValuePair<string, string>(v.Name, "i")], flowStop, false);
                                                 break;
                                             }
                                     }
@@ -467,6 +496,7 @@ namespace phyea.model
                         {
                             exprlist.Add(l.Flow);
                         }
+
                         // mkimplies: l.StatePredicate
                         //l.StatePredicate;
                         List<Term> bt = new List<Term>();
@@ -500,7 +530,6 @@ namespace phyea.model
 
                         expr = Controller.Instance.Z3.MkAnd(timeall.ToArray());
 
-
                         switch (Controller.Instance.IndexOption)
                         {
                             case Controller.IndexOptionType.naturalOneToN:
@@ -527,17 +556,17 @@ namespace phyea.model
                         // if we have a stop condition, or if we're doing the conjunction (assume at least one location has a stop)
                         if (l.Stop != null || Controller.Instance.TimeOption == Controller.TimeOptionType.conjunction)
                         {
-                            expr = Controller.Instance.Z3.MkForall(0, new Term[] { t2 }, null, Controller.Instance.Z3.MkAnd(t2 >= Controller.Instance.RealZero & t2 <= t1, expr)); // todo: seems correct with this as and instead of implies, doulbe check
+                            expr = Controller.Instance.Z3.MkForall(0, new Term[] { t2 }, null, Controller.Instance.Z3.MkImplies(t2 > Controller.Instance.RealZero & t2 <= t1, expr)); // NO, MUST BE IMPLIES!!! todo: seems correct with this as and instead of implies, doulbe check
                         }
 
                         switch (Controller.Instance.ExistsOption)
                         {
                             case Controller.ExistsOptionType.and:
-                                expr = Controller.Instance.Z3.MkExists(0, new Term[] { t1 }, null, Controller.Instance.Z3.MkAnd(t1 >= Controller.Instance.RealZero, expr)); // broken with invariants if using implies
+                                expr = Controller.Instance.Z3.MkExists(0, new Term[] { t1 }, null, Controller.Instance.Z3.MkAnd(t1 > Controller.Instance.RealZero, expr)); // broken with invariants if using implies
                                 break;
                             case Controller.ExistsOptionType.implies:
                             default:
-                                expr = Controller.Instance.Z3.MkExists(0, new Term[] { t1 }, null, Controller.Instance.Z3.MkImplies(t1 >= Controller.Instance.RealZero, expr));
+                                expr = Controller.Instance.Z3.MkExists(0, new Term[] { t1 }, null, Controller.Instance.Z3.MkImplies(t1 > Controller.Instance.RealZero, expr));
                                 break;
                         }
 
@@ -600,6 +629,7 @@ namespace phyea.model
                     Controller.Instance.Z3.primeAllVariables(ref formulaPrime);
                     Term simple_ii = Controller.Instance.Z3.MkImplies(p.Formula, formulaPrime);
                     Controller.Instance.Z3.AssertCnstr(simple_ii);
+                    //Controller.Instance.Z3.AssertCnstr(formulaPrime);
 
                     //Controller.Instance.Z3.AssertCnstr(Controller.Instance.Z3.MkOr(p.InductiveInvariants.ToArray())); // disjunction of all transitions is the transition relation, not conjunction!
                     // also assert the inductive invariant claim since it is strictly stronger than an invariant property (i.e., ii => i, but ii !<= i necessarily)
@@ -771,6 +801,21 @@ namespace phyea.model
                     System.Console.WriteLine("Time: " + String.Format("{0}", p.Time.TotalSeconds) + "\n\r\n\r");
                 }
             }
+        }
+
+        /**
+         * Determine if a set of properties can be reached by the system
+         */
+        public void checkBackReachable()
+        {
+        }
+
+        /**
+         * Determine if a given property specified by p can be reached by the system
+         */
+        public Boolean checkBackReachableNonempty(Term p)
+        {
+            return true;
         }
 
     }
