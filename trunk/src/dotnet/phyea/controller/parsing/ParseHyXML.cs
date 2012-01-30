@@ -264,6 +264,11 @@ namespace phyea.controller.parsing
                                         String pstr = reader.GetAttribute(PropertyAttributes.equn.ToString());
                                         String type = reader.GetAttribute(PropertyAttributes.type.ToString());
 
+                                        if ((pstr == "forall i ((q[i] == cs or q[i] == trying) implies (g == i and (forall idxj (q[idxj] != waiting))))")  || (pstr == "forall i ((q[i] == cs or q[i] == trying) implies (g == i and (forall j (q[j] != waiting))))")) // todo: remove, bug checking
+                                        {
+                                            Boolean br = true;
+                                        }
+
                                         Property p = new Property(pstr, (Property.PropertyType)Enum.Parse(typeof(Property.PropertyType), type, true));
                                         sys.Properties.Add(p);
 
@@ -409,9 +414,28 @@ namespace phyea.controller.parsing
                                             {
                                                 foreach (var cs in constants)
                                                 {
-                                                    Term c = Controller.Instance.Z3.MkRealNumeral((int)float.Parse(cs));
-                                                    Term addDeltaMin = Controller.Instance.IndexedVariables[new KeyValuePair<string, string>(variableName, "i")] + (c * t1);
-                                                    Controller.Instance.Z3.replaceTerm(ref expr, expr, c, addDeltaMin, false);
+                                                    int cint = (int)float.Parse(cs);
+                                                    String cstr = float.Parse(cs).ToString();
+
+                                                    if (cint == 1)
+                                                    {
+                                                        Term c = Controller.Instance.Z3.MkRealNumeral(cstr);
+                                                        Term addDeltaMin = Controller.Instance.IndexedVariables[new KeyValuePair<string, string>(variableName, "i")] + t1;
+                                                        Controller.Instance.Z3.replaceTerm(ref expr, expr, c, addDeltaMin, false);
+                                                    }
+                                                    else if (cint == -1)
+                                                    {
+                                                        Term c = Controller.Instance.Z3.MkRealNumeral(cstr);
+                                                        Term addDeltaMin = Controller.Instance.IndexedVariables[new KeyValuePair<string, string>(variableName, "i")] - t1;
+                                                        Controller.Instance.Z3.replaceTerm(ref expr, expr, c, addDeltaMin, false);
+                                                    }
+                                                    else
+                                                    {
+                                                        Term c = Controller.Instance.Z3.MkRealNumeral(cstr);
+                                                        Term addDeltaMin = Controller.Instance.IndexedVariables[new KeyValuePair<string, string>(variableName, "i")] + (c * t1);
+                                                        Controller.Instance.Z3.replaceTerm(ref expr, expr, c, addDeltaMin, false);
+                                                    }
+
                                                 }
                                             }
 

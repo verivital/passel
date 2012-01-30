@@ -215,12 +215,13 @@ namespace phyea.controller
 
             //c.SetParamValue("STATISTICS", "true"); // crashes
 
+            
 
-            //c.SetParamValue("ARITH_SOLVER", "2"); // simplex solver
-//            c.SetParamValue("NL_ARITH", "true"); // nonlinear arithmetic support: requires arith_solver 2
-//            c.SetParamValue("NL_ARITH_GB_EQS", "true");
-//            c.SetParamValue("ARITH_ADAPTIVE", "true");
-//            c.SetParamValue("ARITH_PROCESS_ALL_EQS", "true");
+            c.SetParamValue("ARITH_SOLVER", "2"); // simplex solver
+            c.SetParamValue("NL_ARITH", "true"); // nonlinear arithmetic support: requires arith_solver 2
+            c.SetParamValue("NL_ARITH_GB_EQS", "true");
+            c.SetParamValue("ARITH_ADAPTIVE", "true");
+            c.SetParamValue("ARITH_PROCESS_ALL_EQS", "true");
 
             //c.SetParamValue("CHECK_PROOF", "true");
             c.SetParamValue("DISPLAY_ERROR_FOR_VISUAL_STUDIO", "true");
@@ -233,7 +234,7 @@ namespace phyea.controller
             c.SetParamValue("ELIM_BOUNDS", "true");
 
             // some bugs in the next ones
-            c.SetParamValue("ELIM_NLARITH_QUANTIFIERS", "true");
+            //c.SetParamValue("ELIM_NLARITH_QUANTIFIERS", "true");
             //c.SetParamValue("FWD_SR_CHEAP", "true");
             //c.SetParamValue("LOOKAHEAD", "true");
             //c.SetParamValue("MBQI_MAX_CEXS", "true"); // crashes
@@ -251,12 +252,12 @@ namespace phyea.controller
             c.SetParamValue("MODEL_COMPLETION", "true");
             c.SetParamValue("MODEL_DISPLAY_ARG_SORT", "true");
 
-            //c.SetParamValue("ARITH_EUCLIDEAN_SOLVER", "true");
-            //c.SetParamValue("ARITH_FORCE_SIMPLEX", "true");
-            //c.SetParamValue("ARITH_MAX_LEMMA_SIZE", "512"); // default 128
+            c.SetParamValue("ARITH_EUCLIDEAN_SOLVER", "true");
+            c.SetParamValue("ARITH_FORCE_SIMPLEX", "true");
+            c.SetParamValue("ARITH_MAX_LEMMA_SIZE", "512"); // default 128
 
             //c.SetParamValue("enable-cores", "true");
-
+            
             c.SetParamValue("DISPLAY_UNSAT_CORE", "true");
             c.SetParamValue("DISPLAY_PROOF", "true");
             c.SetParamValue("PROOF_MODE", "1");
@@ -559,6 +560,11 @@ namespace phyea.controller
                             case 13:
                                 {
                                     Instance._inputFile = Instance._inoutPath + "smt_flocking_buggy_hyxml.xml";
+                                    break;
+                                }
+                            case 14:
+                                {
+                                    Instance._inputFile = Instance._inoutPath + "smt_fischer_umeno_hyxml.xml";
                                     break;
                                 }
                             case 256:
