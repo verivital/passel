@@ -79,7 +79,7 @@ namespace phyea.controller.smt.z3
         {
             List<String> vars = new List<String>();
 
-            foreach (var v in Controller.Instance.ParamsPrimed)
+            foreach (var v in Controller.Instance.GlobalVariablesPrimed)
             {
                 if (!this.findTerm(reset, v.Value, false))
                 {
@@ -265,9 +265,9 @@ namespace phyea.controller.smt.z3
                     }
             }
 
-            foreach (var v in Controller.Instance.ParamsPrimed)
+            foreach (var v in Controller.Instance.GlobalVariablesPrimed) // uses primed from earlier revision before global variables added in more coherent manner (were parameters with update_type)
             {
-                replaceTerm(ref origReplaced, origReplaced, Controller.Instance.Params[v.Key], v.Value, false);
+                replaceTerm(ref origReplaced, origReplaced, Controller.Instance.GlobalVariables[v.Key], v.Value, false);
             }
         }
 
@@ -317,28 +317,31 @@ namespace phyea.controller.smt.z3
             }
 
             // set equality on all unprimed pre-state and primed post-state of all indexed variables ***NOT APPEARING IN THE RESET*** for the process making the move (e.g., x[h]' == x[h], if x[h] is not reset)
-            foreach (var v in indexVariableResets)
+            if (indexMakingMove != null)
             {
-                switch (Controller.Instance.DataOption)
+                foreach (var v in indexVariableResets)
                 {
-                    case Controller.DataOptionType.array:
-                        {
-                            outside_forall.Add(Controller.Instance.Z3.MkEq(Controller.Instance.Z3.MkArraySelect(Controller.Instance.DataA.IndexedVariableDecl[v], indexMakingMove), Controller.Instance.Z3.MkArraySelect(Controller.Instance.DataA.IndexedVariableDeclPrimed[v], indexMakingMove)));
-                            break;
-                        }
-                    case Controller.DataOptionType.uninterpreted_function:
-                    default:
-                        {
-                            outside_forall.Add(Controller.Instance.Z3.MkEq(Controller.Instance.Z3.MkApp(Controller.Instance.DataU.IndexedVariableDecl[v], indexMakingMove), Controller.Instance.Z3.MkApp(Controller.Instance.DataU.IndexedVariableDeclPrimed[v], indexMakingMove)));
-                            break;
-                        }
+                    switch (Controller.Instance.DataOption)
+                    {
+                        case Controller.DataOptionType.array:
+                            {
+                                outside_forall.Add(Controller.Instance.Z3.MkEq(Controller.Instance.Z3.MkArraySelect(Controller.Instance.DataA.IndexedVariableDecl[v], indexMakingMove), Controller.Instance.Z3.MkArraySelect(Controller.Instance.DataA.IndexedVariableDeclPrimed[v], indexMakingMove)));
+                                break;
+                            }
+                        case Controller.DataOptionType.uninterpreted_function:
+                        default:
+                            {
+                                outside_forall.Add(Controller.Instance.Z3.MkEq(Controller.Instance.Z3.MkApp(Controller.Instance.DataU.IndexedVariableDecl[v], indexMakingMove), Controller.Instance.Z3.MkApp(Controller.Instance.DataU.IndexedVariableDeclPrimed[v], indexMakingMove)));
+                                break;
+                            }
+                    }
                 }
             }
 
             // set equality on all unprimed pre-state and primed post-tate of all global variables ***NOT APPEARING IN THE RESET*** (e.g., g' == g, if g is not reset)
             foreach (var v in globalVariableResets)
             {
-                outside_forall.Add(Controller.Instance.Z3.MkEq(Controller.Instance.Params[v], Controller.Instance.ParamsPrimed[v]));
+                outside_forall.Add(Controller.Instance.Z3.MkEq(Controller.Instance.GlobalVariables[v], Controller.Instance.GlobalVariablesPrimed[v]));
             }
             List<Term> ibds = new List<Term>();
             if (Controller.Instance.IndexOption == Controller.IndexOptionType.naturalOneToN)
@@ -348,18 +351,40 @@ namespace phyea.controller.smt.z3
             }
 
             Term ret;
-            switch (Controller.Instance.IndexOption)
+            Term fand = Controller.Instance.Z3.MkAnd(f.ToArray());
+            if (indexMakingMove != null)
             {
-                case Controller.IndexOptionType.integer:
-                    ret = Controller.Instance.Z3.MkForall(0, bound.ToArray(), null, Controller.Instance.Z3.MkImplies(Controller.Instance.Z3.MkDistinct(bound.First(), indexMakingMove), Controller.Instance.Z3.MkAnd(f.ToArray()))); // todo: check order of this distinct...in antecedent or consequent?
-                    break;
-                case Controller.IndexOptionType.naturalOneToN:
-                    ret = Controller.Instance.Z3.MkForall(0, bound.ToArray(), null, Controller.Instance.Z3.MkImplies(Controller.Instance.Z3.MkAnd(ibds.ToArray()) & Controller.Instance.Z3.MkDistinct(bound.First(), indexMakingMove), Controller.Instance.Z3.MkAnd(f.ToArray()))); // todo: check order of this distinct...in antecedent or consequent?
-                    break;
-                case Controller.IndexOptionType.enumeration:
-                default:
-                    ret = Controller.Instance.Z3.MkForall(0, bound.ToArray(), null, Controller.Instance.Z3.MkImplies(Controller.Instance.Z3.MkDistinct(bound.First(), indexMakingMove), Controller.Instance.Z3.MkAnd(f.ToArray()))); // todo: check order of this distinct...in antecedent or consequent?
-                    break;
+                Term distinct = Controller.Instance.Z3.MkDistinct(bound.First(), indexMakingMove);
+
+                switch (Controller.Instance.IndexOption)
+                {
+                    case Controller.IndexOptionType.integer:
+                        ret = Controller.Instance.Z3.MkForall(0, bound.ToArray(), null, Controller.Instance.Z3.MkImplies(distinct, fand)); // todo: check order of this distinct...in antecedent or consequent?
+                        break;
+                    case Controller.IndexOptionType.naturalOneToN:
+                        ret = Controller.Instance.Z3.MkForall(0, bound.ToArray(), null, Controller.Instance.Z3.MkImplies(Controller.Instance.Z3.MkAnd(ibds.ToArray()) & distinct, fand)); // todo: check order of this distinct...in antecedent or consequent?
+                        break;
+                    case Controller.IndexOptionType.enumeration:
+                    default:
+                        ret = Controller.Instance.Z3.MkForall(0, bound.ToArray(), null, Controller.Instance.Z3.MkImplies(distinct, fand)); // todo: check order of this distinct...in antecedent or consequent?
+                        break;
+                }
+            }
+            else
+            {
+                switch (Controller.Instance.IndexOption)
+                {
+                    case Controller.IndexOptionType.integer:
+                        ret = Controller.Instance.Z3.MkForall(0, bound.ToArray(), null, fand); // todo: check order of this distinct...in antecedent or consequent?
+                        break;
+                    case Controller.IndexOptionType.naturalOneToN:
+                        ret = Controller.Instance.Z3.MkForall(0, bound.ToArray(), null, Controller.Instance.Z3.MkImplies(Controller.Instance.Z3.MkAnd(ibds.ToArray()), fand)); // todo: check order of this distinct...in antecedent or consequent?
+                        break;
+                    case Controller.IndexOptionType.enumeration:
+                    default:
+                        ret = Controller.Instance.Z3.MkForall(0, bound.ToArray(), null, fand); // todo: check order of this distinct...in antecedent or consequent?
+                        break;
+                }
             }
 
             // only add the outside forall constraints if there are any
@@ -432,7 +457,7 @@ namespace phyea.controller.smt.z3
             {
                 if (v.UpdateType != Variable.VarUpdateType.continuous)
                 {
-                    f.Add(Controller.Instance.Z3.MkEq(Controller.Instance.Params[v.Name], Controller.Instance.ParamsPrimed[v.Name]));
+                    f.Add(Controller.Instance.Z3.MkEq(Controller.Instance.GlobalVariables[v.Name], Controller.Instance.GlobalVariablesPrimed[v.Name]));
                 }
             }
 
@@ -509,7 +534,7 @@ namespace phyea.controller.smt.z3
             {
                 if (v.UpdateType == Variable.VarUpdateType.continuous)
                 {
-                    f.Add(Controller.Instance.Z3.MkEq(Controller.Instance.Params[v.Name], Controller.Instance.ParamsPrimed[v.Name]));
+                    f.Add(Controller.Instance.Z3.MkEq(Controller.Instance.GlobalVariables[v.Name], Controller.Instance.GlobalVariablesPrimed[v.Name]));
                 }
             }
 
@@ -760,7 +785,10 @@ namespace phyea.controller.smt.z3
             return ret;
         }
 
-        public static String toStringLatex(Term t)
+        /**
+         * Print a term as a latex string
+         */
+        public static String ToStringLatex(Term t)
         {
             String s = "";
             TermKind a = t.GetKind();
@@ -777,7 +805,7 @@ namespace phyea.controller.smt.z3
                     uint i = 0;
                     do 
                     {
-                        s += toStringLatex(args[i]);
+                        s += ToStringLatex(args[i]);
                         switch (k)
                         {
 

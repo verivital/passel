@@ -187,7 +187,7 @@ dynamics_indexed_variable
 
 // declare after the function token
 dynamics_variable
-	:	(variable) '_dot' -> ^(DYNAMICS_VARIABLE variable?)
+	:	variable '_dot' -> ^(DYNAMICS_VARIABLE variable?)
 	;
 
 indexed_variable
@@ -206,8 +206,9 @@ ID
 fragment LETTER
 	:	'a'..'z'
 	|	'A'..'Z'
-	|	'_'
 	;
+// todo: don't allow underscores in variable names for now due to using x_dot for dynamics, perhaps find another way to handle this, then add the following to letter
+// 	|	'_'
 
 fragment DIGIT
     :    '0'..'9'
