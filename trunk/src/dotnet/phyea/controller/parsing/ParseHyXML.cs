@@ -185,8 +185,6 @@ namespace phyea.controller.parsing
                                         String type = reader.GetAttribute(ParameterAttributes.type.ToString());
                                         String comment = reader.GetAttribute(ParameterAttributes.comment.ToString());
 
-                                        String update_type = reader.GetAttribute(VariableAttributes.update_type.ToString()); // todo fix hack: global vars have update type, while parameters don't
-
                                         Term param = null;
                                         Term paramPrime = null;
 
@@ -194,40 +192,13 @@ namespace phyea.controller.parsing
                                         {
                                             case ParameterTypes.index:
                                                 param = Controller.Instance.Z3.MkConst(name, Controller.Instance.IndexType);
-                                                if (update_type != null)
-                                                {
-                                                    Variable v = new Variable();
-                                                    v.Name = name;
-                                                    v.Type = Variable.VarType.index;
-                                                    v.UpdateType = (Variable.VarUpdateType)Enum.Parse(typeof(Variable.VarUpdateType), update_type, true);
-                                                    sys.Variables.Add(v);
-                                                    paramPrime = Controller.Instance.Z3.MkConst(name + "'", Controller.Instance.IndexType);
-                                                }
                                                 break;
 
                                             case ParameterTypes.integer:
                                                 param = Controller.Instance.Z3.MkConst(name, Controller.Instance.IntType);
-                                                if (update_type != null)
-                                                {
-                                                    Variable v = new Variable();
-                                                    v.Name = name;
-                                                    v.Type = Variable.VarType.integer;
-                                                    v.UpdateType = (Variable.VarUpdateType)Enum.Parse(typeof(Variable.VarUpdateType), update_type, true);
-                                                    sys.Variables.Add(v);
-                                                    paramPrime = Controller.Instance.Z3.MkConst(name + "'", Controller.Instance.IntType);
-                                                }
                                                 break;
                                             case ParameterTypes.real:
                                                 param = Controller.Instance.Z3.MkConst(name, Controller.Instance.RealType);
-                                                if (update_type != null)
-                                                {
-                                                    Variable v = new Variable();
-                                                    v.Name = name;
-                                                    v.Type = Variable.VarType.integer;
-                                                    v.UpdateType = (Variable.VarUpdateType)Enum.Parse(typeof(Variable.VarUpdateType), update_type, true);
-                                                    sys.Variables.Add(v);
-                                                    paramPrime = Controller.Instance.Z3.MkConst(name + "'", Controller.Instance.RealType);
-                                                }
                                                 break;
                                         }
 
@@ -241,11 +212,6 @@ namespace phyea.controller.parsing
                                         else
                                         {
                                             throw new System.Exception("Parameter term not created.");
-                                        }
-
-                                        if (paramPrime != null)
-                                        {
-                                            Controller.Instance.ParamsPrimed.Add(name, paramPrime);
                                         }
                                         break;
                                     }
@@ -319,6 +285,10 @@ namespace phyea.controller.parsing
 
                                                         Controller.Instance.Z3.AssertCnstr(assumpTerm); // invariant part
                                                         Controller.Instance.Z3.AssertCnstr(assumpTermPrime);
+                                                        //Controller.Instance.Z3.AssertCnstr(assumpTerm & assumpTermPrime);
+
+                                                        //Controller.Instance.Z3.AssertCnstr(assumpTermImplies);
+
                                                         break;
                                                     }
                                                 case AssumptionTypes.invariant:
@@ -372,10 +342,6 @@ namespace phyea.controller.parsing
 
                                         if (variable != null && flow != null && variable.Length > 0 && flow.Length > 0)
                                         {
-                                            String[] vns = variable.Split('[');
-                                            String variableName = vns[0]; // todo: error handling
-
-
                                             Antlr.Runtime.Tree.CommonTree tmptree = math.Expression.Parse(flow);
                                             List<String> vars = LogicalExpression.findContinuousVars(tmptree);
                                             List<String> pvars = LogicalExpression.findParams(tmptree);
@@ -384,58 +350,118 @@ namespace phyea.controller.parsing
                                             List<Term> flows = new List<Term>();
                                             Term t1 = Controller.Instance.Z3.MkConst("t_1", Controller.Instance.RealType);
 
-                                            // todo: add global variable support, currently assumes indexed
+                                            // indexed if the variable appears e.g., as x[i], else assume global, e.g., x
+                                            if (variable.Contains("[") && variable.Contains("]"))
+                                            {
+                                                String[] vns = variable.Split('[');
+                                                String variableName = vns[0]; // todo: error handling
 
-                                            // prime all variables
-                                            switch (Controller.Instance.DataOption)
-                                            {
-                                                case Controller.DataOptionType.array:
-                                                    {
-                                                        Controller.Instance.Z3.replaceTerm(ref expr, expr, Controller.Instance.DataA.IndexedVariableDecl[variableName], Controller.Instance.DataA.IndexedVariableDeclPrimed[variableName], false);
-                                                        break;
-                                                    }
-                                                case Controller.DataOptionType.uninterpreted_function:
-                                                default:
-                                                    {
-                                                        Controller.Instance.Z3.replaceFuncDecl(ref expr, expr, Controller.Instance.DataU.IndexedVariableDecl[variableName], Controller.Instance.DataU.IndexedVariableDeclPrimed[variableName], false);
-                                                        break;
-                                                    }
-                                            }
-                                            if (pvars.Count > 0)
-                                            {
-                                                foreach (var y in pvars)
+                                                // prime all variables
+                                                switch (Controller.Instance.DataOption)
                                                 {
-                                                    // todo: generalize, this is pretty nasty, and currently only supports dynamics of the form: v[i] R y, where R is an order/equivalence relation (e.g., >, <, >=, <=, =, etc.)
-                                                    Term addDeltaMin = Controller.Instance.IndexedVariables[new KeyValuePair<string, string>(variableName, "i")] + (Controller.Instance.Params[y] * t1);
-                                                    Controller.Instance.Z3.replaceTerm(ref expr, expr, Controller.Instance.Params[y], addDeltaMin, false);
+                                                    case Controller.DataOptionType.array:
+                                                        {
+                                                            Controller.Instance.Z3.replaceTerm(ref expr, expr, Controller.Instance.DataA.IndexedVariableDecl[variableName], Controller.Instance.DataA.IndexedVariableDeclPrimed[variableName], false);
+                                                            break;
+                                                        }
+                                                    case Controller.DataOptionType.uninterpreted_function:
+                                                    default:
+                                                        {
+                                                            Controller.Instance.Z3.replaceFuncDecl(ref expr, expr, Controller.Instance.DataU.IndexedVariableDecl[variableName], Controller.Instance.DataU.IndexedVariableDeclPrimed[variableName], false);
+                                                            break;
+                                                        }
+                                                }
+                                                if (pvars.Count > 0)
+                                                {
+                                                    foreach (var y in pvars)
+                                                    {
+                                                        // todo: generalize, this is pretty nasty, and currently only supports dynamics of the form: v[i] R y, where R is an order/equivalence relation (e.g., >, <, >=, <=, =, etc.)
+                                                        Term addDeltaMin = Controller.Instance.IndexedVariables[new KeyValuePair<string, string>(variableName, "i")] + (Controller.Instance.Params[y] * t1);
+                                                        Controller.Instance.Z3.replaceTerm(ref expr, expr, Controller.Instance.Params[y], addDeltaMin, false);
+                                                    }
+                                                }
+                                                else if (constants.Count > 0)
+                                                {
+                                                    foreach (var cs in constants)
+                                                    {
+                                                        int cint = (int)float.Parse(cs);
+                                                        String cstr = float.Parse(cs).ToString();
+
+                                                        if (cint == 1)
+                                                        {
+                                                            Term c = Controller.Instance.Z3.MkRealNumeral(cstr);
+                                                            Term addDeltaMin = Controller.Instance.IndexedVariables[new KeyValuePair<string, string>(variableName, "i")] + t1;
+                                                            Controller.Instance.Z3.replaceTerm(ref expr, expr, c, addDeltaMin, false);
+                                                        }
+                                                        else if (cint == -1)
+                                                        {
+                                                            Term c = Controller.Instance.Z3.MkRealNumeral(cstr);
+                                                            Term addDeltaMin = Controller.Instance.IndexedVariables[new KeyValuePair<string, string>(variableName, "i")] - t1;
+                                                            Controller.Instance.Z3.replaceTerm(ref expr, expr, c, addDeltaMin, false);
+                                                        }
+                                                        else if (cint < 0)
+                                                        {
+                                                            Term c = Controller.Instance.Z3.MkRealNumeral(cstr);
+                                                            Term addDeltaMin = Controller.Instance.IndexedVariables[new KeyValuePair<string, string>(variableName, "i")] - (c * t1);
+                                                            Controller.Instance.Z3.replaceTerm(ref expr, expr, c, addDeltaMin, false);
+                                                        }
+                                                        else
+                                                        {
+                                                            Term c = Controller.Instance.Z3.MkRealNumeral(cstr);
+                                                            Term addDeltaMin = Controller.Instance.IndexedVariables[new KeyValuePair<string, string>(variableName, "i")] + (c * t1);
+                                                            Controller.Instance.Z3.replaceTerm(ref expr, expr, c, addDeltaMin, false);
+                                                        }
+                                                    }
                                                 }
                                             }
-                                            else if (constants.Count > 0)
+                                            else // global variables
                                             {
-                                                foreach (var cs in constants)
+                                                String variableName = variable;
+
+                                                // prime the continuous variable occurrences
+                                                Controller.Instance.Z3.replaceTerm(ref expr, expr, Controller.Instance.GlobalVariables[variableName], Controller.Instance.GlobalVariablesPrimed[variableName], false);
+
+                                                if (pvars.Count > 0)
                                                 {
-                                                    int cint = (int)float.Parse(cs);
-                                                    String cstr = float.Parse(cs).ToString();
+                                                    foreach (var y in pvars)
+                                                    {
+                                                        // todo: generalize, this is pretty nasty, and currently only supports dynamics of the form: v[i] R y, where R is an order/equivalence relation (e.g., >, <, >=, <=, =, etc.)
+                                                        Term addDeltaMin = Controller.Instance.Params[variableName] + (Controller.Instance.Params[y] * t1);
+                                                        Controller.Instance.Z3.replaceTerm(ref expr, expr, Controller.Instance.Params[y], addDeltaMin, false);
+                                                    }
+                                                }
+                                                else if (constants.Count > 0)
+                                                {
+                                                    foreach (var cs in constants)
+                                                    {
+                                                        int cint = (int)float.Parse(cs);
+                                                        String cstr = float.Parse(cs).ToString();
 
-                                                    if (cint == 1)
-                                                    {
-                                                        Term c = Controller.Instance.Z3.MkRealNumeral(cstr);
-                                                        Term addDeltaMin = Controller.Instance.IndexedVariables[new KeyValuePair<string, string>(variableName, "i")] + t1;
-                                                        Controller.Instance.Z3.replaceTerm(ref expr, expr, c, addDeltaMin, false);
+                                                        if (cint == 1)
+                                                        {
+                                                            Term c = Controller.Instance.Z3.MkRealNumeral(cstr);
+                                                            Term addDeltaMin = Controller.Instance.GlobalVariables[variableName] + t1;
+                                                            Controller.Instance.Z3.replaceTerm(ref expr, expr, c, addDeltaMin, false);
+                                                        }
+                                                        else if (cint == -1)
+                                                        {
+                                                            Term c = Controller.Instance.Z3.MkRealNumeral(cstr);
+                                                            Term addDeltaMin = Controller.Instance.GlobalVariables[variableName] - t1;
+                                                            Controller.Instance.Z3.replaceTerm(ref expr, expr, c, addDeltaMin, false);
+                                                        }
+                                                        else if (cint < 0)
+                                                        {
+                                                            Term c = Controller.Instance.Z3.MkRealNumeral(cstr);
+                                                            Term addDeltaMin = Controller.Instance.GlobalVariables[variableName] - (c * t1);
+                                                            Controller.Instance.Z3.replaceTerm(ref expr, expr, c, addDeltaMin, false);
+                                                        }
+                                                        else
+                                                        {
+                                                            Term c = Controller.Instance.Z3.MkRealNumeral(cstr);
+                                                            Term addDeltaMin = Controller.Instance.GlobalVariables[variableName] + (c * t1);
+                                                            Controller.Instance.Z3.replaceTerm(ref expr, expr, c, addDeltaMin, false);
+                                                        }
                                                     }
-                                                    else if (cint == -1)
-                                                    {
-                                                        Term c = Controller.Instance.Z3.MkRealNumeral(cstr);
-                                                        Term addDeltaMin = Controller.Instance.IndexedVariables[new KeyValuePair<string, string>(variableName, "i")] - t1;
-                                                        Controller.Instance.Z3.replaceTerm(ref expr, expr, c, addDeltaMin, false);
-                                                    }
-                                                    else
-                                                    {
-                                                        Term c = Controller.Instance.Z3.MkRealNumeral(cstr);
-                                                        Term addDeltaMin = Controller.Instance.IndexedVariables[new KeyValuePair<string, string>(variableName, "i")] + (c * t1);
-                                                        Controller.Instance.Z3.replaceTerm(ref expr, expr, c, addDeltaMin, false);
-                                                    }
-
                                                 }
                                             }
 
@@ -453,8 +479,6 @@ namespace phyea.controller.parsing
                                                 }
                                             }
                                         }
-                                        //todo: set dynamics for location
-                                        //r.setRateEqualForVar(varX, real_one);
 
                                         break;
                                     }
@@ -592,25 +616,83 @@ namespace phyea.controller.parsing
                                     }
                                 case ElementNames.variable:
                                     {
-                                        if (h == null)
+                                        if (h == null && sys == null)
                                         {
-                                            throw new System.Exception();
+                                            throw new System.Exception("Variable expression for automaton or entire system not well defined (appeared outside of automaton or system declaration).");
                                         }
-                                        String name = reader.GetAttribute(VariableAttributes.name.ToString());
-                                        String type = reader.GetAttribute(VariableAttributes.type.ToString());
-                                        String update_type = reader.GetAttribute(VariableAttributes.update_type.ToString());
-                                        
-                                        // todo: generalize to the actual general parser? we don't really want to allow such complex declarations of variables, but why not...?
-                                        if (name.Contains("[") && name.Contains("]")) // indexed variable
+                                        else
                                         {
-                                            String[] split = name.Split('[', ']');
-                                            String varName = split[0];
-                                            String indexName = split[1];
+                                            String name = reader.GetAttribute(VariableAttributes.name.ToString());
+                                            String type = reader.GetAttribute(VariableAttributes.type.ToString());
+                                            String update_type = reader.GetAttribute(VariableAttributes.update_type.ToString());
 
-                                            h.addIndexedVariable(varName, (Variable.VarType)Enum.Parse(typeof(Variable.VarType), type, true), (Variable.VarUpdateType)Enum.Parse(typeof(Variable.VarUpdateType), update_type, true));
-                                            //r.setRateEqualForVar(varX, real_one);
-                                            // todo: parse the variables
+                                            if (h != null) // local variable
+                                            {
+                                                // todo: generalize to the actual general parser? we don't really want to allow such complex declarations of variables, but why not...?
+                                                if (name.Contains("[") && name.Contains("]")) // indexed variable
+                                                {
+                                                    String[] split = name.Split('[', ']');
+                                                    String varName = split[0];
+                                                    String indexName = split[1];
+
+                                                    h.addIndexedVariable(varName, (Variable.VarType)Enum.Parse(typeof(Variable.VarType), type, true), (Variable.VarUpdateType)Enum.Parse(typeof(Variable.VarUpdateType), update_type, true));
+                                                    // todo: parse the variables
+                                                }
+                                            }
+                                            else if (sys != null) // global variable
+                                            {
+                                                Term globalVariable = null;
+                                                Term globalVariablePrime = null;
+
+                                                Variable v = new Variable();
+                                                v.Name = name;
+                                                v.UpdateType = (Variable.VarUpdateType)Enum.Parse(typeof(Variable.VarUpdateType), update_type, true);
+
+                                                //switch ((ParameterTypes)Enum.Parse(typeof(ParameterTypes), type, true))
+                                                // todo: next blockcan likely be converted (for the most part) into a function call instead of switch (e.g., lots of repition)
+                                                switch ((Variable.VarType)Enum.Parse(typeof(Variable.VarType), type, true))
+                                                {
+                                                    case Variable.VarType.index:
+                                                        globalVariable = Controller.Instance.Z3.MkConst(name, Controller.Instance.IndexType);
+                                                        v.Type = Variable.VarType.index;
+                                                        globalVariablePrime = Controller.Instance.Z3.MkConst(name + "'", Controller.Instance.IndexType);
+                                                        break;
+                                                    case Variable.VarType.integer:
+                                                        globalVariable = Controller.Instance.Z3.MkConst(name, Controller.Instance.IntType);
+                                                        v.Type = Variable.VarType.integer;
+                                                        v.UpdateType = (Variable.VarUpdateType)Enum.Parse(typeof(Variable.VarUpdateType), update_type, true);
+                                                        globalVariablePrime = Controller.Instance.Z3.MkConst(name + "'", Controller.Instance.IntType);
+                                                        break;
+                                                    case Variable.VarType.real:
+                                                        globalVariable = Controller.Instance.Z3.MkConst(name, Controller.Instance.RealType);
+                                                        v.Type = Variable.VarType.real;
+                                                        v.UpdateType = (Variable.VarUpdateType)Enum.Parse(typeof(Variable.VarUpdateType), update_type, true);
+                                                        globalVariablePrime = Controller.Instance.Z3.MkConst(name + "'", Controller.Instance.RealType);
+                                                        break;
+                                                    case Variable.VarType.nnreal:
+                                                        globalVariable = Controller.Instance.Z3.MkConst(name, Controller.Instance.RealType);
+                                                        v.Type = Variable.VarType.nnreal;
+                                                        v.UpdateType = (Variable.VarUpdateType)Enum.Parse(typeof(Variable.VarUpdateType), update_type, true);
+                                                        globalVariablePrime = Controller.Instance.Z3.MkConst(name + "'", Controller.Instance.RealType);
+                                                        break;
+                                                }
+
+                                                if (globalVariable != null && globalVariablePrime != null)
+                                                {
+                                                    if (!Controller.Instance.GlobalVariables.ContainsKey(name))
+                                                    {
+                                                        sys.Variables.Add(v);
+                                                        Controller.Instance.GlobalVariables.Add(name, globalVariable);
+                                                        Controller.Instance.GlobalVariablesPrimed.Add(name, globalVariablePrime);
+                                                    }
+                                                }
+                                                else
+                                                {
+                                                    throw new System.Exception("Parameter term not created.");
+                                                }
+                                            }
                                         }
+                                        
                                         break;
                                     }
                                 default:
@@ -644,8 +726,8 @@ namespace phyea.controller.parsing
                                         {
                                             if (v.UpdateType == Variable.VarUpdateType.discrete && v.Type == Variable.VarType.index)
                                             {
-                                                Controller.Instance.Z3.AssertCnstr(Controller.Instance.IntZero <= Controller.Instance.Params[v.Name] & Controller.Instance.Params[v.Name] <= Controller.Instance.Params["N"]);
-                                                Controller.Instance.Z3.AssertCnstr(Controller.Instance.IntZero <= Controller.Instance.ParamsPrimed[v.Name] & Controller.Instance.ParamsPrimed[v.Name] <= Controller.Instance.Params["N"]);
+                                                Controller.Instance.Z3.AssertCnstr(Controller.Instance.IntZero <= Controller.Instance.GlobalVariables[v.Name] & Controller.Instance.GlobalVariables[v.Name] <= Controller.Instance.Params["N"]);
+                                                Controller.Instance.Z3.AssertCnstr(Controller.Instance.IntZero <= Controller.Instance.GlobalVariablesPrimed[v.Name] & Controller.Instance.GlobalVariablesPrimed[v.Name] <= Controller.Instance.Params["N"]);
                                             }
                                         }
 

@@ -28,7 +28,7 @@ namespace phyea.model
     {
         public Term InductiveFormula;
         private Term _formula;
-        private String _formulaStr;
+        public String FormulaStr;
         private PropertyType _type;
         public StatusTypes Status = StatusTypes.toProcess;
         public List<Counterexample> Counterexamples = new List<Counterexample>();
@@ -81,7 +81,7 @@ namespace phyea.model
 
         public Property(String f, PropertyType t)
         {
-            this._formulaStr = f;
+            this.FormulaStr = f;
             this._type = t;
 
             switch (this._type)
@@ -92,9 +92,10 @@ namespace phyea.model
                     break;
                 case Property.PropertyType.bad:         // neg invariant
                 case Property.PropertyType.unreachable: // neg invariant
-                    // do nothing
-                    _formulaStr = "!(" + _formulaStr + ")"; // negate
+                    FormulaStr = "!(" + this.FormulaStr + ")"; // negate
                     break;
+
+                // do nothing
                 case Property.PropertyType.invariant:   // invariant
                 case Property.PropertyType.safety:      // invariant
                     break;
@@ -102,7 +103,7 @@ namespace phyea.model
 
             if (this._formula == null)
             {
-                Antlr.Runtime.Tree.CommonTree tmptree = Expression.Parse(_formulaStr);
+                Antlr.Runtime.Tree.CommonTree tmptree = Expression.Parse(this.FormulaStr);
                 this._formula = LogicalExpression.CreateTerm(tmptree);
             }
         }

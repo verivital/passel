@@ -168,6 +168,13 @@ namespace phyea.model
                 }
 
                 p = this._properties[property_idx];
+
+                if (p.FormulaStr == "forall i j ((q[i] == check and g == i and q[j] == set) implies (first[i] > last[j]))")
+                {
+                    Boolean bp = true;
+                }
+
+
                 property_idx++;
                 if (p.Status == StatusTypes.toProcess)
                 {
@@ -239,13 +246,22 @@ namespace phyea.model
                     {
                         foreach (var t in l.Transitions)
                         {
+                            Boolean nastyDebug = false; // flag used for forcing for instance identity transition
                             Term inductiveInvariant = p.Formula;
                             Term inductiveInvariantPrimed = p.Formula;
                             Controller.Instance.Z3.primeAllVariables(ref inductiveInvariantPrimed);
 
                             List<Term> locInvariant = new List<Term>();
-                            locInvariant.Add(l.StatePredicate); // discrete location prestate   (e.g., loc[i]  = 1)
-                            locInvariant.Add(t.ToTerm());       // discrete location post-state (e.g., loc'[i] = 2)
+
+                            if (nastyDebug && l.StatePredicate.ToString() == "(= (q i) 5)")
+                            {
+                                //nop
+                            }
+                            else
+                            {
+                                locInvariant.Add(l.StatePredicate); // discrete location prestate   (e.g., loc[i]  = 1)
+                                locInvariant.Add(t.ToTerm());       // discrete location post-state (e.g., loc'[i] = 2)
+                            }
 
                             // add guard, if one exists
                             if (t.Guard != null)
@@ -282,8 +298,17 @@ namespace phyea.model
                                 indexVariableResets = Controller.Instance.Z3.findIndexedVariableResets(null);
                             }
 
+                            Term locInvariantAnd;
                             // create conjunction of pre-state and post-state conditions
-                            Term locInvariantAnd = Controller.Instance.Z3.MkAnd(locInvariant.ToArray());
+                            if (locInvariant.Count > 0)
+                            {
+                                locInvariantAnd = Controller.Instance.Z3.MkAnd(locInvariant.ToArray());
+                            }
+                            else
+                            {
+                                locInvariantAnd = Controller.Instance.Z3.MkTrue();
+                            }
+
 
                             List<Term> bound = new List<Term>();
                             hidx = Controller.Instance.Z3.MkConst("h", Controller.Instance.IndexType);
@@ -297,7 +322,14 @@ namespace phyea.model
                                     switch (Controller.Instance.ExistsOption)
                                     {
                                         case Controller.ExistsOptionType.and:
-                                            locInvariantAnd = Controller.Instance.Z3.MkAnd(hidx >= Controller.Instance.IntOne & hidx <= Controller.Instance.IndexN, locInvariantAnd & Controller.Instance.Z3.forallIdentity(hidx, globalVariableResets, indexVariableResets)); // 1 <= h <= N, enforce identity for all other processes not moving
+                                            if (nastyDebug && l.StatePredicate.ToString() == "(= (q i) 5)")
+                                            {
+                                                locInvariantAnd = locInvariantAnd & Controller.Instance.Z3.forallIdentity(null, globalVariableResets, null);
+                                            }
+                                            else
+                                            {
+                                                locInvariantAnd = Controller.Instance.Z3.MkAnd(hidx >= Controller.Instance.IntOne & hidx <= Controller.Instance.IndexN, locInvariantAnd & Controller.Instance.Z3.forallIdentity(hidx, globalVariableResets, indexVariableResets)); // 1 <= h <= N, enforce identity for all other processes not moving
+                                            }
                                             break;
                                         case Controller.ExistsOptionType.implies:
                                         default:
@@ -315,7 +347,14 @@ namespace phyea.model
                             //Pattern pA = Controller.Instance.Z3.MkPattern(new Term[] { hidx >= Controller.Instance.IntOne, hidx <= Controller.Instance.N });
                             //Pattern[] pS = new Pattern[] { pA };
 
-                            inductiveInvariant = inductiveInvariant & Controller.Instance.Z3.MkExists(0, bound.ToArray(), null, locInvariantAnd);
+                            if (nastyDebug && l.StatePredicate.ToString() == "(= (q i) 5)")
+                            {
+                                inductiveInvariant = inductiveInvariant & locInvariantAnd;
+                            }
+                            else
+                            {
+                                inductiveInvariant = inductiveInvariant & Controller.Instance.Z3.MkExists(0, bound.ToArray(), null, locInvariantAnd);
+                            }
 
                             // alternative next, get the body and recreate
                             //Quantifier orig = inductiveInvariant.GetQuantifier();
@@ -345,7 +384,6 @@ namespace phyea.model
                                 Console.WriteLine("\n\r<><><><><> GUARDED MODEL END\n\r\n\r");
 
                                 Term claim = Controller.Instance.Z3.MkImplies(inductiveInvariant, inductiveInvariantPrimed);
-                                Controller.Instance.Z3.checkTerm(claim, out model, out core, true);
 
                                 Console.WriteLine("\n\r<><><><><> INDUCTIVE INVARIANT START\n\r\n\r");
                                 Console.WriteLine(claim.ToString() + "\n\r\n\r");
@@ -355,13 +393,13 @@ namespace phyea.model
                                 }
                                 Console.WriteLine("\n\r<><><><><> INDUCTIVE INVARIANT END\n\r\n\r");
 
-                                //Controller.Instance.Z3.Push();
-                                //Controller.Instance.Z3.AssertCnstr(inductiveInvariant);
+                                Controller.Instance.Z3.Push();
+                                Controller.Instance.Z3.AssertCnstr(inductiveInvariant);
                                 //Controller.Instance.Z3.AssertCnstr(inductiveInvariantPrimed);
                                 //claim = Controller.Instance.Z3.Simplify(claim);
 
-                                //if (Controller.Instance.Z3.proveTerm(inductiveInvariantPrimed, out model, out core, true))
-                                if (Controller.Instance.Z3.proveTerm(claim, out model, out core, out tmp_stat, true))
+                                if (Controller.Instance.Z3.proveTerm(inductiveInvariantPrimed, out model, out core, out tmp_stat, true))
+                                //if (Controller.Instance.Z3.proveTerm(claim, out model, out core, out tmp_stat, true))
                                 {
                                     p.Statistics.Add(tmp_stat);
                                     if (core != null)
@@ -385,12 +423,13 @@ namespace phyea.model
                                     tViolate.Add(t);
                                     p.Counterexamples.Add(new Counterexample(model, claim));
                                 }
-                                //Controller.Instance.Z3.Pop();
+                                Controller.Instance.Z3.Pop();
 
                                 p.addInductiveInvariant(claim);
                             }
                         } // end discrete actions
 
+                        // start continuous transition (we add a a part for each location as we iterate over them)
                         hidx = Controller.Instance.Z3.MkConst("h", Controller.Instance.IndexType);
 
                         if (l.Flow == null)
@@ -421,6 +460,7 @@ namespace phyea.model
                         {
                             Term tmpterm = l.Invariant;
 
+                            // indexed variables
                             foreach (var v in h.Variables)
                             {
                                 if (v.UpdateType == Variable.VarUpdateType.continuous)
@@ -447,6 +487,22 @@ namespace phyea.model
                                                 }
                                                 break;
                                             }
+                                    }
+                                }
+                            }
+
+                            // global variables
+                            foreach (var v in h.Parent.Variables)
+                            {
+                                if (v.UpdateType == Variable.VarUpdateType.continuous)
+                                {
+                                    if (l.Flow != null)
+                                    {
+                                        Term flowInv = l.Flow;
+                                        flowInv = flowInv.GetAppArgs()[1]; // todo: rewrite
+                                        Controller.Instance.Z3.replaceTerm(ref flowInv, flowInv, t1, t2, true); // replace t1 with t2
+
+                                        Controller.Instance.Z3.replaceTerm(ref tmpterm, tmpterm, Controller.Instance.GlobalVariables[v.Name], flowInv, false);
                                     }
                                 }
                             }
@@ -556,13 +612,13 @@ namespace phyea.model
                         // if we have a stop condition, or if we're doing the conjunction (assume at least one location has a stop)
                         if (l.Stop != null || Controller.Instance.TimeOption == Controller.TimeOptionType.conjunction)
                         {
-                            expr = Controller.Instance.Z3.MkForall(0, new Term[] { t2 }, null, Controller.Instance.Z3.MkImplies(t2 > Controller.Instance.RealZero & t2 <= t1, expr)); // NO, MUST BE IMPLIES!!! todo: seems correct with this as and instead of implies, doulbe check
+                            expr = Controller.Instance.Z3.MkForall(0, new Term[] { t2 }, null, Controller.Instance.Z3.MkImplies(t2 >= Controller.Instance.RealZero & t2 <= t1, expr)); // NO, MUST BE IMPLIES!!! todo: seems correct with this as and instead of implies, doulbe check
                         }
 
                         switch (Controller.Instance.ExistsOption)
                         {
                             case Controller.ExistsOptionType.and:
-                                expr = Controller.Instance.Z3.MkExists(0, new Term[] { t1 }, null, Controller.Instance.Z3.MkAnd(t1 > Controller.Instance.RealZero, expr)); // broken with invariants if using implies
+                                expr = Controller.Instance.Z3.MkExists(0, new Term[] { t1 }, null, Controller.Instance.Z3.MkAnd(t1 >= Controller.Instance.RealZero, expr)); // broken with invariants if using implies
                                 break;
                             case Controller.ExistsOptionType.implies:
                             default:
@@ -628,8 +684,8 @@ namespace phyea.model
                     Term formulaPrime = p.Formula;
                     Controller.Instance.Z3.primeAllVariables(ref formulaPrime);
                     Term simple_ii = Controller.Instance.Z3.MkImplies(p.Formula, formulaPrime);
-                    Controller.Instance.Z3.AssertCnstr(simple_ii);
-                    //Controller.Instance.Z3.AssertCnstr(formulaPrime);
+                    //Controller.Instance.Z3.AssertCnstr(simple_ii);
+                    Controller.Instance.Z3.AssertCnstr(formulaPrime);
 
                     //Controller.Instance.Z3.AssertCnstr(Controller.Instance.Z3.MkOr(p.InductiveInvariants.ToArray())); // disjunction of all transitions is the transition relation, not conjunction!
                     // also assert the inductive invariant claim since it is strictly stronger than an invariant property (i.e., ii => i, but ii !<= i necessarily)
@@ -705,12 +761,12 @@ namespace phyea.model
                         {
                             System.Console.WriteLine("Inductive invariant claim:\n\r\n\r");
                             System.Console.WriteLine(ce.Claim.ToString() + "\n\r\n\r");
-                            System.Console.WriteLine("Simplified inductive invariant claim:\n\r\n\r");
-                            System.Console.WriteLine(Controller.Instance.Z3.Simplify(ce.Claim).ToString() + "\n\r\n\r");
-                            System.Console.WriteLine("Negation of inductive invariant claim:\n\r\n\r");
-                            System.Console.WriteLine((!ce.Claim).ToString() + "\n\r\n\r");
-                            System.Console.WriteLine("Simplified negation of inductive invariant claim:\n\r\n\r");
-                            System.Console.WriteLine(Controller.Instance.Z3.Simplify(!ce.Claim).ToString() + "\n\r\n\r");
+                            //System.Console.WriteLine("Simplified inductive invariant claim:\n\r\n\r");
+                            //System.Console.WriteLine(Controller.Instance.Z3.Simplify(ce.Claim).ToString() + "\n\r\n\r");
+                            //System.Console.WriteLine("Negation of inductive invariant claim:\n\r\n\r");
+                            //System.Console.WriteLine((!ce.Claim).ToString() + "\n\r\n\r");
+                            //System.Console.WriteLine("Simplified negation of inductive invariant claim:\n\r\n\r");
+                            //System.Console.WriteLine(Controller.Instance.Z3.Simplify(!ce.Claim).ToString() + "\n\r\n\r");
                         }
 
                         //if (ce.Transition != null)
@@ -724,7 +780,7 @@ namespace phyea.model
                 }
             }
 
-            System.Console.WriteLine("DISPROVED INVARIANTS SUMMARY >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n\r");
+            System.Console.WriteLine("DISPROVED INVARIANTS SUMMARY WITH STATISTICS >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n\r");
             foreach (Property p in this.Properties)
             {
                 if (p.Status == StatusTypes.disproved)
@@ -772,7 +828,7 @@ namespace phyea.model
 
 
 
-            System.Console.WriteLine("DISPROVED INVARIANTS SUMMARY >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n\r");
+            System.Console.WriteLine("DISPROVED INVARIANTS SUMMARY WITH SHORT RUNTIME >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n\r");
             foreach (Property p in this.Properties)
             {
                 if (p.Status == StatusTypes.disproved)
@@ -850,3 +906,7 @@ namespace phyea.model
 
 // todo 12/8
 // 0) make lists of inductive invariants vs inductive properties
+
+
+// todo 1/30
+// 0) check weird property bug for fischer: check using model by plugging in to see how it's sat; check using identity transition

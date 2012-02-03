@@ -63,9 +63,14 @@ namespace phyea.controller
         private IDictionary<String, Term> _params = new Dictionary<String, Term>();
 
         /**
-         * Primed parameter variables (i.e., global variables)
+         * Global variables
          */
-        private IDictionary<String, Term> _paramsPrimed = new Dictionary<String, Term>();
+        private IDictionary<String, Term> _globalVariables = new Dictionary<String, Term>();
+
+        /**
+         * Primed global variables
+         */
+        private IDictionary<String, Term> _globalVariablesPrimed = new Dictionary<String, Term>();
 
         /**
          * Location labels to value map
@@ -112,6 +117,8 @@ namespace phyea.controller
         public Term IndexNone;
         public Term IndexOne;
         public Term IndexN;
+
+        public Term RealInf;
 
         /**
          * Real value of zero
@@ -175,29 +182,43 @@ namespace phyea.controller
              */
             //c.SetParamValue("ARRAY_SOLVER", "1"); // 0 to 3
 
+            //c.SetParamValue("QI_PROFILE", "true");
+            //c.SetParamValue("QI_PROFILE_FREQ", "1000");
+            //c.SetParamValue("MBQI_TRACE", "true");
+
             c.SetParamValue("MODEL", "true");
-
-            c.SetParamValue("QI_PROFILE", "true");
-            c.SetParamValue("QI_PROFILE_FREQ", "1000");
-
-            c.SetParamValue("ELIM_QUANTIFIERS", "true");
-            c.SetParamValue("STRONG_CONTEXT_SIMPLIFIER", "true");
-            c.SetParamValue("CONTEXT_SIMPLIFIER", "true");
-
-            c.SetParamValue("EMATCHING", "true");
-            c.SetParamValue("MACRO_FINDER", "true");
             c.SetParamValue("MBQI", "true"); //  (see http://research.microsoft.com/en-us/um/redmond/projects/z3/mbqi-tutorial/)
             c.SetParamValue("MBQI_MAX_ITERATIONS", "50000");
-            c.SetParamValue("MBQI_TRACE", "true");
+
+            c.SetParamValue("ELIM_QUANTIFIERS", "false");
+            c.SetParamValue("ELIM_NLARITH_QUANTIFIERS", "false");
+
+            c.SetParamValue("PULL_CHEAP_ITE_TREES", "true");
+            c.SetParamValue("EMATCHING", "true");
+            c.SetParamValue("MACRO_FINDER", "true");
+
+
+            //c.SetParamValue("STRONG_CONTEXT_SIMPLIFIER", "true");
+            //c.SetParamValue("CONTEXT_SIMPLIFIER", "true");
+
             c.SetParamValue("PI_PULL_QUANTIFIERS", "true");
             c.SetParamValue("PULL_NESTED_QUANTIFIERS", "true");
             c.SetParamValue("MODEL_PARTIAL", "true");
             c.SetParamValue("MODEL_V2", "true");
             c.SetParamValue("VERBOSE", "10");
 
-            c.SetParamValue("MODEL_COMPACT", "true"); // slower, but more accurate (as in the models are more useful) it seems
+            c.SetParamValue("DISPLAY_ERROR_FOR_VISUAL_STUDIO", "true");
+            c.SetParamValue("DISTRIBUTE_FORALL", "true");
 
+            c.SetParamValue("MODEL_COMPACT", "true"); // slower, but more accurate (as in the models are more useful) it seems
             c.SetParamValue("MODEL_ON_FINAL_CHECK", "true");
+            c.SetParamValue("MODEL_COMPLETION", "true");
+            c.SetParamValue("DISPLAY_UNSAT_CORE", "true");
+
+
+
+
+
 
             // bad syntax for next...
             //c.SetParamValue("produce-proofs", "true");
@@ -215,52 +236,44 @@ namespace phyea.controller
 
             //c.SetParamValue("STATISTICS", "true"); // crashes
 
-            
-
-            c.SetParamValue("ARITH_SOLVER", "2"); // simplex solver
-            c.SetParamValue("NL_ARITH", "true"); // nonlinear arithmetic support: requires arith_solver 2
-            c.SetParamValue("NL_ARITH_GB_EQS", "true");
-            c.SetParamValue("ARITH_ADAPTIVE", "true");
-            c.SetParamValue("ARITH_PROCESS_ALL_EQS", "true");
+            //c.SetParamValue("ARITH_SOLVER", "2"); // simplex solver
+            //c.SetParamValue("NL_ARITH", "true"); // nonlinear arithmetic support: requires arith_solver 2
+            //c.SetParamValue("NL_ARITH_GB_EQS", "true");
+            //c.SetParamValue("ARITH_ADAPTIVE", "true");
+            //c.SetParamValue("ARITH_PROCESS_ALL_EQS", "true");
 
             //c.SetParamValue("CHECK_PROOF", "true");
-            c.SetParamValue("DISPLAY_ERROR_FOR_VISUAL_STUDIO", "true");
-            c.SetParamValue("DISTRIBUTE_FORALL", "true");
-            c.SetParamValue("DL_COMPILE_WITH_WIDENING", "true");
+            //c.SetParamValue("DL_COMPILE_WITH_WIDENING", "true");
             //c.SetParamValue("DACK", "2");
             //c.SetParamValue("DACK_EQ", "true");
-            
-            c.SetParamValue("QI_LAZY_INSTANTIATION", "true");
-            c.SetParamValue("ELIM_BOUNDS", "true");
+
+            //c.SetParamValue("QI_LAZY_INSTANTIATION", "true");
+            //c.SetParamValue("ELIM_BOUNDS", "true");
 
             // some bugs in the next ones
-            //c.SetParamValue("ELIM_NLARITH_QUANTIFIERS", "true");
             //c.SetParamValue("FWD_SR_CHEAP", "true");
             //c.SetParamValue("LOOKAHEAD", "true");
             //c.SetParamValue("MBQI_MAX_CEXS", "true"); // crashes
             //c.SetParamValue("MODEL_VALIDATE", "true"); // corrupts memory?
             // end buggy ones
 
-            
+
             //c.SetParamValue("LOOKAHEAD_DISEQ", "true");
 
-            c.SetParamValue("PULL_CHEAP_ITE_TREES", "true");
             //c.SetParamValue("LIFT_ITE", "2"); // buggy: get memory corruption sometimes
             //c.SetParamValue("ELIM_TERM_ITE", "true"); // buggy: get memory corruption sometimes
 
-            c.SetParamValue("MINIMIZE_LEMMAS_STRUCT", "true");
-            c.SetParamValue("MODEL_COMPLETION", "true");
-            c.SetParamValue("MODEL_DISPLAY_ARG_SORT", "true");
+            //c.SetParamValue("MINIMIZE_LEMMAS_STRUCT", "true");
+            //c.SetParamValue("MODEL_DISPLAY_ARG_SORT", "true");
 
-            c.SetParamValue("ARITH_EUCLIDEAN_SOLVER", "true");
-            c.SetParamValue("ARITH_FORCE_SIMPLEX", "true");
-            c.SetParamValue("ARITH_MAX_LEMMA_SIZE", "512"); // default 128
+            //c.SetParamValue("ARITH_EUCLIDEAN_SOLVER", "true");
+            //c.SetParamValue("ARITH_FORCE_SIMPLEX", "true");
+            //c.SetParamValue("ARITH_MAX_LEMMA_SIZE", "512"); // default 128
 
             //c.SetParamValue("enable-cores", "true");
-            
-            c.SetParamValue("DISPLAY_UNSAT_CORE", "true");
-            c.SetParamValue("DISPLAY_PROOF", "true");
-            c.SetParamValue("PROOF_MODE", "1");
+
+            //c.SetParamValue("DISPLAY_PROOF", "true");
+            //c.SetParamValue("PROOF_MODE", "1"); // BUG: DO NOT USE THIS OPTION, IT CAN CAUSE FORMULAS TO TOGGLE SATISFIABILITY
 
             this._z3 = new Z3Wrapper(c);
             this.Z3.OpenLog("asserted.log");
@@ -271,6 +284,15 @@ namespace phyea.controller
             this._realZero = Z3.MkRealNumeral(0);
             this._intZero = Z3.MkIntNumeral(0);
             this.IntOne = Z3.MkIntNumeral(1);
+
+            /* can't do the following to create augmented reals: assumptions are invalid
+            this.RealInf = Z3.MkConst("inf", this.RealType);
+            Term assumpInf;
+            Term assumpInfBound = Z3.MkConst("anyRealValue", this.RealType);
+            assumpInf = Z3.MkForall(0, new Term[] {assumpInfBound}, null, this.RealInf >= assumpInfBound);
+            this.Z3.AssertCnstr(assumpInf);
+            this.Params.Add("inf", this.RealInf);
+             * */
 
             switch (this.IndexOption)
             {
@@ -450,12 +472,21 @@ namespace phyea.controller
         }
 
         /**
-         * Primed parameter variables
+         * Global variables
          */
-        public IDictionary<String, Term> ParamsPrimed
+        public IDictionary<String, Term> GlobalVariables
         {
-            get { return this._paramsPrimed; }
-            set { this._paramsPrimed = value; }
+            get { return this._globalVariables; }
+            set { this._globalVariables = value; }
+        }
+
+        /**
+         * Primed global variables
+         */
+        public IDictionary<String, Term> GlobalVariablesPrimed
+        {
+            get { return this._globalVariablesPrimed; }
+            set { this._globalVariablesPrimed = value; }
         }
 
         /**

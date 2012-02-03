@@ -40,6 +40,10 @@ namespace phyea.controller.parsing.math.ast
                     {
                         return Controller.Instance.Params[ast.GetChild(0).Text];
                     }
+                    else if (Controller.Instance.GlobalVariables.ContainsKey(ast.GetChild(0).Text))
+                    {
+                        return Controller.Instance.GlobalVariables[ast.GetChild(0).Text];
+                    }
                     else if (Controller.Instance.Locations.ContainsKey(ast.GetChild(0).Text))
                     {
                         // search through all location names to see if this variable is actually a location label (makes things nice and readable)
@@ -334,9 +338,9 @@ namespace phyea.controller.parsing.math.ast
 
                     // todo next: grab primed variable from global dictionary: so create primed terms for all global variables
 
-                    if (Controller.Instance.ParamsPrimed.ContainsKey(ast.GetChild(0).GetChild(0).Text))
+                    if (Controller.Instance.GlobalVariablesPrimed.ContainsKey(ast.GetChild(0).GetChild(0).Text))
                     {
-                        return Controller.Instance.ParamsPrimed[ast.GetChild(0).GetChild(0).Text];
+                        return Controller.Instance.GlobalVariablesPrimed[ast.GetChild(0).GetChild(0).Text];
                     }
                     else
                     {
@@ -569,7 +573,7 @@ namespace phyea.controller.parsing.math.ast
                 {
                     case Controller.DataOptionType.array:
                         {
-                            if (!Controller.Instance.DataA.IndexedVariableDecl.ContainsKey(vars[i]) && !Controller.Instance.DataA.VariableDecl.ContainsKey(vars[i]))
+                            if (!Controller.Instance.DataA.IndexedVariableDecl.ContainsKey(vars[i]) && !Controller.Instance.DataA.VariableDecl.ContainsKey(vars[i]) && !Controller.Instance.GlobalVariables.ContainsKey(vars[i]))
                             {
                                 vars.RemoveAt(i);
                                 i--;
@@ -579,7 +583,7 @@ namespace phyea.controller.parsing.math.ast
                     case Controller.DataOptionType.uninterpreted_function:
                     default:
                         {
-                            if (!Controller.Instance.DataU.IndexedVariableDecl.ContainsKey(vars[i]) && !Controller.Instance.DataU.VariableDecl.ContainsKey(vars[i]))
+                            if (!Controller.Instance.DataU.IndexedVariableDecl.ContainsKey(vars[i]) && !Controller.Instance.DataU.VariableDecl.ContainsKey(vars[i]) && !Controller.Instance.GlobalVariables.ContainsKey(vars[i]))
                             {
                                 vars.RemoveAt(i);
                                 i--;
@@ -592,7 +596,7 @@ namespace phyea.controller.parsing.math.ast
         }
 
         /**
-         * Return a string list of all the continuous variables in an expression 
+         * Return a string list of all the parameters in an expression 
          */
         public static List<String> findParams(CommonTree ast)
         {
