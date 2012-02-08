@@ -1,0 +1,283 @@
+ARITH_ADAPTIVE: boolean, default: false
+ARITH_ADAPTIVE_ASSERTION_THRESHOLD: double, default: 0.2, Delay arithmetic atoms if the num-arith-conflicts/total-conflicts < threshold.
+ARITH_ADAPTIVE_GCD: boolean, default: false
+ARITH_ADAPTIVE_PROPAGATION_THRESHOLD: double, default: 0.4, Disable arithmetic theory propagation if the num-arith-conflicts/total-conflicts < threshold.
+ARITH_ADD_BINARY_BOUNDS: boolean, default: false
+ARITH_BLANDS_RULE_THRESHOLD: unsigned integer, default: 1000
+ARITH_BRANCH_CUT_RATIO: unsigned integer, default: 2
+ARITH_DUMP_LEMMAS: boolean, default: false
+ARITH_EAGER_EQ_AXIOMS: boolean, default: true
+ARITH_EAGER_GCD: boolean, default: false
+ARITH_EQ_BOUNDS: boolean, default: false
+ARITH_EUCLIDEAN_SOLVER: boolean, default: false, .
+ARITH_EXPAND_EQS: boolean, default: false
+ARITH_FORCE_SIMPLEX: boolean, default: false, force Z3 to use simplex solver..
+ARITH_GCD_TEST: boolean, default: true
+ARITH_IGNORE_INT: boolean, default: false
+ARITH_LAZY_ADAPTER: boolean, default: false
+ARITH_LAZY_PIVOTING: unsigned integer, default: 0
+ARITH_MAX_LEMMA_SIZE: unsigned integer, default: 128
+ARITH_PROCESS_ALL_EQS: boolean, default: false
+ARITH_PROPAGATE_EQS: boolean, default: true
+ARITH_PROPAGATION_MODE: integer, min: 0, max: 2, default: 2
+ARITH_PROPAGATION_THRESHOLD: unsigned integer, default: 4294967295
+ARITH_PROP_STRATEGY: unsigned integer, max: 1, default: 1, Propagation strategy: 0 - use agility measures based on ration of theory conflicts, 1 - propagate proportional to ratio of theory conflicts (default).
+ARITH_RANDOM_INITIAL_VALUE: boolean, default: false
+ARITH_RANDOM_LOWER: integer, default: -1000
+ARITH_RANDOM_SEED: unsigned integer, default: 0
+ARITH_RANDOM_UPPER: integer, default: 1000
+ARITH_REFLECT: boolean, default: true
+ARITH_SKIP_BIG_COEFFS: boolean, default: true
+ARITH_SMALL_LEMMA_SIZE: unsigned integer, default: 16
+ARITH_SOLVER: integer, min: 0, max: 3, default: 2, select arithmetic solver: 0 - no solver, 1 - bellman-ford based solver (diff. logic only), 2 - simplex based solver, 3 - floyd-warshall based solver (diff. logic only) and no theory combination.
+ARITH_STRONGER_LEMMAS: boolean, default: true
+ARRAY_ALWAYS_PROP_UPWARD: boolean, default: true, Disable the built-in filter upwards propagation.
+ARRAY_CANONIZE: boolean, default: false, Normalize arrays into normal form during simplification.
+ARRAY_CG: boolean, default: false
+ARRAY_DELAY_EXP_AXIOM: boolean, default: true
+ARRAY_EXTENSIONAL: boolean, default: true
+ARRAY_LAZINESS: unsigned integer, default: 1
+ARRAY_LAZY_IEQ: boolean, default: false
+ARRAY_LAZY_IEQ_DELAY: unsigned integer, default: 10
+ARRAY_SOLVER: integer, min: 0, max: 3, default: 3, 0 - no array, 1 - simple, 2 - model based, 3 - full.
+ARRAY_WEAK: boolean, default: false
+ASYNC_COMMANDS: boolean, default: true, enable/disable support for asynchronous commands in the Simplify front-end..
+AT_LABELS_CEX: boolean, default: false, only use labels that contain '@' when building multiple counterexamples.
+AUTO_CONFIG: boolean, default: true, use heuristics to set Z3 configuration parameters, it is only available for the SMT-LIB input format.
+BB_EAGER: boolean, default: false, eager bit blasting.
+BB_EXT_GATES: boolean, default: false, use extended gates during bit-blasting.
+BB_QUANTIFIERS: boolean, default: false, convert bit-vectors to Booleans in quantifiers.
+BIN_CLAUSES: boolean, default: true
+BIT2INT: boolean, default: false, hoist bit2int conversions over arithmetical expressions.
+BV2INT_DISTRIBUTE: boolean, default: true, if true, then int2bv is distributed over arithmetical operators..
+BV_BLAST_MAX_SIZE: unsigned integer, default: 2147483647, Maximal size for bit-vectors to blast.
+BV_CC: boolean, default: false, enable congruence closure for BV operators.
+BV_ENABLE_INT2BV_PROPAGATION: boolean, default: false, enable full (potentially expensive) propagation for int2bv and bv2int.
+BV_LAZY_LE: boolean, default: false
+BV_MAX_SHARING: boolean, default: true
+BV_REFLECT: boolean, default: true
+BV_SOLVER: integer, min: 0, max: 2, default: 1, 0 - no bv, 1 - simple.
+BWD_S: boolean, default: false, propositional backward subsumption.
+BWD_SR: boolean, default: false, propositional backward subsumption resolution.
+CASE_SPLIT: integer, min: 0, max: 5, default: 1, 0 - case split based on variable activity, 1 - similar to 0, but delay case splits created during the search, 2 - similar to 0, but cache the relevancy, 3 - case split based on relevancy (structural splitting), 4 - case split on relevancy and activity, 5 - case split on relevancy and current goal.
+CHECK_AT_LABELS: boolean, default: false, check that labels containing '@' are used correctly to only produce unique counter examples.
+CHECK_PROOF: boolean, default: false
+CNF_FACTOR: unsigned integer, default: 4, the maximum number of clauses that can be created when converting a subformula.
+CNF_MODE: integer, min: 0, max: 3, default: 0, CNF translation mode: 0 - disabled, 1 - quantifiers in CNF, 2 - 0 + opportunistic, 3 - full.
+CONTEXT_SIMPLIFIER: boolean, default: false, Simplify Boolean sub-expressions if they already appear in context.
+CR_STRATEGY: integer, min: 0, max: 1, default: 0, 0 - FUIP, 1 - All decided.
+DACK: integer, min: 0, max: 2, default: 1, 0 - disable dynamic ackermannization, 1 - expand Leibniz's axiom if a congruence is the root of a conflict, 2 - expand Leibniz's axiom if a congruence is used during conflict resolution..
+DACK_EQ: boolean, default: false, enable dynamic ackermannization for transtivity of equalities.
+DACK_FACTOR: double, default: 0.1, number of instance per conflict.
+DACK_GC: unsigned integer, default: 2000, Dynamic ackermannization garbage collection frequency (per conflict)..
+DACK_GC_INV_DECAY: double, default: 0.8
+DACK_THRESHOLD: unsigned integer, default: 10, number of times the congruence rule must be used before Leibniz's axiom is expanded.
+DEFAULT_QID: boolean, default: false, create a default quantifier id based on its position, the id is used to report profiling information (see QI_PROFILE).
+DELAY_UNITS: boolean, default: false
+DELAY_UNITS_THRESHOLD: unsigned integer, default: 32
+DER: boolean, default: false
+DISPLAY_CONFIG: boolean, default: false, display configuration used by Z3.
+DISPLAY_DIMACS_AND_EXIT: boolean, default: false
+DISPLAY_DIMACS_AT_END: boolean, default: false
+DISPLAY_DOT_PROOF: boolean, default: false
+DISPLAY_ERROR_FOR_VISUAL_STUDIO: boolean, default: false, display error messages in Visual Studio format.
+DISPLAY_FEATURES: boolean, default: false
+DISPLAY_PROOF: boolean, default: false
+DISPLAY_UNSAT_CORE: boolean, default: false
+DISTRIBUTE_FORALL: boolean, default: false
+DL_ALL_OR_NOTHING_DELTAS: boolean, default: false, compile rules so that it is enough for the delta relation in union and widening operations to determine only whether the updated relation was modified or not.
+DL_COMPILE_WITH_WIDENING: boolean, default: false, widening will be used to compile recursive rules.
+DL_DEFAULT_RELATION: symbol, default: external_relation, default relation implementation: 'external_relation', 'pentagon'.
+DL_DEFAULT_TABLE: symbol, default: sparse, default table implementation: 'hashtable', 'bitvector', 'sparse' 'interval'.
+DL_DEFAULT_TABLE_CHECKED: boolean, default: false, if true, the detault table will be DL_DEFAULT_TABLE inside a wrapper that checks that its results are the same as of DL_DEFAULT_TABLE_CHECKER table.
+DL_DEFAULT_TABLE_CHECKER: symbol, default: sparse, see DL_DEFAULT_TABLE_CHECKED.
+DL_EAGER_EMPTINESS_CHECKING: boolean, default: true, emptiness of affected relations will be checked after each instruction, so that we may ommit unnecessary instructions.
+DL_EXPLANATIONS_ON_RELATION_LEVEL: boolean, default: false, if true, explanations are generated as history of each relation, rather than per fact (DL_GENERATE_EXPLANATIONS must be set to true for this option to have any effect).
+DL_GENERATE_EXPLANATIONS: boolean, default: false, if true, signature of relations will be extended to contain explanations for facts.
+DL_INITIAL_RESTART_TIMEOUT: unsigned integer, min: 1, default: 0, length of saturation run before the first restart (in ms); zero means no restarts.
+DL_MAGIC_SETS_FOR_QUERIES: boolean, default: false, magic set transformation will be used for queries.
+DL_OUTPUT_PROFILE: boolean, default: false, determines whether profile informations should be output when outputting Datalog rules or instructions.
+DL_OUTPUT_TUPLES: boolean, default: true, determines whether tuples for output predicates should be output.
+DL_PROFILE_MILLISECONDS_THRESHOLD: unsigned integer, default: 0, instructions and rules that took less than the threshold will not be printed when printed the instruction/rule list.
+DL_RESTART_TIMEOUT_QUOTIENT: unsigned integer, min: 1, default: 4, restart timeout will be multiplied by this number after each restart.
+DL_SIMILARITY_COMPRESSOR: boolean, default: true, rules that difer only in values of constants will be merged into a single rule.
+DL_SIMILARITY_COMPRESSOR_THRESHOLD: unsigned integer, min: 2, default: 11, if DL_SIMILARITY_COMPRESSOR is on, this value determines how many similar rules there must be in order for them to be merged.
+DL_SMT_RELATION_GROUND_RECURSIVE: boolean, default: true, Ensure recursive relation is ground in union.
+DL_UNBOUND_COMPRESSOR: boolean, default: true, auxiliary relations will be introduced to avoid unbound variables in rule heads.
+DT_LAZY_SPLITS: unsigned integer, default: 1, How lazy datatype splits are performed: 0- eager, 1- lazy for infinite types, 2- lazy.
+DUMP_GOAL_AS_SMT: boolean, default: false, write goal back to output in SMT format.
+ELIM_AND: boolean, default: true, represent (and a b) as (not (or (not a) (not b))).
+ELIM_BOUNDS: boolean, default: false, cheap Fourier-Motzkin.
+ELIM_NLARITH_QUANTIFIERS: boolean, default: false, Eliminate non-linear quantifiers.
+ELIM_QUANTIFIERS: boolean, default: false, Use quantifier elimination procedures on Boolean, Bit-vector, Arithmetic and Array variables.
+ELIM_TERM_ITE: boolean, default: false, eliminate term if-then-else in the preprocessor.
+EMATCHING: boolean, default: true, E-Matching based quantifier instantiation.
+ENGINE: integer, min: 0, max: 2, default: 0, 0: SMT solver, 1: Superposition prover, 2: EPR solver, true.
+EQ_PROPAGATION: boolean, default: true
+FWD_SR: boolean, default: false, propositional forward subsumption resolution.
+FWD_SR_CHEAP: boolean, default: false, propositional forward subsumption resolution using only binary clauses.
+HI_DIV0: boolean, default: true, if true, then Z3 uses the usual hardware interpretation for division (rem, mod) by zero. Otherwise, these operations are considered uninterpreted..
+IGNORE_BAD_PATTERNS: boolean, default: true
+IGNORE_SETPARAMETER: boolean, default: false, ignore (SETPARAMETER ...) commands in Simplify format input.
+INSTRUCTION_MAX: double, default: 0, set the (approximate) maximal number of instructions per invocation of check.
+INTERACTIVE: boolean, default: false, enable interactive mode using Simplify input format.
+INTERNALIZER_NNF: boolean, default: false
+LEMMA_GC_FACTOR: double, default: 1.1, used by geometric strategy.
+LEMMA_GC_HALF: boolean, default: false, true for simple gc algorithm (delete approx. half of the clauses).
+LEMMA_GC_INITIAL: unsigned integer, default: 5000, lemma initial gc frequency (in number of conflicts), used by fixed or geometric strategies.
+LEMMA_GC_NEW_CLAUSE_ACTIVITY: unsigned integer, default: 10
+LEMMA_GC_NEW_CLAUSE_RELEVANCY: unsigned integer, default: 45
+LEMMA_GC_NEW_OLD_RATIO: unsigned integer, default: 16
+LEMMA_GC_OLD_CLAUSE_ACTIVITY: unsigned integer, default: 500
+LEMMA_GC_OLD_CLAUSE_RELEVANCY: unsigned integer, default: 500
+LEMMA_GC_STRATEGY: integer, min: 0, max: 2, default: 0, 0 - fixed, 1 - geometric, 2 - at every restart.
+LIFT_ITE: integer, min: 0, max: 2, default: 0, ite term lifting: 0 - no lifting, 1 - conservative, 2 - full.
+LOOKAHEAD: boolean, default: false, enable lookahead propagation heuristic.
+LOOKAHEAD_DISEQ: boolean, default: false
+MACRO_FINDER: boolean, default: false, try to find universally quantified formulas that can be viewed as macros.
+MAX_CONFLICTS: unsigned integer, default: 4294967295, maximum number of conflicts.
+MAX_COUNTEREXAMPLES: unsigned integer, default: 1, set the maximum number of counterexamples when using Simplify front end.
+MBQI: boolean, default: true, Model Based Quantifier Instantiation (MBQI).
+MBQI_FORCE_TEMPLATE: unsigned integer, default: 10, Some quantifiers can be used as templates for building interpretations for functions. Z3 uses heuristics to decide whether a quantifier will be used as a template or not. Quantifiers with weight >= MBQI_FORCE_TEMPLATE are forced to be used as a template.
+MBQI_MAX_CEXS: unsigned integer, default: 1, Initial maximal number of counterexamples used in MBQI, each counterexample generates a quantifier instantiation.
+MBQI_MAX_CEXS_INCR: unsigned integer, default: 1, Increment for MBQI_MAX_CEXS, the increment is performed after each round of MBQI.
+MBQI_MAX_ITERATIONS: unsigned integer, default: 1000, Maximum number of rounds of MBQI.
+MBQI_TRACE: boolean, default: false, Generate tracing messages for Model Based Quantifier Instantiation (MBQI). It will display a message before every round of MBQI, and the quantifiers that were not satisfied..
+MEMORY_HIGH_WATERMARK: unsigned integer, default: 0, set high watermark for memory consumption (in megabytes).
+MEMORY_MAX_SIZE: unsigned integer, default: 0, set hard upper limit for memory consumption (in megabytes).
+MINIMIZE_LEMMAS: boolean, default: true, enable/disable lemma minimization algorithm.
+MINIMIZE_LEMMAS_STRUCT: boolean, default: false, enable/disable structural lemma minimization algorithm.
+MODEL: boolean, default: false, enable/disable model construction.
+MODEL_COMPACT: boolean, default: false, try to compact function graph (i.e., function interpretations that are lookup tables.
+MODEL_COMPLETION: boolean, default: false, assigns an interptetation to symbols that do not have one in the current model, when evaluating expressions in the current model.
+MODEL_DISPLAY_ARG_SORT: boolean, default: true, display the sort of each argument when printing function interpretations.
+MODEL_HIDE_UNUSED_PARTITIONS: boolean, default: true, hide unused partitions, some partitions are associated with internal terms/formulas created by Z3.
+MODEL_ON_FINAL_CHECK: boolean, default: false, display candidate model (in the standard output) whenever Z3 hits a final check.
+MODEL_ON_TIMEOUT: boolean, default: false, after hitting soft-timeout or memory high watermark, generate a candidate model.
+MODEL_PARTIAL: boolean, default: false, enable/disable partial function interpretations.
+MODEL_V1: boolean, default: false, use Z3 version 1.x pretty printer.
+MODEL_V2: boolean, default: false, use Z3 version 2.x (x <= 16) pretty printer.
+MODEL_VALIDATE: boolean, default: false, validate the model.
+NEW_CORE2TH_EQ: boolean, default: true
+NG_LIFT_ITE: integer, min: 0, max: 2, default: 0, ite (non-ground) term lifting: 0 - no lifting, 1 - conservative, 2 - full.
+NL_ARITH: boolean, default: true, enable/disable non linear arithmetic support. This option is ignored when ARITH_SOLVER != 2..
+NL_ARITH_BRANCHING: boolean, default: true, enable/disable branching on integer variables in non linear clusters.
+NL_ARITH_GB: boolean, default: true, enable/disable Grobner Basis computation. This option is ignored when NL_ARITH=false.
+NL_ARITH_GB_EQS: boolean, default: false, enable/disable equations in the Grobner Basis to be copied to the Simplex tableau..
+NL_ARITH_GB_PERTURBATE: boolean, default: true, enable/disable perturbation of the variable order in GB when searching for new polynomials..
+NL_ARITH_GB_THRESHOLD: unsigned integer, default: 512, Grobner basis computation can be very expensive. This is a threshold on the number of new equalities that can be generated..
+NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing new monomials..
+NL_ARITH_ROUNDS: unsigned integer, default: 1024, threshold for number of (nested) final checks for non linear arithmetic..
+NNF_FACTOR: unsigned integer, default: 4, the maximum growth factor during NNF translation (auxiliary definitions are introduced if the threshold is reached).
+NNF_IGNORE_LABELS: boolean, default: false, remove/ignore labels in the input formula, this option is ignored if proofs are enabled.
+NNF_MODE: integer, min: 0, max: 3, default: 0, NNF translation mode: 0 - skolem normal form, 1 - 0 + quantifiers in NNF, 2 - 1 + opportunistic, 3 - full.
+NNF_SK_HACK: boolean, default: false, hack for VCC.
+ORDER: integer, min: 0, max: 1, default: 0, Term ordering: 0 - KBO, 1 - LPO.
+ORDER_VAR_WEIGHT: unsigned integer, default: 1, weight of variables in term orderings (e.g., KBO).
+ORDER_WEIGHTS: list of pairs: symbols(strings) x unsigned, describe a (partial) assignment of weights to function symbols for term orderings (e.g., KBO). The assigment is a list of pairs of the form f:n where f is a string and n is a natural. Example: WEIGHTS="(f:1, g:2, h:3)".
+PHASE_SELECTION: integer, min: 0, max: 6, default: 3, phase selection heuristic: 0 - always false, 1 - always true, 2 - phase caching, 3 - phase caching conservative, 4 - phase caching conservative 2, 5 - random, 6 - number of occurrences.
+PI_ARITH: integer, min: 0, max: 2, default: 1, 0 - do not infer patterns with arithmetic terms, 1 - use patterns with arithmetic terms if there is no other pattern, 2 - always use patterns with arithmetic terms..
+PI_ARITH_WEIGHT: unsigned integer, default: 5, default weight for quantifiers where the only available pattern has nested arithmetic terms..
+PI_AVOID_EVIL_SELECT: boolean, default: false
+PI_AVOID_SHALLOW_SELECT: boolean, default: false
+PI_AVOID_SKOLEMS: boolean, default: true
+PI_BLOCK_LOOOP_PATTERNS: boolean, default: true, block looping patterns during pattern inference.
+PI_HACKED_SHALLOW_SELECT: boolean, default: false
+PI_MAX_MULTI_PATTERNS: unsigned integer, default: 0, when patterns are not provided, the prover uses a heuristic to infer them. This option sets the threshold on the number of extra multi-patterns that can be created. By default, the prover creates at most one multi-pattern when there is no unary pattern.
+PI_NON_NESTED_ARITH_WEIGHT: unsigned integer, default: 10, default weight for quantifiers where the only available pattern has non nested arithmetic terms..
+PI_NON_SUBSUMER_SELECT: boolean, default: false
+PI_NOPAT_WEIGHT: integer, default: -1, set weight of quantifiers without patterns, if negative the weight is not changed..
+PI_PULL_QUANTIFIERS: boolean, default: true, pull nested quantifiers, if no pattern was found..
+PI_USE_DATABASE: boolean, default: false
+PP_BOUNDED: boolean, default: false, ignore characters exceeding max widht.
+PP_BV_LITERALS: boolean, default: true, use Bit-Vectore literals (e.g, #x0F and #b0101) during pretty printing.
+PP_FIXED_INDENT: boolean, default: false, use a fixed indentation for applications.
+PP_FLAT_ASSOC: boolean, default: true, flat associative operators (when pretty printing SMT2 terms/formulas).
+PP_MAX_DEPTH: unsigned integer, default: 5, max. term depth (when pretty printing SMT2 terms/formulas).
+PP_MAX_INDENT: unsigned integer, default: 4294967295, max. indentation in pretty printer.
+PP_MAX_NUM_LINES: unsigned integer, default: 4294967295, max. number of lines to be displayed in pretty printer.
+PP_MAX_RIBBON: unsigned integer, default: 80, max. ribbon (width - indentation) in pretty printer.
+PP_MAX_WIDTH: unsigned integer, default: 80, max. width in pretty printer.
+PP_MIN_ALIAS_SIZE: unsigned integer, default: 10, min. size for creating an alias for a shared term (when pretty printing SMT2 terms/formulas).
+PP_SINGLE_LINE: boolean, default: false, ignore line breaks when true.
+PRECEDENCE: list of symbols (strings), describe a (partial) precedence for the term ordering used in the Superposition Calculus module. The precedence is lists of function symbols. Example: PRECEDENCE="(f, g, h)".
+PRECEDENCE_GEN: list of symbols (strings), describe how a total precedence order is generated. The generator is a sequence of simple (partial) orders with an optional '-' (indicating the next (partial) order should be inverted). The available simple (partial) orders are: user (the order specified by precedence); arity; interpreted (interpreted function symbols are considered smaller); definition (defined function symbols are considered bigger); frequency; arbitrary (total arbitrary order generated by Z3). Example: PRECEDENCE_GEN="user interpreted - arity arbitraty".
+PRE_DEMODULATOR: boolean, default: false, apply demodulators during preprocessing step.
+PRE_SIMPLIFIER: boolean, default: true
+PRE_SIMPLIFY_EXPR: boolean, default: true, pre-simplify expressions when created over the API (example: -x -> (* -1 x)).
+PROFILE_RES_SUB: boolean, default: false
+PROGRESS_SAMPLING_FREQ: unsigned integer, default: 0, frequency for progress output in miliseconds.
+PROOF_MODE: integer, min: 0, max: 2, default: 0, select proof generation mode: 0 - disabled, 1 - coarse grain, 2 - fine grain.
+PROPAGATE_BOOLEANS: boolean, default: false, propagate boolean values during preprocessing step.
+PROPAGATE_VALUES: boolean, default: true, propagate values during preprocessing step.
+PULL_CHEAP_ITE_TREES: boolean, default: false
+PULL_NESTED_QUANTIFIERS: boolean, default: false, eliminate nested quantifiers by moving nested quantified variables to the outermost quantifier, it is unnecessary if the formula is converted into CNF.
+QI_CONSERVATIVE_FINAL_CHECK: boolean, default: false
+QI_COST: string, default: (+ weight generation), The cost function for quantifier instantiation.
+QI_EAGER_THRESHOLD: double, default: 10, Threshold for eager quantifier instantiation.
+QI_ITERATIVE_DEEPENING: boolean, default: false, Use iterative deepening for eager quantifier instantiation.
+QI_ITERATIVE_DEEPENING_DECR: double, default: 0, Decrement for iterative deepening (eager quantifier instantiation).
+QI_ITERATIVE_DEEPENING_INCR: double, default: 1, Increment for iterative deepening (eager quantifier instantiation).
+QI_LAZY_INSTANTIATION: boolean, default: false
+QI_LAZY_QUICK_CHECKER: boolean, default: true
+QI_LAZY_THRESHOLD: double, default: 20, Threshold for lazy quantifier instantiation.
+QI_MAX_EAGER_MULTI_PATTERNS: unsigned integer, default: 0, Specify the number of extra multi patterns that are processed eagerly. By default, the prover use at most one multi-pattern eagerly when there is no unary pattern. This value should be smaller than or equal to PI_MAX_MULTI_PATTERNS.
+QI_MAX_INSTANCES: unsigned integer, default: 4294967295
+QI_MAX_LAZY_MULTI_PATTERN_MATCHING: unsigned integer, default: 2, Maximum number of rounds of matching in a branch for delayed multipatterns. A multipattern is delayed based on the value of QI_MAX_EAGER_MULTI_PATTERNS.
+QI_NEW_GEN: string, default: cost, The function for calculating the generation of newly constructed terms.
+QI_PROFILE: boolean, default: false
+QI_PROFILE_FREQ: unsigned integer, default: 4294967295
+QI_PROMOTE_UNSAT: boolean, default: true
+QI_QUICK_CHECKER: integer, min: 0, max: 2, default: 0, 0 - do not use (cheap) model checker, 1 - instantiate instances unsatisfied by current model, 2 - 1 + instantiate instances not satisfied by current model.
+QI_TRACK_INSTANCES: boolean, default: false
+QUASI_MACROS: boolean, default: false
+RANDOM_CASE_SPLIT_FREQ: percentage, default: 0.01, frequency of random case splits.
+RANDOM_INITIAL_ACTIVITY: integer, min: 0, max: 2, default: 1
+RANDOM_SEED: unsigned integer, default: 0, random seed for Z3.
+RECENT_LEMMA_THRESHOLD: unsigned integer, default: 100
+REDUCE_ARGS: boolean, default: false
+REFINE_INJ_AXIOM: boolean, default: true
+RELEVANCY: unsigned integer, default: 2, relevancy propagation heuristic: 0 - disabled, 1 - relevancy is tracked by only affects quantifier instantiation, 2 - relevancy is tracked, and an atom is only asserted if it is relevant.
+RELEVANCY_LEMMA: boolean, default: false, true if lemmas are used to propagate relevancy.
+REL_CASE_SPLIT_ORDER: unsigned integer, max: 2, default: 0, structural (relevancy) splitting order: 0 - left-to-right (default), 1 - random, 2 - right-to-left.
+RESTART_ADAPTIVE: boolean, default: true, disable restarts based on the search 'agility'.
+RESTART_AGILITY_THRESHOLD: percentage, default: 0.18
+RESTART_FACTOR: double, default: 1.1, when using geometric (or inner-outer-geometric) progression of restarts, it specifies the constant used to multiply the currect restart threshold.
+RESTART_INITIAL: unsigned integer, default: 100, inital restart frequency in number of conflicts, it is also the unit for the luby sequence.
+RESTART_STRATEGY: integer, min: 0, max: 5, default: 1, 0 - geometric, 1 - inner-outer-geometric, 2 - luby, 3 - fixed, 4 - arithmetic, 5 - dynamic.
+RESTRICTED_QUASI_MACROS: boolean, default: false
+SATURATE: boolean, default: false
+SIMPLIFY_CLAUSES: boolean, default: true
+SMTLIB2_COMPLIANT: boolean, default: true
+SMTLIB_CATEGORY: string, default: , additional category info to add to SMTLIB benchmark.
+SMTLIB_DUMP_ASSERTIONS: boolean, default: false
+SMTLIB_DUMP_LEMMAS: boolean, default: false
+SMTLIB_DUMP_UNSAT_CORE: boolean, default: false
+SMTLIB_LOGIC: string, default: AUFLIA, Name used for the :logic field when generating SMT-LIB benchmarks.
+SMTLIB_SOURCE_INFO: string, default: , additional source info to add to SMTLIB benchmark.
+SMTLIB_TRACE_PATH: string, default: , path for converting Z3 formulas to SMTLIB benchmarks.
+SOFT_TIMEOUT: unsigned integer, default: 0, set approximate timeout for each solver query (milliseconds), the value 0 represents no timeout.
+SOLVER: boolean, default: false, enable solver during preprocessing step.
+SPC: boolean, default: false, DPLL(SP): DPLL + superposition calculus.
+SPC_BS: boolean, default: true, Enable/disable backward subsumption in the superposition engine.
+SPC_ES: boolean, default: true, Enable/disable equality resolution in the superposition engine.
+SPC_FACTOR_SUBSUMPTION_INDEX_OPT: double, default: 1.5, after each optimization the threshold for optimization is increased by this factor. See INITIAL_SUBSUMPTION_INDEX_OPT..
+SPC_INITIAL_SUBSUMPTION_INDEX_OPT: unsigned integer, default: 1000, after how many processed clauses the subsumption index is optimized..
+SPC_MAX_SUBSUMPTION_INDEX_FEATURES: unsigned integer, default: 32, maximum number of features to be used for subsumption index..
+SPC_MIN_FUNC_FREQ_SUBSUMPTION_INDEX: unsigned integer, default: 100, minimal number of occurrences (in clauses) for a function symbol to be considered for subsumption indexing..
+SPC_NUM_ITERATIONS: unsigned integer, default: 1000
+SPC_TRACE: boolean, default: false
+STATISTICS: boolean, default: false, display statistics.
+STRONG_CONTEXT_SIMPLIFIER: boolean, default: false, Simplify Boolean sub-expressions by using full satisfiability queries.
+SUBSUMER_MAX_SIZE: unsigned integer, default: 32, maximal subsumer size for: backward subsumption and backward/forward subsumption resolution.
+TICK: unsigned integer, default: 1000
+TRACE: boolean, default: false, enable tracing for the Axiom Profiler tool.
+TRACE_FILE_NAME: string, default: z3.log, tracing file name.
+TYPE_CHECK: boolean, default: true, enable/disable type checker.
+USER_THEORY_PERSIST_AXIOMS: boolean, default: false, Persist user axioms to the base level.
+USER_THEORY_PREPROCESS_AXIOMS: boolean, default: false, Apply full pre-processing to user theory axioms.
+VERBOSE: unsigned integer, default: 0, be verbose, where the value is the verbosity level.
+WARNING: boolean, default: true, enable/disable warning messages.
+WELL_SORTED_CHECK: boolean, default: true, enable/disable type checker.
+Z3_SOLVER_LL_PP: boolean, default: false, pretty print asserted constraints using low-level printer (Z3 input format specific).
+Z3_SOLVER_SMT_PP: boolean, default: false, pretty print asserted constraints using SMT printer (Z3 input format specific).
