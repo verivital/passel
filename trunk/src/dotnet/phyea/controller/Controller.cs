@@ -188,21 +188,22 @@ namespace phyea.controller
 
             c.SetParamValue("MODEL", "true");
             c.SetParamValue("MBQI", "true"); //  (see http://research.microsoft.com/en-us/um/redmond/projects/z3/mbqi-tutorial/)
-            c.SetParamValue("MBQI_MAX_ITERATIONS", "50000");
+            //c.SetParamValue("MBQI_MAX_ITERATIONS", "50000");
 
-            c.SetParamValue("ELIM_QUANTIFIERS", "false");
-            c.SetParamValue("ELIM_NLARITH_QUANTIFIERS", "false");
+            
+            c.SetParamValue("ELIM_QUANTIFIERS", "true"); // if we fix N to be small, we can rely on MBQI, but if we have N large or unbounded, we may need Q.E.
+            c.SetParamValue("ELIM_NLARITH_QUANTIFIERS", "true");
+            c.SetParamValue("ELIM_BOUNDS", "true");
+            c.SetParamValue("QI_LAZY_INSTANTIATION", "true");
 
             c.SetParamValue("PULL_CHEAP_ITE_TREES", "true");
             c.SetParamValue("EMATCHING", "true");
             c.SetParamValue("MACRO_FINDER", "true");
+            c.SetParamValue("STRONG_CONTEXT_SIMPLIFIER", "true");
+            c.SetParamValue("CONTEXT_SIMPLIFIER", "true");
 
-
-            //c.SetParamValue("STRONG_CONTEXT_SIMPLIFIER", "true");
-            //c.SetParamValue("CONTEXT_SIMPLIFIER", "true");
-
-            c.SetParamValue("PI_PULL_QUANTIFIERS", "true");
-            c.SetParamValue("PULL_NESTED_QUANTIFIERS", "true");
+            c.SetParamValue("PI_PULL_QUANTIFIERS", "true");     // check with on / off 
+            c.SetParamValue("PULL_NESTED_QUANTIFIERS", "true"); // check with on / off (see mbqi tutorial)
             c.SetParamValue("MODEL_PARTIAL", "true");
             c.SetParamValue("MODEL_V2", "true");
             c.SetParamValue("VERBOSE", "10");
@@ -246,9 +247,6 @@ namespace phyea.controller
             //c.SetParamValue("DL_COMPILE_WITH_WIDENING", "true");
             //c.SetParamValue("DACK", "2");
             //c.SetParamValue("DACK_EQ", "true");
-
-            //c.SetParamValue("QI_LAZY_INSTANTIATION", "true");
-            //c.SetParamValue("ELIM_BOUNDS", "true");
 
             // some bugs in the next ones
             //c.SetParamValue("FWD_SR_CHEAP", "true");

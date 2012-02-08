@@ -30,12 +30,77 @@ namespace phyea.controller.smt.z3
                 }
                 try
                 {
+                    Term[] ts = null;
+
+                    switch (orig.GetKind())
+                    {
+                            //TODO: nesting of quantifiers is bugged
+                        case TermKind.Quantifier:
+                            Symbol[] n = orig.GetQuantifier().Names;
+                            ts = new Term[] { orig.GetQuantifier().Body }; // can't do it this way: we need a pointer to the original memory!
+                            break;
+                        case TermKind.App:
+                            FuncDecl fd = orig.GetAppDecl(); // todo: do the replacement on this---make another function do this replacement only for priming and unpriming (will be much faster)
+                            ts = orig.GetAppArgs();
+                            break;
+                        case TermKind.Numeral: // bottom of tree
+                            return;
+                        case TermKind.Var:
+                            return;
+                        default:
+                            return;
+                    }
+
+
+                        //replaceFuncDecl(ref orig.GetQuantifier().Body, orig.GetQuantifier().Body, find, replace, byString);
+
+                    if (ts != null)
+                    {
+                        for (int i = 0; i < ts.Length; i++)
+                        {
+                            replaceFuncDecl(ref ts[i], ts[i], find, replace, byString);
+                        }
+                    }
+                    // call term modifier from api
+
+                    //if (origReplaced.GetKind() == TermKind.Quantifier)
+                    //{
+                    //    //Symbol[] n = orig.GetQuantifier().Names;
+                    //    origReplaced = this.UpdateTerm(origReplaced, new Term[] { orig.GetQuantifier().Body }); // allocating new memory at this point is okay though, as we've already used the reference to ts0
+                    //}
+                    //else
+                    //{
+                   //     if (ts != null)
+                    //    {
+                            origReplaced = this.UpdateTerm(origReplaced, ts);
+                    //    }
+                  //  }
+                }
+                catch (Microsoft.Z3.Z3Error e)
+                {
+                }
+            }
+        }
+
+        /**
+         * Replace a term in a tree of terms
+         */
+        public void replaceTerm(ref Term origReplaced, Term orig, Term find, Term replace, Boolean byString)
+        {
+            if (orig != null)
+            {
+                if (orig.Equals(find) || orig == find || (byString && orig.ToString().Equals(find.ToString())))
+                {
+                    origReplaced = replace;
+                    return;
+                }
+                try
+                {
                     Term[] ts;
 
                     switch (orig.GetKind())
                     {
                         case TermKind.Quantifier:
-                            Symbol[] n = orig.GetQuantifier().Names;
                             ts = new Term[] { orig.GetQuantifier().Body };
                             break;
                         case TermKind.App:
@@ -52,19 +117,13 @@ namespace phyea.controller.smt.z3
 
                     for (int i = 0; i < ts.Length; i++)
                     {
-                        replaceFuncDecl(ref ts[i], ts[i], find, replace, byString);
+                        replaceTerm(ref ts[i], ts[i], find, replace, byString);
                     }
                     // call term modifier from api
-
-                    if (origReplaced.GetKind() == TermKind.Quantifier)
-                    {
-                        Symbol[] n = orig.GetQuantifier().Names;
-                        origReplaced = this.UpdateTerm(origReplaced, ts);
-                    }
-                    else
-                    {
-                        origReplaced = this.UpdateTerm(origReplaced, ts);
-                    }
+                    //if (origReplaced != orig)
+                    //{
+                    origReplaced = this.UpdateTerm(origReplaced, ts);
+                    //}
                 }
                 catch (Microsoft.Z3.Z3Error e)
                 {
@@ -548,55 +607,6 @@ namespace phyea.controller.smt.z3
             }
             else{
                 return Controller.Instance.Z3.MkTrue();
-            }
-        }
-
-        /**
-         * Replace a term in a tree of terms
-         */
-        public void replaceTerm(ref Term origReplaced, Term orig, Term find, Term replace, Boolean byString)
-        {
-            if (orig != null)
-            {
-                if (orig.Equals(find) || orig == find || (byString && orig.ToString().Equals(find.ToString())))
-                {
-                    origReplaced = replace;
-                    return;
-                }
-                try
-                {
-                    Term[] ts;
-
-                    switch (orig.GetKind())
-                    {
-                        case TermKind.Quantifier:
-                            ts = new Term[] { orig.GetQuantifier().Body };
-                            break;
-                        case TermKind.App:
-                            FuncDecl fd = orig.GetAppDecl(); // todo: do the replacement on this---make another function do this replacement only for priming and unpriming (will be much faster)
-                            ts = orig.GetAppArgs();
-                            break;
-                        case TermKind.Numeral: // bottom of tree
-                            return;
-                        case TermKind.Var:
-                            return;
-                        default:
-                            return;
-                    }
-
-                    for (int i = 0; i < ts.Length; i++)
-                    {
-                        replaceTerm(ref ts[i], ts[i], find, replace, byString);
-                    }
-                    // call term modifier from api
-                    //if (origReplaced != orig)
-                    //{
-                    origReplaced = this.UpdateTerm(origReplaced, ts);
-                    //}
-                }
-                catch (Microsoft.Z3.Z3Error e)
-                {
-                }
             }
         }
 
