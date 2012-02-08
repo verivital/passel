@@ -71,6 +71,7 @@ namespace phyea.controller.parsing
     public enum AssumptionTypes
     {
         invariant,
+        safety,
         inductive_invariant,
         none
     };
@@ -275,6 +276,7 @@ namespace phyea.controller.parsing
 
                                             switch (atype)
                                             {
+                                                case AssumptionTypes.safety:
                                                 case AssumptionTypes.inductive_invariant:
                                                     {
                                                         // assert the assumption
@@ -371,6 +373,17 @@ namespace phyea.controller.parsing
                                                             break;
                                                         }
                                                 }
+
+                                                // todo: check if this works in general to distinguish timed vs. rectangular
+                                                if (constants.Count + pvars.Count <= 1)
+                                                {
+                                                    l.DynamicsType = Location.DynamicsTypes.timed;
+                                                }
+                                                else if (constants.Count + pvars.Count == 2)
+                                                {
+                                                    l.DynamicsType = Location.DynamicsTypes.rectangular;
+                                                }
+
                                                 if (pvars.Count > 0)
                                                 {
                                                     foreach (var y in pvars)

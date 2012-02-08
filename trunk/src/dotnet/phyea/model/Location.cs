@@ -15,6 +15,18 @@ namespace phyea.model
         Term _invariant;
         Term _stop;
         Term _flow;
+
+        public DynamicsTypes DynamicsType;
+
+        public enum DynamicsTypes
+        {
+            timed,
+            rectangular,
+            linear,
+            affine,
+            nonlinear
+        }
+
         // todo: use this later, for now let's just have a single flow term
         IDictionary<Variable, Term> _varRates;
 

@@ -1,4 +1,4 @@
-﻿grammar guard;
+grammar guard;
 options {
     language=CSharp3;
     TokenLabelType=CommonToken;
@@ -53,19 +53,25 @@ tokens
 }
 
 expression
-	: 	logicalExpression EOF!
+	:	logicalExpression EOF!
 	;
+// |	logicalExpression ((IF^ logicalExpression THEN^ logicalExpression ELSE^ logicalExpression)^ logicalExpression)* EOF!
+// |	logicalExpression ((ITE^ logicalExpression logicalExpression logicalExpression) logicalExpression)* EOF!
 		
 logicalExpression
 	:	booleanAndExpression ((OR | XOR | IMPLY | IFF)^ booleanAndExpression )*
-	|	ITE  logicalExpression logicalExpression logicalExpression
 	;
+
+//	|	booleanAndExpression ((IF^ booleanAndExpression THEN^ booleanAndExpression ELSE^ booleanAndExpression)? booleanAndExpression)*
 
 OR 	: 	'||' | 'or';
 XOR :	'xor';
 IMPLY	:	'implies' | 'imply' | '=>' | '=&gt;';
 IFF	:	'iff' | 'xnor' | '<=>' | '&lt;=&gt;';
 ITE :	'ite' | 'ifthenelse';
+IF : 'if';
+THEN : 'then' | '?';
+ELSE : 'else' | ':';
 // todo ite: buggy, need to fix precedence
 	
 booleanAndExpression
@@ -113,8 +119,9 @@ POW	:	'^';
 
 unaryExpression
 	:	primaryExpression
-    	|	NOT^ primaryExpression
-    	|	MINUS primaryExpression -> ^(UNARY_MINUS primaryExpression)
+    |	NOT^ primaryExpression
+    |	MINUS primaryExpression -> ^(UNARY_MINUS primaryExpression)
+	|	IF primaryExpression THEN primaryExpression ELSE primaryExpression -> ^(ITE primaryExpression primaryExpression primaryExpression)
    	;
   
 NOT	:	'!' | 'not';
@@ -157,6 +164,7 @@ BOOLEAN
 	:	'true'
 	|	'false'
 	;
+
 
 // declare after the BOOLEAN token
 function
