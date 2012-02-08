@@ -357,15 +357,15 @@ namespace phyea.controller
 
             if (System.Environment.MachineName.ToLower().StartsWith("johnso99"))
             {
-                this._inoutPath = "C:\\Documents and Settings\\tjohnson\\My Documents\\My Dropbox\\SmallModels\\code\\input\\";
+                this._inoutPath = "C:\\Documents and Settings\\tjohnson\\My Documents\\My Dropbox\\Research\\tools\\phyea\\repos\\trunk\\input\\";
             }
             else if (System.Environment.MachineName.ToLower().StartsWith("lh-lapto"))
             {
-                this._inoutPath = "C:\\Users\\tjohnson\\Dropbox\\SmallModels\\code\\input\\";
+                this._inoutPath = "C:\\Users\\tjohnson\\Dropbox\\Research\\tools\\phyea\\repos\\trunk\\input\\";
             }
             else
             {
-                this._inoutPath = "D:\\Dropbox\\SmallModels\\code\\input\\";
+                this._inoutPath = "D:\\Dropbox\\Research\\tools\\phyea\\repos\\trunk\\input\\";
             }
 
             this.Z3.EnableDebugTrace("debug");
@@ -508,7 +508,35 @@ namespace phyea.controller
         {
             String choice;
             Boolean fileSelected = false;
-            Console.WriteLine("Select an input file option: \n\r[0] smt_fischer_hyxml.xml (default)\n\r[1] smt_fischer_buggy_hyxml.xml\n\r[2] smt_sats_hyxml.xml\n\r[3] smt_sats_buggy_hyxml.xml\n\r[4] smt_nfa_hyxml.xml\n\r[5] smt_nfa_buggy_hyxml.xml\n\r[6] smt_ta_hyxml.xml\n\r[7] smt_ta_buggy_hyxml.xml\n\r[8] smt_gv_hyxml.xml\n\r[9] smt_gv_buggy_hyxml.xml\n\r[10] smt_sats_timed_hyxml.xml\n\r[11] smt_sats_timed_buggy_hyxml.xml\n\r[12] smt_flocking_hyxml.xml\n\r[13] smt_flocking_buggy_hyxml.xml\n\r[256] enter custom file\n\r");
+
+            Dictionary<int, string> inputFiles = new Dictionary<int, string>();
+            int inputFileCount = 0;
+            inputFiles.Add(inputFileCount++, "fischer.xml (default)");
+            inputFiles.Add(inputFileCount++, "fischer_buggy.xml");
+            inputFiles.Add(inputFileCount++, "sats.xml");
+            inputFiles.Add(inputFileCount++, "sats_buggy.xml");
+            inputFiles.Add(inputFileCount++, "nfa.xml");
+            inputFiles.Add(inputFileCount++, "nfa_buggy.xml");
+            inputFiles.Add(inputFileCount++, "ta.xml");
+            inputFiles.Add(inputFileCount++, "ta_buggy.xml");
+            inputFiles.Add(inputFileCount++, "gv.xml");
+            inputFiles.Add(inputFileCount++, "gv_buggy.xml");
+            inputFiles.Add(inputFileCount++, "sats_timed.xml");
+            inputFiles.Add(inputFileCount++, "sats_timed_buggy.xml");
+            inputFiles.Add(inputFileCount++, "flocking.xml");
+            inputFiles.Add(inputFileCount++, "flocking_buggy.xml");
+            inputFiles.Add(inputFileCount++, "fischer_umeno.xml");
+            inputFiles.Add(inputFileCount++, "fischer_umeno_five_state.xml");
+            inputFiles.Add(inputFileCount++, "fischer_umeno_global_clock.xml");
+            inputFiles.Add(inputFileCount++, "fischer_umeno_global_clock_buggy.xml");
+            inputFiles.Add(inputFileCount++, "fischer_umeno_buggy.xml");
+
+            Console.WriteLine("Select an input file: \n\r");
+            foreach (var f in inputFiles)
+            {
+                Console.WriteLine("[" + f.Key.ToString() + "]" + " " + f.Value);
+            }
+            Console.WriteLine("[256] enter custom file\n\r");
 
             while (true)
             {
@@ -517,97 +545,21 @@ namespace phyea.controller
                 {
                     if (choice != null)
                     {
-                        UInt32 io_opt = UInt32.Parse(choice);
+                        int io_opt = int.Parse(choice);
 
-                        switch (io_opt)
+                        if (io_opt < inputFileCount)
                         {
-                            case 0:
-                                {
-                                    Instance._inputFile = Instance._inoutPath + "smt_fischer_hyxml.xml";
-                                    break;
-                                }
-                            case 1:
-                                {
-                                    Instance._inputFile = Instance._inoutPath + "smt_fischer_buggy_hyxml.xml";
-                                    break;
-                                }
-                            case 2:
-                                {
-                                    Instance._inputFile = Instance._inoutPath + "smt_sats_hyxml.xml";
-                                    break;
-                                }
-                            case 3:
-                                {
-                                    Instance._inputFile = Instance._inoutPath + "smt_sats_buggy_hyxml.xml";
-                                    break;
-                                }
-                            case 4:
-                                {
-                                    Instance._inputFile = Instance._inoutPath + "smt_nfa_hyxml.xml";
-                                    break;
-                                }
-                            case 5:
-                                {
-                                    Instance._inputFile = Instance._inoutPath + "smt_nfa_buggy_hyxml.xml";
-                                    break;
-                                }
-                            case 6:
-                                {
-                                    Instance._inputFile = Instance._inoutPath + "smt_ta_hyxml.xml";
-                                    break;
-                                }
-                            case 7:
-                                {
-                                    Instance._inputFile = Instance._inoutPath + "smt_ta_buggy_hyxml.xml";
-                                    break;
-                                }
-                            case 8:
-                                {
-                                    Instance._inputFile = Instance._inoutPath + "smt_gv_hyxml.xml";
-                                    break;
-                                }
-                            case 9:
-                                {
-                                    Instance._inputFile = Instance._inoutPath + "smt_gv_buggy_hyxml.xml";
-                                    break;
-                                }
-                            case 10:
-                                {
-                                    Instance._inputFile = Instance._inoutPath + "smt_sats_timed_hyxml.xml";
-                                    break;
-                                }
-                            case 11:
-                                {
-                                    Instance._inputFile = Instance._inoutPath + "smt_sats_timed_buggy_hyxml.xml";
-                                    break;
-                                }
-                            case 12:
-                                {
-                                    Instance._inputFile = Instance._inoutPath + "smt_flocking_hyxml.xml";
-                                    break;
-                                }
-                            case 13:
-                                {
-                                    Instance._inputFile = Instance._inoutPath + "smt_flocking_buggy_hyxml.xml";
-                                    break;
-                                }
-                            case 14:
-                                {
-                                    Instance._inputFile = Instance._inoutPath + "smt_fischer_umeno_hyxml.xml";
-                                    break;
-                                }
-                            case 256:
-                                {
-                                    Console.WriteLine("Using path " + Instance._inoutPath);
-                                    Instance._inputFile = Instance._inoutPath + Console.ReadLine();
-                                    Console.WriteLine("File: " + Instance._inputFile + "\n\r");
-                                    break;
-                                }
-                            default:
-                                {
-                                    Instance._inputFile = Instance._inoutPath + "smt_fischer_hyxml.xml";
-                                    break;
-                                }
+                            Instance._inputFile = Instance._inoutPath + inputFiles[io_opt];
+                        }
+                        else if (io_opt == 256)
+                        {
+                            Console.WriteLine("Using path " + Instance._inoutPath);
+                            Instance._inputFile = Instance._inoutPath + Console.ReadLine();
+                            Console.WriteLine("File: " + Instance._inputFile + "\n\r");
+                        }
+                        else
+                        {
+                            Instance._inputFile = Instance._inoutPath + "smt_fischer_hyxml.xml";
                         }
                     }
                 }
@@ -635,7 +587,7 @@ namespace phyea.controller
             Console.Write("Checking file: {0}\n\r", Instance._inputFile);
 
             String outFilename;
-            outFilename = Instance._inoutPath + "output" + System.DateTime.Now.ToString("s").Replace(":", "-") + ".log";
+            outFilename = Instance._inoutPath + "..\\output\\output" + System.DateTime.Now.ToString("s").Replace(":", "-") + ".log";
 
             //Console.Clear();
             lock (Console.Out)
