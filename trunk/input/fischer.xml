@@ -1,0 +1,297 @@
+<?xml version="1.0"?>
+
+<holism>
+	<parameter name='N' type='index' comment='number of processes in the system' />
+	<parameter name='A' type='real' comment='smaller constant' />
+	<parameter name='B' type='real' comment='larger constant' />
+	
+	<parameter name='g' type='index' update_type='Discrete' comment='lock' />
+	
+	<assumption equn='A &gt; 0.0 and B &gt; 0.0 and A &lt; B' comment='A *stictly less than* B for mutual exclusion' />
+	<assumption equn='N = 5' comment='' />
+
+	<automaton name='default_automaton'>
+		<variable name='x[i]' type='real' update_type='Continuous' />
+		
+		<initial equn='(forall i (x[i] = 0.0)) and g = 0' />
+<!-- q[i] = sleeping and  -->
+		<mode id='0' name='sleeping' initial='True'>
+			<dai variable='x[i]' equn='x[i]_dot = 1.0'/>
+		</mode>
+
+		<mode id='1' name='waiting' initial='False'>
+			<dai variable='x[i]' equn='x[i]_dot = 1.0'/>
+			<invariant equn='x[i] &lt;= A'/>
+			<stop equn='x[i] &gt;= A'/>
+		</mode>
+		
+		<mode id='2' name='trying' initial='False'>
+			<dai variable='x[i]' equn='x[i]_dot = 1.0'/>
+			<invariant equn='x[i] &lt;= B'/>
+			<stop equn='x[i] &gt;= B'/>
+		</mode>
+		
+		<mode id='3' name='cs' initial='False'>
+			<dai variable='x[i]' equn='x[i]_dot = 1.0'/>
+		</mode>
+
+		<transition source='sleeping' destination='sleeping'>
+			<guard equn='g != i' />
+			<action equn='x[i]&apos; = 0.0'/>
+		</transition>
+
+
+		<transition source='sleeping' destination='waiting'>
+			<guard equn='g = 0'/>
+			<action equn='x[i]&apos; = 0.0'/>
+		</transition>
+		
+		<transition source='waiting' destination='trying'>
+			<guard equn='x[i] &lt;= A'/>
+			<action equn='g&apos; = i and x[i]&apos; = 0.0'/>
+		</transition>
+		
+		<transition source='trying' destination='sleeping'>
+			<guard equn='x[i] &gt;= B and g != i'/>
+			<action equn='x[i]&apos; = 0.0'/>
+		</transition>
+		
+		<transition source='trying' destination='cs'>
+			<guard equn='x[i] &gt;= B and g = i'/>
+		</transition>
+		
+		<transition source='cs' destination='sleeping'>
+			<action equn='g&apos; = 0 and x[i]&apos; = 0.0'/>
+		</transition>
+	</automaton>
+<!-- todo: check next	<property equn='forall i j (((q[i] == cs) implies (g = i)) and q[j] != waiting))' type='safety' comment='logical_aux1' /> -->
+
+<!--	<assumption type='inductive_invariant' equn='forall i j ((q[i] = 2 and q[j] != 3) implies (g != 0))' comment='test' />		-->
+<!--	<assumption type='inductive_invariant' equn='forall i j ((g == i and q[j] == waiting) implies (x[i] &gt; x[j]))' />		-->
+<!--	<assumption type='inductive_invariant' equn='forall i j ((q[i] == cs) implies (g == i and q[j] != waiting))' />			-->
+
+<property equn='forall i j (true)' type='safety' />
+<property equn='forall i j (false)' type='safety' />
+<property equn='true' type='safety' />
+<property equn='false' type='safety' />
+<property equn='forall i j (i &gt;= 1 and i &lt;= N and j &gt;= 1 and j &lt;= N)' type='safety' />
+<property equn='forall i (q[i] &gt;= 0 and q[i] &lt;= 3)' type='safety' />
+<property equn='forall i (q[i] &lt; 0 and q[i] &gt; 3)' type='safety' />
+
+<!-- inductive invariants and strengthening from sri paper -->
+
+	<property equn='forall i ((q[i] == waiting) implies (x[i] &lt; A))' type='safety' comment='' /> 
+	
+	
+	
+	<property equn='forall i ((q[i] == waiting) implies (x[i] &lt; A / 2.0))' type='safety' comment='' />
+
+	<property equn='forall i ((q[i] == waiting) implies (x[i] == 0.0))' type='safety' comment='' />
+	
+	<property equn='forall i (x[i] == 0.0)' type='safety' comment='' />
+	
+	<property equn='forall i (x[i] &lt; A)' type='safety' comment='' />
+	<property equn='forall i (x[i] &lt; B)' type='safety' comment='' />
+	
+	
+	<property equn='forall i ((q[i] != sleeping))' type='safety' />
+	<property equn='forall i ((q[i] != waiting))' type='safety' />
+	<property equn='forall i ((q[i] != trying))' type='safety' />
+	<property equn='forall i ((q[i] != cs))' type='safety' />
+
+
+
+
+
+	<property equn='forall i ((q[i] == waiting) implies (x[i] &lt;= A))' type='safety' comment='' />
+	<property equn='forall i ((q[i] == cs) implies (x[i] &gt;= B))' type='safety' />
+	<property equn='forall i j ((q[i] = cs and q[j] == waiting) implies (x[i] &gt; x[j]))' type='safety' />
+	<property equn='forall i j ((g == i and q[i] = cs and g != j and q[j] == waiting) implies (x[i] &gt; x[j]))' type='safety' />
+	<property equn='forall i j ((g == i and q[i] == cs and q[j] == waiting) implies (x[i] &gt; x[j]))' type='safety' />
+	
+	<property equn='forall i ((q[i] == trying) implies (g != 0))' type='safety' />
+	<property equn='forall i j ((q[i] == trying and q[j] != cs) implies (g != 0))' type='safety' />
+	<property equn='forall i j ((q[i] == trying) implies (g != 0 and q[j] != cs))' type='safety' />
+
+<property equn='forall i ((((q[i] == waiting) implies (x[i] &lt;= A)) and ((q[i] == trying) implies (forall j ((g == i) and ((q[j] == waiting) implies (x[i] &gt; x[j])))))) and ((q[i] == cs or q[i] == trying) implies (g == i and (forall j (q[j] != waiting)))))' type='safety' comment='lamport' />
+
+
+
+<property equn='forall i ((q[i] == waiting) implies (x[i] &lt;= A))' type='safety' comment='lamport' />
+<property equn='forall i (((q[i] == trying) implies (forall j ((g == i) and ((q[j] == waiting) implies (x[i] &gt; x[j]))))))' type='safety' comment='lamport' />
+<property equn='forall i ((q[i] == cs or q[i] == trying) implies (g == i and (forall idxj (q[idxj] != waiting))))' type='safety' comment='lamport' />
+<property equn='forall i ((q[i] == cs or q[i] == trying) implies (g == i and (forall j (q[j] != waiting))))' type='safety' comment='lamport' />
+
+
+
+<property equn='forall i j ((q[i] == cs) implies (g = i and q[j] != waiting))' type='safety' comment='logical_aux1' />
+
+
+<property equn='forall i j ((q[i] == cs and x[j] &lt; B) implies (g == i and q[j] != waiting))' type='safety' comment='logical_aux1' />
+
+	<property equn='forall i ((g = i) implies (q[i] == cs))' type='safety' />	
+
+
+	<property equn='forall i ((q[i] == cs) implies (g = i))' type='safety' />
+	<property equn='forall i j ((i != j and q[i] == cs) implies (q[j] != cs))' type='safety' comment='no two processes in critical section.' />
+	<property equn='exists i j (q[i] == cs and q[j] == cs)' type='bad' comment='no two processes in critical section.' />
+
+	<property equn='forall i j ((i != j) implies (q[i] != cs or q[j] != cs))' type='safety' comment='no two processes in critical section.' />
+
+
+
+
+
+
+	<property equn='forall i j ((q[i] == trying and g == i and q[j] == waiting) implies (B - x[i] &gt; A - x[j]))' type='safety' comment='' />
+	
+	<property equn='forall i j ((q[i] == trying and g == i and q[j] == waiting) implies (B - x[i] &gt; x[j] - A))' type='safety' comment='' />
+
+
+	<property equn='forall i j ((q[i] == trying and g == i and q[j] == waiting) implies (x[i] - B &gt; x[j] - A))' type='safety' comment='' />
+	<property equn='forall i j ((q[i] == trying and g == i and q[j] == waiting) implies (x[i] - B &gt; A - x[j]))' type='safety' comment='' />
+	<property equn='forall i j ((q[i] == trying and g == i and q[j] == waiting) implies (x[i] &gt; x[j]))' type='safety' comment='' />
+
+
+	<property equn='forall i j ((q[i] == trying and g == i and q[j] == waiting) implies (x[i] + A &gt; x[j] + B))' type='safety' comment='' />
+	<property equn='forall i j ((q[i] == trying and g == i and q[j] == waiting) implies (x[i] + B &gt; x[j] + A))' type='safety' comment='' />
+
+
+
+	<property equn='forall i j ((q[i] == trying and g == i and q[j] == waiting) implies (x[i] - B &gt; x[j] + A))' type='safety' comment='' />
+
+
+
+
+
+
+	<property equn='forall i ((q[i] == waiting) implies (x[i] + A &lt;= x[i] + A))' type='safety' />
+	<property equn='forall i ((q[i] == waiting) implies (x[i] + A &gt;= x[i] + A))' type='safety' />
+	
+	<property equn='forall i (x[i] &lt;= x[i] + A)' type='safety' />
+	
+	
+
+
+
+
+
+
+
+<!--
+	<property equn='forall i ((q[i] = trying) implies (exists j (g == j)))' type='safety' comment='' />
+	<property equn='forall i ((q[i] = trying or q[i] == cs) implies (exists j (g == j)))' type='safety' comment='' />
+	<property equn='exists i ((q[i] == cs) implies (g == i))' type='safety' />
+	<property equn='exists i ((q[i] == cs) implies (g == i and (forall j ((j != i) implies (q[j] != cs)))))' type='safety' />
+
+	
+	<property equn='forall i j ((q[i] == cs and q[j] != cs) implies (x[i] &gt; x[j]))' type='safety' />
+
+	<property equn='forall i j ((g == i and q[i] == cs and g != j and x[i] &gt; 0.0 and q[j] == waiting) implies (x[i] &gt; x[j]))' type='safety' />
+	
+	<property equn='forall i j ((g == i and q[i] == trying and g != j and x[i] &gt; 0.0 and q[j] == waiting) implies (x[i] &gt; x[j]))' type='safety' />
+	
+
+
+	<property equn='forall i j ((g == i and g != j and x[i] &gt; 0.0 and q[j] == waiting) implies (x[i] &gt; x[j]))' type='safety' />
+	<property equn='forall i j ((g == i and g != j and q[j] == waiting) implies (x[i] &gt; x[j]))' type='safety' />
+	<property equn='forall i j ((g == i and x[i] &gt; 0.0 and q[j] == waiting) implies (x[i] &gt; x[j]))' type='safety' />
+	<property equn='forall i j ((g == i and q[j] == waiting) implies (x[i] &gt; x[j]))' type='safety' />
+	
+	
+	
+	<property equn='forall i j ((q[i] == cs and g != j) implies ((g = i) and (q[j] != waiting)))' type='safety' />
+	<property equn='forall i j ((q[i] == cs) implies ((g = i) and (q[j] != waiting)))' type='safety' />
+	
+
+
+	<property equn='forall i j ((q[i] == cs and x[j] &gt;= B and q[j] == trying) implies ((g = i)))' type='safety' />
+
+	<property equn='forall i j ((q[i] == cs and g == i and x[j] &lt; B) implies (q[j] != cs))' type='safety' comment='' />
+	<property equn='forall i j ((q[i] == cs and g == i) implies (q[j] != cs))' type='safety' comment='' />
+	<property equn='forall i j ((q[i] == cs and g == i) implies (q[j] != cs))' type='safety' comment='' />
+	<property equn='forall i j ((q[i] == cs and x[j] &lt; B) implies (g == i))' type='safety' comment='' />
+
+
+	<property equn='forall i ((q[i] = cs) implies (exists j (g == j)))' type='safety' comment='' />
+
+<property equn='forall i j ((g == i and q[j] == waiting) implies (x[i] &gt; x[j]))' type='safety' />
+
+<property equn='forall i j ((q[i] == cs) implies (g == i and q[j] != waiting))' type='safety' comment='logical_aux1' />
+
+
+<property equn='forall i j ((g == i and q[j] == waiting) implies (x[i] != x[j]))' type='safety' />
+<property equn='forall i j ((g == i and q[j] == waiting) implies (x[i] &lt; x[j]))' type='safety' />
+
+
+<property equn='forall i j ((i != j and q[i] == cs) implies (q[j] != trying))' type='safety' comment='' />
+<property equn='forall i j ((i != j and q[i] == cs) implies (q[j] != waiting))' type='safety' comment='' />
+<property equn='forall i j ((i != j and q[i] == cs) implies (g != j and q[j] != trying))' type='safety' comment='' />
+<property equn='forall i j ((i != j and q[i] == cs) implies (g != j and q[j] != waiting))' type='safety' comment='' />
+<property equn='forall i j ((i != j and q[i] == cs and x[j] &lt; B) implies (g != j and q[j] != trying))' type='safety' comment='' />
+<property equn='forall i j ((i != j and q[i] == cs and x[j] &lt; B) implies (g != j and q[j] != waiting))' type='safety' comment='' />
+<property equn='forall i j ((i != j and q[i] == cs and x[j] &lt; A) implies (g != j and q[j] != trying))' type='safety' comment='' />
+<property equn='forall i j ((i != j and q[i] == cs and x[j] &lt; A) implies (g != j and q[j] != waiting))' type='safety' comment='' />
+
+
+
+<property equn='forall i j ((q[i] == cs and x[j] &lt; B) implies (g == i and q[j] != waiting))' type='safety' comment='logical_aux1' />
+<property equn='forall i j ((q[i] == cs) implies (q[j] != waiting))' type='safety' comment='logical_aux1' />
+<property equn='forall i j ((q[i] == cs and g == i) implies (q[j] != waiting))' type='safety' comment='logical_aux1' />
+
+<property equn='forall i j ((q[i] == cs and g == i and g != j) implies (q[j] != waiting))' type='safety' comment='logical_aux1' />
+<property equn='forall i j ((q[i] == cs and g == i) implies (g != j and q[j] != waiting))' type='safety' comment='logical_aux1' />
+<property equn='forall i j ((g == i and q[j] != waiting) implies (q[i] == cs))' type='safety' comment='logical_aux1' />
+
+
+
+<property equn='forall i j ((i != j and q[i] == cs and x[j] &lt; B) implies (g == i and q[j] != waiting))' type='safety' comment='logical_aux1' />
+<property equn='forall i j ((i != j and q[i] == cs) implies (q[j] != waiting))' type='safety' comment='logical_aux1' />
+<property equn='forall i j ((i != j and q[i] == cs and g == i) implies (q[j] != waiting))' type='safety' comment='logical_aux1' />
+
+<property equn='forall i j ((i != j and q[i] == cs and g == i and g != j) implies (q[j] != waiting))' type='safety' comment='logical_aux1' />
+<property equn='forall i j ((i != j and q[i] == cs and g == i) implies (g != j and q[j] != waiting))' type='safety' comment='logical_aux1' />
+
+
+
+
+<property equn='forall i ((q[i] == cs and g == i) implies (forall j (g != j and q[j] != waiting)))' type='safety' comment='' />
+<property equn='forall i ((q[i] == cs and g == i) implies (forall j (i != j implies (g != j and q[j] != waiting))))' type='safety' comment='' />
+
+
+
+<property equn='forall i ((q[i] == cs and g == i) and (forall j (g != j and q[j] != waiting)))' type='safety' comment='' />
+<property equn='forall i ((q[i] == cs and g == i) and (forall j (i != j implies (g != j and q[j] != waiting))))' type='safety' comment='' />
+
+<property equn='forall i ((q[i] == cs and g == i) iff (forall j (g != j and q[j] != waiting)))' type='safety' comment='' />
+<property equn='forall i ((q[i] == cs and g == i) iff (forall j (i != j implies (g != j and q[j] != waiting))))' type='safety' comment='' />
+
+
+	<property equn='forall i j ((q[i] == cs and q[j] != cs and x[j] &lt; A) implies (g = i and g != j))' type='safety' />
+	<property equn='forall i j ((q[i] == cs and q[j] != cs and x[j] &gt; A) implies (g = i and g != j))' type='safety' />
+	<property equn='forall i j ((q[i] == cs and q[j] != cs and x[j] = A) implies (g = i and g != j))' type='safety' />
+	<property equn='forall i j ((q[i] == cs and x[j] &lt; A) implies (g = i and g != j))' type='safety' />
+	<property equn='forall i j ((q[i] == cs and x[j] &gt; A) implies (g = i and g != j))' type='safety' />
+	<property equn='forall i j ((q[i] == cs and x[j] = A) implies (g = i))' type='safety' />
+
+	<property equn='forall i j ((q[i] == cs and q[j] != cs and x[j] &lt; A) implies (g = i))' type='safety' />
+	<property equn='forall i j ((q[i] == cs and q[j] != cs and x[j] &gt; A) implies (g = i))' type='safety' />
+	<property equn='forall i j ((q[i] == cs and q[j] != cs and x[j] = A) implies (g = i))' type='safety' />
+	<property equn='forall i j ((q[i] == cs and x[j] &lt; A) implies (g = i))' type='safety' />
+	<property equn='forall i j ((q[i] == cs and x[j] &gt; A) implies (g = i))' type='safety' />
+	<property equn='forall i j ((q[i] == cs and x[j] = A) implies (g = i))' type='safety' />
+-->
+
+
+
+
+	<property equn='forall i ((q[i] == sleeping))' type='safety' />
+	<property equn='forall i ((q[i] == waiting))' type='safety' />
+	<property equn='forall i ((q[i] == trying))' type='safety' />
+	<property equn='forall i ((q[i] == cs))' type='safety' />
+	
+	
+	
+	
+
+</holism>

@@ -1,0 +1,97 @@
+<?xml version="1.0"?>
+
+<holism>
+	<parameter name='N' type='integer' comment='' />
+	
+	<parameter name='timer' type='real' update_type='continuous' comment='' />
+	<parameter name='lock' type='index' update_type='discrete' comment='' />
+	<parameter name='g' type='index' update_type='discrete' comment='' />
+	
+	<parameter name='high' type='real' comment='' />
+
+	<assumption equn='N == 4' comment='' />
+
+	<automaton name='default_automaton'>
+		<variable name='w[i]' type='real' update_type='Continuous' />
+		<variable name='x[i]' type='real' update_type='Continuous' />
+		<variable name='y[i]' type='real' update_type='Continuous' />
+		<variable name='z[i]' type='real' update_type='Continuous' />
+		
+		<variable name='p[i]' type='index' update_type='discrete' />
+		
+		<initial equn='(forall i (x[i] = 0.0 and y[i] = 0.0))' />
+
+		<mode id='0' name='a' initial='True'>
+			<dai equn='x[i]_dot = 1.0 and y[i]_dot = 1.0 and z[i]_dot = 1.0 and w[i]_dot = -z[i]'/>
+			<invariant equn='x[i] &gt;= 0.0 and y[i] &gt;= 0.0'/>
+			<stop equn='x[i] &gt;= high or y[i] &gt;= high or w[i] &gt;= high or z[i] &gt;= high '/>
+		</mode>
+
+		<mode id='1' name='b' initial='False'>
+			<dai equn='x[i]_dot = 1.0 and y[i]_dot = -2.0 and z[i]_dot = -1.0 and w[i]_dot = 5*z[i]'/>
+			<invariant equn='x[i] &gt;= 0.0 and y[i] &gt;= 0.0'/>
+			<stop equn='x[i] &gt;= high'/>
+		</mode>
+		
+		<mode id='2' name='c' initial='False'>
+			<dai equn='x[i]_dot = 1.0 and y[i]_dot = 1.0'/>
+			<invariant equn='x[i] &gt;= 0.0 and y[i] &gt;= 0.0'/>
+			<stop equn='x[i] &gt;= high'/>
+		</mode>
+		
+		<mode id='3' name='d' initial='False'>
+			<dai equn='x[i]_dot = 1.0 and y[i]_dot = 1.0'/>
+			<invariant equn='x[i] &gt;= 0.0 and y[i] &gt;= 0.0'/>
+			<stop equn='x[i] &gt;= high'/>
+		</mode>
+		
+		<mode id='4' name='e' initial='False'>
+			<dai equn='x[i]_dot = 1.0 and y[i]_dot = 1.0'/>
+			<invariant equn='x[i] &gt;= 0.0 and y[i] &gt;= 0.0'/>
+			<stop equn='x[i] &gt;= high'/>
+		</mode>
+
+		<transition source='a' destination='b'>
+		</transition>
+		
+		<transition source='b' destination='b'>
+		</transition>
+
+		<transition source='b' destination='c'>
+		</transition>
+		
+ 		<transition source='b' destination='d'>
+		</transition>
+		
+		<transition source='c' destination='c'>
+		</transition>
+		
+		<transition source='c' destination='d'>
+		</transition>
+		
+		<transition source='d' destination='b'>
+		</transition>
+
+		<transition source='d' destination='c'>
+		</transition>
+
+		<transition source='d' destination='d'>
+		</transition>
+	</automaton>
+	
+	<property equn='forall i ((q[i] == a))' type='safety' />
+	<property equn='forall i ((q[i] == b))' type='safety' />
+	<property equn='forall i ((q[i] == c))' type='safety' />
+	<property equn='forall i ((q[i] == d))' type='safety' />
+	<property equn='forall i ((q[i] == e))' type='safety' />
+	
+	<property equn='forall i (q[i] != e)' type='safety' />
+	
+	<property equn='forall i ((q[i] == a or q[i] == b or q[i] == c || q[i] == d))' type='safety' />
+	
+	<property equn='forall i j ((q[i] == b or q[i] == c || q[i] == d) and (q[j] == b or q[j] == c || q[j] == d))' type='safety' />
+	
+	<property equn='forall i j ((q[i] == a or q[i] == b or q[i] == c || q[i] == d) and (q[j] == a or q[j] == b or q[j] == c || q[j] == d))' type='safety' />
+	
+
+</holism>
