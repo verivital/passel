@@ -1,0 +1,51 @@
+<?xml version="1.0"?>
+
+<holism>
+	<parameter name='N' type='integer' comment='' />
+
+	<assumption equn='N == 4' comment='' />
+
+	<automaton name='default_automaton'>
+		<mode id='0' name='a' initial='True'>
+		</mode>
+
+		<mode id='1' name='b' initial='False'>
+		</mode>
+		
+		<mode id='2' name='c' initial='False'>
+		</mode>
+		
+		<mode id='3' name='d' initial='False'>
+		</mode>
+		
+		<mode id='4' name='e' initial='False'>
+		</mode>
+
+		<transition source='a' destination='b'>
+		</transition>
+
+		<transition source='b' destination='c'>
+		</transition>
+		
+		<transition source='c' destination='d'>
+		</transition>
+		
+		<transition source='d' destination='a'>
+		</transition>
+	</automaton>
+	
+	<property equn='forall i ((q[i] == a))' type='safety' />
+	<property equn='forall i ((q[i] == b))' type='safety' />
+	<property equn='forall i ((q[i] == c))' type='safety' />
+	<property equn='forall i ((q[i] == d))' type='safety' />
+	<property equn='forall i ((q[i] == e))' type='safety' />
+	
+	<property equn='forall i (q[i] != e)' type='safety' />
+	
+	<property equn='forall i ((q[i] == a or q[i] == b or q[i] == c || q[i] == d))' type='safety' />
+	
+	<property equn='forall i j ((q[i] == b or q[i] == c || q[i] == d) and (q[j] == b or q[j] == c || q[j] == d))' type='safety' />
+	
+	<property equn='forall i j ((q[i] == a or q[i] == b or q[i] == c || q[i] == d) and (q[j] == a or q[j] == b or q[j] == c || q[j] == d))' type='safety' />
+
+</holism>

@@ -1,0 +1,81 @@
+<?xml version="1.0"?>
+
+<holism>
+	<parameter name='N' type='index' comment='number of processes in the system' />
+	<parameter name='A' type='real' comment='smaller constant' />
+	<parameter name='B' type='real' comment='larger constant' />
+	
+	<variable name='g' type='index' update_type='Discrete' comment='lock' />
+	
+	<assumption equn='A &gt; 0.0 and B &gt; 0.0 and A &lt; B' comment='A *stictly less than* B for mutual exclusion' />
+	<assumption equn='N &gt;= 2 and N &lt;= 1000' comment='' />
+
+	<automaton name='default_automaton'>
+		<variable name='x[i]' type='nnreal' update_type='Continuous' />
+		<variable name='last[i]' type='nnreal' update_type='Discrete' comment='' />
+		<variable name='first[i]' type='nnreal' update_type='Discrete' comment='' />
+		
+		<initial equn='(forall i (x[i] == 0.0 and last[i] == A and first[i] == 0.0)) and g = 0' />
+
+		<mode id='0' name='rem' initial='True'>
+			<dai variable='x[i]' equn='x[i]_dot = 1.0'/>
+		</mode>
+
+		<mode id='1' name='test' initial='False'>
+			<dai variable='x[i]' equn='x[i]_dot = 1.0'/>
+		</mode>
+		
+		<mode id='2' name='set' initial='False'>
+			<dai variable='x[i]' equn='x[i]_dot = 1.0'/>
+			<stop equn='x[i] == last[i]' />
+			<invariant equn='x[i] &lt;= last[i]' />
+		</mode>
+		
+		<mode id='3' name='check' initial='False'>
+			<dai variable='x[i]' equn='x[i]_dot = 1.0'/>
+		</mode>
+		
+		<mode id='4' name='crit' initial='False'>
+			<dai variable='x[i]' equn='x[i]_dot = 1.0'/>
+		</mode>
+		
+		<transition source='rem' destination='test'>
+		</transition>
+
+		<transition source='test' destination='test'>
+			<guard equn='g != 0' />
+		</transition>
+
+		<transition source='test' destination='set'>
+			<guard equn='g == 0' />
+			<action equn='last[i]&apos; = x[i] + A'/>
+		</transition>
+		
+		<transition source='set' destination='check'>
+			<action equn='g&apos; = i and first[i]&apos; = x[i] + B'/>
+		</transition>
+		
+		<transition source='check' destination='test'>
+			<guard equn='g != i and x[i] &gt;= first[i]' />
+			<action equn='first[i]&apos; = 0.0'/>
+		</transition>
+		
+		<transition source='check' destination='crit'>
+			<guard equn='g == i and x[i] &gt;= first[i]' />
+		</transition>
+		
+		<transition source='crit' destination='rem'>
+			<action equn='g&apos; = 0'/>
+		</transition>
+	</automaton>
+
+
+	<property equn='forall i j (x[i] == x[j])' type='safety' />
+	<property equn='forall i ((q[i] == set) implies (last[i] &lt;= x[i] + A))' type='safety' />
+	<property equn='forall i ((q[i] == set) implies (x[i] &lt;= last[i]))' type='safety' />
+	<property equn='forall i j ((q[i] == check and g == i and q[j] == set) implies (first[i] &gt; last[j]))' type='safety' />
+	<property equn='forall i j ((q[i] == crit) implies (g == i and q[j] != set))' type='safety' />
+	<property equn='forall i j ((i != j) implies (q[i] != crit or q[j] != crit))' type='safety' />
+	
+
+</holism>
