@@ -26,7 +26,6 @@ namespace phyea.controller.smt.z3
                 if (orig.GetKind() == TermKind.App && orig.GetAppDecl().Equals(find) || (byString && orig.ToString().Equals(find.ToString())))
                 {
                     origReplaced = Controller.Instance.Z3.MkApp(replace, orig.GetAppArgs());
-                    //return;
                 }
                 try
                 {
@@ -34,13 +33,11 @@ namespace phyea.controller.smt.z3
 
                     switch (orig.GetKind())
                     {
-                            //TODO: nesting of quantifiers is bugged
                         case TermKind.Quantifier:
-                            Symbol[] n = orig.GetQuantifier().Names;
                             ts = new Term[] { orig.GetQuantifier().Body }; // can't do it this way: we need a pointer to the original memory!
                             break;
                         case TermKind.App:
-                            FuncDecl fd = orig.GetAppDecl(); // todo: do the replacement on this---make another function do this replacement only for priming and unpriming (will be much faster)
+                            //FuncDecl fd = orig.GetAppDecl(); // todo: do the replacement on this---make another function do this replacement only for priming and unpriming (will be much faster)
                             ts = orig.GetAppArgs();
                             break;
                         case TermKind.Numeral: // bottom of tree
@@ -51,9 +48,6 @@ namespace phyea.controller.smt.z3
                             return;
                     }
 
-
-                        //replaceFuncDecl(ref orig.GetQuantifier().Body, orig.GetQuantifier().Body, find, replace, byString);
-
                     if (ts != null)
                     {
                         for (int i = 0; i < ts.Length; i++)
@@ -63,18 +57,16 @@ namespace phyea.controller.smt.z3
                     }
                     // call term modifier from api
 
-                    //if (origReplaced.GetKind() == TermKind.Quantifier)
-                    //{
-                    //    //Symbol[] n = orig.GetQuantifier().Names;
-                    //    origReplaced = this.UpdateTerm(origReplaced, new Term[] { orig.GetQuantifier().Body }); // allocating new memory at this point is okay though, as we've already used the reference to ts0
-                    //}
-                    //else
-                    //{
-                   //     if (ts != null)
-                    //    {
-                            origReplaced = this.UpdateTerm(origReplaced, ts);
-                    //    }
-                  //  }
+                    // quantifiers are very nasty to deal with (due to renaming bound variables in scope, etc.)
+                    if (origReplaced.GetKind() == TermKind.Quantifier)
+                    {
+                        Quantifier q = origReplaced.GetQuantifier();
+                        origReplaced = Controller.Instance.Z3.MkQuantifier(q.IsForall, 0, q.Patterns, q.NoPatterns, q.Sorts, q.Names, ts[0]);
+                    }
+                    else
+                    {
+                        origReplaced = this.UpdateTerm(origReplaced, ts);
+                    }
                 }
                 catch (Microsoft.Z3.Z3Error e)
                 {
@@ -119,10 +111,21 @@ namespace phyea.controller.smt.z3
                     {
                         replaceTerm(ref ts[i], ts[i], find, replace, byString);
                     }
+
                     // call term modifier from api
                     //if (origReplaced != orig)
                     //{
-                    origReplaced = this.UpdateTerm(origReplaced, ts);
+
+                    // quantifiers are very nasty to deal with (due to renaming bound variables in scope, etc.)
+                    if (origReplaced.GetKind() == TermKind.Quantifier)
+                    {
+                        Quantifier q = origReplaced.GetQuantifier();
+                        origReplaced = Controller.Instance.Z3.MkQuantifier(q.IsForall, 0, q.Patterns, q.NoPatterns, q.Sorts, q.Names, ts[0]);
+                    }
+                    else
+                    {
+                        origReplaced = this.UpdateTerm(origReplaced, ts);
+                    }
                     //}
                 }
                 catch (Microsoft.Z3.Z3Error e)
@@ -184,6 +187,41 @@ namespace phyea.controller.smt.z3
             }
             return vars;
         }
+
+
+        public List<String> findIndexedVariableResetsNeg(Term reset)
+        {
+            List<String> vars = new List<String>();
+
+            switch (Controller.Instance.DataOption)
+            {
+                case Controller.DataOptionType.array:
+                    {
+                        foreach (var v in Controller.Instance.DataA.IndexedVariableDeclPrimed)
+                        {
+                            if (this.findFunc(reset, v.Key, false))
+                            {
+                                vars.Add(v.Key);
+                            }
+                        }
+                        break;
+                    }
+                case Controller.DataOptionType.uninterpreted_function:
+                default:
+                    {
+                        foreach (var v in Controller.Instance.DataU.IndexedVariableDeclPrimed)
+                        {
+                            if (this.findFunc(reset, v.Key, false))
+                            {
+                                vars.Add(v.Key);
+                            }
+                        }
+                        break;
+                    }
+            }
+            return vars;
+        }
+
 
         /**
          * Determine whether a particular function declaration appears in a tree of terms
@@ -342,7 +380,7 @@ namespace phyea.controller.smt.z3
          * Identity function for all processes not making a transition
          * I.e., forall j \neq i . q[j]' = q[j] /\ \ldots /\ g' = g, if global var g is not modified in transition of i
          */
-        public Term forallIdentity(Term indexMakingMove, List<String> globalVariableResets, List<String> indexVariableResets)
+        public Term forallIdentity(Term indexMakingMove, List<String> globalVariableResets, List<String> indexVariableResets, List<String> universalIndexVariableResets, Term uguardReset)
         {
             List<Term> f = new List<Term>();
             List<Term> outside_forall = new List<Term>();
@@ -358,8 +396,15 @@ namespace phyea.controller.smt.z3
                     {
                         foreach (var v in Controller.Instance.DataA.IndexedVariableDecl)
                         {
-                            //grab only idx
-                            f.Add(Controller.Instance.Z3.MkEq(Controller.Instance.Z3.MkArraySelect(v.Value, Controller.Instance.Indices[idx]), Controller.Instance.Z3.MkArraySelect(Controller.Instance.DataA.IndexedVariableDeclPrimed[v.Key], Controller.Instance.Indices[idx])));
+                            if (!universalIndexVariableResets.Contains(v.Key))
+                            {
+                                //grab only idx
+                                f.Add(Controller.Instance.Z3.MkEq(Controller.Instance.Z3.MkArraySelect(v.Value, Controller.Instance.Indices[idx]), Controller.Instance.Z3.MkArraySelect(Controller.Instance.DataA.IndexedVariableDeclPrimed[v.Key], Controller.Instance.Indices[idx])));
+                            }
+                            else
+                            {
+                                f.Add(uguardReset);
+                            }
                         }
                         break;
                     }
@@ -368,8 +413,15 @@ namespace phyea.controller.smt.z3
                     {
                         foreach (var v in Controller.Instance.DataU.IndexedVariableDecl)
                         {
-                            //grab only idx
-                            f.Add(Controller.Instance.Z3.MkEq(Controller.Instance.Z3.MkApp(v.Value, Controller.Instance.Indices[idx]), Controller.Instance.Z3.MkApp(Controller.Instance.DataU.IndexedVariableDeclPrimed[v.Key], Controller.Instance.Indices[idx])));
+                            if (!universalIndexVariableResets.Contains(v.Key))
+                            {
+                                //grab only idx
+                                f.Add(Controller.Instance.Z3.MkEq(Controller.Instance.Z3.MkApp(v.Value, Controller.Instance.Indices[idx]), Controller.Instance.Z3.MkApp(Controller.Instance.DataU.IndexedVariableDeclPrimed[v.Key], Controller.Instance.Indices[idx])));
+                            }
+                            else
+                            {
+                                f.Add(uguardReset);
+                            }
                         }
                         break;
                     }

@@ -3,9 +3,9 @@
 <holism>
 	<parameter name='N' type='integer' comment='' />
 	
-	<parameter name='timer' type='real' update_type='continuous' comment='' />
-	<parameter name='lock' type='index' update_type='discrete' comment='' />
-	<parameter name='g' type='index' update_type='discrete' comment='' />
+	<variable name='timer' type='real' update_type='continuous' comment='' />
+	<variable name='lock' type='index' update_type='discrete' comment='' />
+	<variable name='g' type='index' update_type='discrete' comment='' />
 	
 	<parameter name='high' type='real' comment='' />
 

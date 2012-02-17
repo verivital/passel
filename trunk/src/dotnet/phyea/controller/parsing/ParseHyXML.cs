@@ -14,6 +14,8 @@ using Antlr.Runtime.Misc;
 using Microsoft.Z3;
 
 using phyea.model;
+using phyea.controller;
+using phyea.controller.parsing;
 using phyea.controller.parsing.math;
 using phyea.controller.parsing.math.ast;
 
@@ -44,6 +46,8 @@ namespace phyea.controller.parsing
 
         transition,
 
+        uguard, // guard universally quantified over process ids (get moved into forall identity so we don't create an unsatisfiable constraint by saying e.g., if next[j] = i, then next'[j] = 0, else next'[j] = next[j], since we elsewhere also say for all j, next'[j] = next[j])
+
         variable,   
     };
 
@@ -72,6 +76,7 @@ namespace phyea.controller.parsing
     {
         invariant,
         safety,
+        safety_weak,
         inductive_invariant,
         none
     };
@@ -145,6 +150,11 @@ namespace phyea.controller.parsing
     };
 
     public enum InvariantAttributes
+    {
+        equn,
+    };
+
+    public enum UGuardAttributes
     {
         equn,
     };
@@ -231,12 +241,15 @@ namespace phyea.controller.parsing
                                         String pstr = reader.GetAttribute(PropertyAttributes.equn.ToString());
                                         String type = reader.GetAttribute(PropertyAttributes.type.ToString());
 
+                                        String post = reader.GetAttribute("post");
+
                                         if ((pstr == "forall i ((q[i] == cs or q[i] == trying) implies (g == i and (forall idxj (q[idxj] != waiting))))")  || (pstr == "forall i ((q[i] == cs or q[i] == trying) implies (g == i and (forall j (q[j] != waiting))))")) // todo: remove, bug checking
                                         {
                                             Boolean br = true;
                                         }
 
-                                        Property p = new Property(pstr, (Property.PropertyType)Enum.Parse(typeof(Property.PropertyType), type, true));
+                                        Property p = new Property(pstr, (Property.PropertyType)Enum.Parse(typeof(Property.PropertyType), type, true), post);
+
                                         sys.Properties.Add(p);
 
 
@@ -406,7 +419,7 @@ namespace phyea.controller.parsing
                                                             Term addDeltaMin = Controller.Instance.IndexedVariables[new KeyValuePair<string, string>(variableName, "i")] + t1;
                                                             Controller.Instance.Z3.replaceTerm(ref expr, expr, c, addDeltaMin, false);
                                                         }
-                                                        else if (cint == -1)
+                                                        else if (cint == -1) // todo: constants will never be negative currently due to the way findRealConstants function works (- is a unary term, so the constants are always positive with another unary minus outside)
                                                         {
                                                             Term c = Controller.Instance.Z3.MkRealNumeral(cstr);
                                                             Term addDeltaMin = Controller.Instance.IndexedVariables[new KeyValuePair<string, string>(variableName, "i")] - t1;
@@ -488,7 +501,9 @@ namespace phyea.controller.parsing
                                                 }
                                                 else
                                                 {
-                                                    l.Flow = expr;
+                                                    l.Flow = expr; // todo: this doesn't work properly if we have multiple variables, due to the way we replace the flow in stopping conditions and invariants
+                                                    // one solution is to use a list of flows
+                                                    // another is to create a flow object, which is the more natural choice, and keep a list of flow objects (so they may have different types, e.g., timed vs rect vs linear)
                                                 }
                                             }
                                         }
@@ -507,6 +522,22 @@ namespace phyea.controller.parsing
                                         {
                                             Antlr.Runtime.Tree.CommonTree tmptree = math.Expression.Parse(guard);
                                             t.Guard = LogicalExpression.CreateTerm(tmptree);
+                                        }
+
+                                        break;
+                                    }
+                                case ElementNames.uguard:
+                                    {
+                                        if (t == null)
+                                        {
+                                            throw new System.Exception("Error parsing transition: transition not specified properly before reaching universally quantified guard.");
+                                        }
+
+                                        String uguard = reader.GetAttribute(GuardAttributes.equn.ToString());
+                                        if (uguard.Length > 0)
+                                        {
+                                            Antlr.Runtime.Tree.CommonTree tmptree = math.Expression.Parse(uguard);
+                                            t.UGuard = LogicalExpression.CreateTerm(tmptree);
                                         }
 
                                         break;
@@ -574,54 +605,53 @@ namespace phyea.controller.parsing
                                     }
                                 case ElementNames.transition:
                                     {
-                                        if (h == null)
+                                        if (sys != null || h != null)
                                         {
-                                            throw new System.Exception("Error parsing transition: hybrid automaton not specified properly before reaching transition.");
-                                        }
-                                        t = new Transition();
+                                            t = new Transition();
 
-                                        AState from = null; // have to find the frome state as well, because in hyxml syntax, transitions are not associated with locations...
-                                        foreach (AState s in h.Locations)
-                                        {
-                                            // todo: build hash table after found once
-                                            try
+                                            if (h == null)
                                             {
-                                                String des = reader.GetAttribute(TransitionAttributes.destination.ToString());
-                                                if (s.Label == reader.GetAttribute(TransitionAttributes.destination.ToString()))
-                                                {
-                                                    t.NextStates.Add(s);
-                                                }
+                                                sys.addTransition(t);
                                             }
-                                            catch
+                                            else
                                             {
-                                                if (s.Value == UInt32.Parse(reader.GetAttribute(TransitionAttributes.destination.ToString())))
-                                                {
-                                                    t.NextStates.Add(s);
-                                                }
-                                            }
 
-                                            try
-                                            {
-                                                if (s.Label == reader.GetAttribute(TransitionAttributes.source.ToString()))
+                                                AState from = null; // have to find the frome state as well, because in hyxml syntax, transitions are not associated with locations
+                                                foreach (AState s in h.Locations)
                                                 {
-                                                    from = s;
+                                                    String des = reader.GetAttribute(TransitionAttributes.destination.ToString());
+                                                    String src = reader.GetAttribute(TransitionAttributes.source.ToString());
+                                                    // todo: build hash table after found once
+
+                                                    UInt32 desParsed;
+                                                    UInt32.TryParse(des, out desParsed);
+                                                    UInt32 srcParsed;
+                                                    UInt32.TryParse(src, out srcParsed);
+
+                                                    if (s.Label == des || (desParsed != 0 && s.Value == UInt32.Parse(des)))
+                                                    {
+                                                        t.NextStates.Add(s);
+                                                    }
+
+                                                    if (s.Label == src || (srcParsed != 0 && s.Value == UInt32.Parse(src)))
+                                                    {
+                                                        from = s;
+                                                    }
+                                                }
+
+                                                if (from != null)
+                                                {
+                                                    from.addTransition(t);
+                                                }
+                                                else
+                                                {
+                                                    throw new System.Exception("Error parsing transition: could not find the source location.");
                                                 }
                                             }
-                                            catch
-                                            {
-                                                if (s.Value == UInt32.Parse(reader.GetAttribute(TransitionAttributes.source.ToString())))
-                                                {
-                                                    from = s;
-                                                }
-                                            }
-                                        }
-                                        if (from != null)
-                                        {
-                                            from.addTransition(t);
                                         }
                                         else
                                         {
-                                            throw new System.Exception("Error parsing transition: could not find the source location.");
+                                            throw new System.Exception("Error parsing transition: either holism or hybrid automaton not specified properly before reaching transition.");
                                         }
 
 
