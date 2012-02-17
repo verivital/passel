@@ -17,8 +17,9 @@ namespace phyea.model
         disproved,
         inductive,
         inductiveInvariant,
+        inductiveWeak,
         unknown,
-        toProcess
+        toProcess,
     }
 
     /**
@@ -34,6 +35,9 @@ namespace phyea.model
         public List<Counterexample> Counterexamples = new List<Counterexample>();
         public List<Term> InductiveInvariants = new List<Term>();
         public List<String> Statistics = new List<String>();
+
+        // if we prove a property, record the pass through the set of properties in which it was proved (so we may order the properties appropriately to decrease runtime)
+        public int ProvedPass = 0;
 
         public TimeSpan Time;
 
@@ -56,6 +60,8 @@ namespace phyea.model
             get { return this._type; }
         }
 
+        public Term Post;
+
 
         /**
          * 
@@ -63,7 +69,7 @@ namespace phyea.model
         public enum PropertyType
         {
             eventually,
-
+            safety_weak,
             safety,         // equiv invariant
             invariant,      // equiv safety
 
@@ -79,7 +85,7 @@ namespace phyea.model
             this._formula = f;
         }
 
-        public Property(String f, PropertyType t)
+        public Property(String f, PropertyType t, String post)
         {
             this.FormulaStr = f;
             this._type = t;
@@ -106,6 +112,30 @@ namespace phyea.model
                 Antlr.Runtime.Tree.CommonTree tmptree = Expression.Parse(this.FormulaStr);
                 this._formula = LogicalExpression.CreateTerm(tmptree);
             }
+
+            if (post != null)
+            {
+                Antlr.Runtime.Tree.CommonTree tmptree = phyea.controller.parsing.math.Expression.Parse(post);
+                this.Post = LogicalExpression.CreateTerm(tmptree);
+            }
+
+
+            switch (this.Type)
+            {
+                case Property.PropertyType.safety_weak:
+                    {
+                        // do nothing, already has post set
+                        break;
+                    }
+                case Property.PropertyType.invariant:
+                case Property.PropertyType.safety:
+                default:
+                    {
+                        this.Post = this.Formula;
+                        break;
+                    }
+            }
+            Controller.Instance.Z3.primeAllVariables(ref this.Post); // prime all variables in post-state formula
         }
     }
 }

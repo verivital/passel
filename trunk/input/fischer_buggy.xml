@@ -5,7 +5,7 @@
 	<parameter name='A' type='real' comment='smaller constant' />
 	<parameter name='B' type='real' comment='larger constant' />
 	
-	<parameter name='g' type='index' update_type='Discrete' comment='lock' />
+	<variable name='g' type='index' update_type='Discrete' comment='lock' />
 	
 	<assumption equn='A &gt; 0.0 and B &gt; 0.0 and A &gt; B' comment='A *stictly less than* B for mutual exclusion' />
 	<assumption equn='N &gt;= 2 and N &lt;= 10' comment='' />

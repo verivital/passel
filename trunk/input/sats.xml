@@ -1,5 +1,23 @@
 <?xml version="1.0"?>
 
+<!-- pvs specification parameters
+
+
+  Vmin : posreal = 90   %[kt]
+  Vmax : posreal = 120  %[kt]
+
+  Lb   : posreal = 5    %[nm]
+  Lf   : posreal = 10   %[nm]
+  Lm   : posreal = 13   %[nm]
+  So   : posreal = 7    %[nm]
+
+
+-->
+
+
+
+
+
 <holism>
 	<parameter name='N' type='index' comment='number of aircraft in the system' />
 	<parameter name='LB' type='real' comment='base zone length' />
@@ -8,17 +26,18 @@
 	<parameter name='a' type='real' comment='lower bound on rectangular dynamics' />
 	<parameter name='b' type='real' comment='upper bound on rectangular dynamics' />
 	
-	<parameter name='LCheck' type='real' comment='safety check distance' />
+	<parameter name='LSsmall' type='real' comment='safety check distance' />
 
 
 
 	<variable name='last'  type='index' update_type='discrete' comment='global tail pointer variable, where tail is defined as the plane that is last to land' />
 
-	<assumption equn='a &gt; 0.0 and b &gt; 0.0 and a &lt;= b and a = 1.0 and b = 2.0' comment='xdot in [a, b]' />
-	<assumption equn='LS &gt; 0.0' comment='the safety spacing is positive' />
+	<assumption equn='a &gt; 0.0 and b &gt; 0.0 and a &lt;= b and a = 90.0 and b = 120.0' comment='xdot in [a, b]' />
+	<assumption equn='LS &gt; 0.0 and LS == 7.0' comment='the safety spacing is positive' />
 	<assumption equn='LB &gt; 0.0' comment='the base zone length is positive'/>
-	<assumption equn='LB &gt; 10000.0*LS' comment='the base length is at least as large as the safety spacing'/>
-	<assumption equn='LCheck &gt; 0.0 and LCheck &gt;= LS + (b - a) * (LB / a)  and LCheck &lt;= LB' comment='max time in base is LB/A; max speed difference is b - a; thus, max difference in position through base is (b-a)*(LB/a)'/>
+	<assumption equn='LB == 15.0' comment='the base length is at least as large as the safety spacing'/>
+	<assumption equn='LSsmall &gt; 0.0 and LSsmall &lt;= LS - (b - a) * (LB / a)  and LSsmall &lt;= LB and LSsmall &lt;= LS' comment='max time in base is LB/A; max speed difference is b - a; thus, max difference in position through base is (b-a)*(LB/a)'/>
+<!-- equivalent to LS + (b - a) * ((LB - LS) / a) -->
 	<assumption equn='N &gt;= 2 and N &lt;= 5' comment='there are at least 2 aircraft in the system, but no more than 10' />
 
 	<automaton name='default_automaton'>
@@ -52,7 +71,7 @@
 		
 
 		<transition source='Holding' destination='Base'>
-			<guard equn='(next[i] = 0) or (next[i] != 0 and q[ next[i] ] == Base and x[ next[i] ] &gt;= LCheck)'/>
+			<guard equn='(next[i] = 0) or (next[i] != 0 and q[ next[i] ] == Base and x[ next[i] ] &gt;= LS)'/>
 			<action equn='x[i]&apos; = 0.0'/>
 		</transition>
 
@@ -62,38 +81,6 @@
 			<guard equn='x[i] &gt;= LB'/>
 			<action equn='x[i]&apos; = 0.0 and (if (last != i) then (next[i]&apos; = last) else (next[i]&apos; = next[i])) and last&apos; = i and (forall j (if (j != i and next[j] = i) then (next[j]&apos; = j) else (next[j]&apos; = next[j])))'/>
 		</transition>
-
-
-
-<!--
-explicity split transition (ite)
-		<transition source='Base' destination='Holding'>
-			<guard equn='x[i] &gt;= LB and last == i'/>
-			<action equn='x[i]&apos; = 0.0 and next[i]&apos; = 0 and last&apos; = i and (forall j ((j != i) and next[j] = i) implies (next[j]&apos; = j))'/>
-		</transition>
-		<transition source='Base' destination='Holding'>
-			<guard equn='x[i] &gt;= LB and last != i'/>
-			<action equn='x[i]&apos; = 0.0 and next[i]&apos; = last and last&apos; = i and (forall j ((j != i) and next[j] = i) implies (next[j]&apos; = j))'/>
-		</transition>
--->
-
-
-
-
-
-
-<!--
-explicity split transition (ite)
-		<transition source='Base' destination='Land'>
-			<guard equn='x[i] &gt;= LB and last != i'/>
-			<action equn='x[i]&apos; = 0.0 and next[i]&apos; = 0  and (forall j ((j != i) and next[j] = i) implies (next[j]&apos; = j))'/>
-		</transition>
-		<transition source='Base' destination='Land'>
-			<guard equn='x[i] &gt;= LB and last == i'/>
-			<action equn='x[i]&apos; = 0.0 and next[i]&apos; = 0 and last&apos; = 0 and (forall j ((j != i) and next[j] = i) implies (next[j]&apos; = j))'/>
-		</transition>
--->
-		
 		
 	
 		<transition source='Base' destination='Land'>
@@ -120,6 +107,15 @@ explicity split transition (ite)
 	<property equn='forall i j ((next[j] == i) implies (q[i] != Fly))' type='safety' comment='key lemma 2: must hold to show key lemma 1' />	
 	<property equn='forall i j ((q[i] = Holding and next[j] = i) implies (q[j] = Holding))' type='safety' comment='key lemma 1: for showing safety (if this holds, safety holds)' />
 	
+
+
+<!-- <property equn='forall i j ((q[i] == Base and q[j] == Base and next[j] == i) implies (x[i] - x[j] &gt;= LS))' post='forall i j ((q[i] == Base and q[j] == Base and next[j] == i) implies (x[i] - x[j] &gt;= LSsmall))'  type='safety_weak' comment='weak safety: we have to assume there is LS space in the prestate to show there is LSsmall space in the post-state due to the rectangular dynamics' /> -->
+
+
+	<property equn='forall i j ((q[i] == Base and q[j] == Base and next[j] == i) implies (x[i] &gt;= LSsmall + (LB - x[j]) / (a) * (b - a)))' type='safety' />
+
+
+
 
 	
 	<property equn='forall i j ((q[i] == Base and q[j] == Base and next[j] == i) implies (x[i] - x[j] &gt;= LS))' type='safety' comment='Safety: there is always at least S distance between any two distinct aircraft.' />

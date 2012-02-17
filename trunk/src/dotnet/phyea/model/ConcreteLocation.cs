@@ -9,6 +9,8 @@ using phyea.controller;
 
 namespace phyea.model
 {
+    // todo: refactor and remove this class, move to Location
+    // create a new class for abstract locations if necessary once we start doing more work on abstractions
     public class ConcreteLocation : Location
     {
         private Term _statePredicate;
@@ -26,6 +28,10 @@ namespace phyea.model
             this._statePredicate = Controller.Instance.Z3.MkEq(Controller.Instance.Q["i"], this._valueTerm);
 
             // add label to value map
+            if (label == "")
+            {
+                label = "mode" + value.ToString();
+            }
             Controller.Instance.Locations.Add(label, this._valueTerm);
 	    }
 

@@ -47,14 +47,16 @@
 		</mode>
 
 		<mode id='2' name='MoveLeft' initial='False'>
-			<dai variable='x[i]' equn='x[i]_dot &gt;= -vmax and x[i]_dot &lt;= -vmin'/>
+			<!-- <dai variable='x[i]' equn='x[i]_dot &gt;= -vmax and x[i]_dot &lt;= -vmin'/> -->
+			<dai variable='x[i]' equn='x[i]_dot = -1.0'/>
 			<dai variable='t[i]' equn='t[i]_dot = 1.0' />
 			<stop equn='t[i] &gt;= Ts'/>
 			<invariant equn='t[i] &lt;= Ts'/>
 		</mode>
 		
 		<mode id='3' name='MoveRight' initial='False'>
-			<dai variable='x[i]' equn='x[i]_dot &gt;= vmin and x[i]_dot &lt;= vmax'/>
+			<!-- <dai variable='x[i]' equn='x[i]_dot &gt;= vmin and x[i]_dot &lt;= vmax'/> -->
+			<dai variable='x[i]' equn='x[i]_dot = 1.0'/>
 			<dai variable='t[i]' equn='t[i]_dot = 1.0' />
 			<stop equn='t[i] &gt;= Ts'/>
 			<invariant equn='t[i] &lt;= Ts'/>

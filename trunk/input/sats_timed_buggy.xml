@@ -43,7 +43,7 @@
 		
 
 		<transition source='Holding' destination='Base'>
-			<guard equn='(next[i] = 0) or (next[i] != 0 and q[ next[i] ] == Base and x[ next[i] ] &gt;= LS)'/>
+			<guard equn='(next[i] = 0) or (next[i] != 0 and q[ next[i] ] == Base and x[ last ] &gt;= LS)'/>
 			<action equn='x[i]&apos; = 0.0'/>
 		</transition>
 
@@ -54,39 +54,6 @@
 			<action equn='x[i]&apos; = 0.0 and (if (last != i) then (next[i]&apos; = last) else (next[i]&apos; = next[i])) and last&apos; = i and (forall j (if (j != i and next[j] = i) then (next[j]&apos; = j) else (next[j]&apos; = next[j])))'/>
 		</transition>
 
-
-
-<!--
-explicity split transition (ite)
-		<transition source='Base' destination='Holding'>
-			<guard equn='x[i] &gt;= LB and last == i'/>
-			<action equn='x[i]&apos; = 0.0 and next[i]&apos; = 0 and last&apos; = i and (forall j ((j != i) and next[j] = i) implies (next[j]&apos; = j))'/>
-		</transition>
-		<transition source='Base' destination='Holding'>
-			<guard equn='x[i] &gt;= LB and last != i'/>
-			<action equn='x[i]&apos; = 0.0 and next[i]&apos; = last and last&apos; = i and (forall j ((j != i) and next[j] = i) implies (next[j]&apos; = j))'/>
-		</transition>
--->
-
-
-
-
-
-
-<!--
-explicity split transition (ite)
-		<transition source='Base' destination='Land'>
-			<guard equn='x[i] &gt;= LB and last != i'/>
-			<action equn='x[i]&apos; = 0.0 and next[i]&apos; = 0  and (forall j ((j != i) and next[j] = i) implies (next[j]&apos; = j))'/>
-		</transition>
-		<transition source='Base' destination='Land'>
-			<guard equn='x[i] &gt;= LB and last == i'/>
-			<action equn='x[i]&apos; = 0.0 and next[i]&apos; = 0 and last&apos; = 0 and (forall j ((j != i) and next[j] = i) implies (next[j]&apos; = j))'/>
-		</transition>
--->
-		
-		
-	
 		<transition source='Base' destination='Land'>
 			<guard equn='x[i] &gt;= LB'/>
 			<action equn='x[i]&apos; = 0.0 and next[i]&apos; = 0 and (if (last == i) then (last&apos; = 0) else (last&apos; = last)) and (forall j (if (j != i and next[j] = i) then (next[j]&apos; = j) else (next[j]&apos; = next[j])))'/>
@@ -147,118 +114,4 @@ explicity split transition (ite)
 	
 
 
-
-
-<!--
-
-	<property equn='forall i j ((next[i] == 0 and last == i) implies (q[j] == Fly or q[j] == Land))' type='safety' comment='' />	
-
-
-
-	<property equn='forall i ((last != 0) implies (next[i] != last))' type='safety' comment='' />	
-
-	<property equn='forall i ((last == 0) implies (q[i] == Fly or q[i] == Land))' type='safety' comment='' />
-	<property equn='forall i ((q[i] == Fly or q[i] == Land) implies (last == 0))' type='safety' comment='' />
-	<property equn='forall i ((last != 0) implies (q[i] == Holding or q[i] == Base))' type='safety' comment='' />
-	<property equn='forall i ((q[i] == Holding or q[i] == Base) implies (last != 0))' type='safety' comment='' />
-
-
-
-
-
-
-
-
-	<property equn='forall i j ((last == j and next[i] == 0 and q[i] = Holding and next[j] = i) implies (q[j] = Holding))' type='safety' comment='holds with 2 processes' />	
-	<property equn='forall i j ((last == j  and q[i] = Holding and next[j] = i) implies (q[j] = Holding))' type='safety' comment='holds with 2 processes' />
-
-
-
-
-
-
-	<property equn='forall i j ((last != 0 and next[i] == 0 and q[i] = Holding and next[j] = i) implies (q[j] = Holding))' type='safety' comment='' />	
-
-
-
-	<property equn='forall i j ((next[i] == 0 and q[i] = Holding and next[j] = i) implies (q[j] = Holding or q[j] = Land))' type='safety' comment='' />	
-	
-	
-	
-	
-	<property equn='forall i j ((next[i] == 0 and q[i] = Holding and next[j] = i) implies (q[j] = Holding))' type='safety' comment='' />	
-
-
-	<property equn='forall i j ((q[i] = Holding and next[j] = i) implies (q[j] = Holding))' type='safety' comment='key lemma for showing safety (if this holds, safety holds)' />
--->
-	
-	
-	
-	
-	
-	
-	
-<!--
-
-
-
-
-
-
-
-
-
-
-	<property equn='forall i j ((next[i] == 0 and q[i] == Holding and next[j] == i) implies (q[j] = Holding))' type='safety' comment='' />	
-
-
-	<property equn='forall i j ((i != j and last != 0 and q[i] = Holding and next[j] = i) implies (q[j] = Holding))' type='safety' comment='' />	
-	<property equn='forall i j ((i != j and next[j] = i and q[i] == Base) implies (x[i] &gt;= x[j]))' type='safety' comment='' />	
-
-
-	<property equn='forall i (q[i] = 0)' type='safety' comment='' />
-	<property equn='forall i (q[i] = 1)' type='safety' comment='' />
-	<property equn='forall i (q[i] = 2)' type='safety' comment='' />
-	<property equn='forall i (q[i] = 3)' type='safety' comment='' />
-	
-	
-	<property equn='forall i j ((q[i] == Base and q[j] == Base) imply (x[i] - x[j] &gt;= LS))' type='safety' comment='Safety: there is always at least S distance between any two distinct aircraft.' />
-	
-
-
-<property equn='(first != 0) implies (last != 0)' type='safety' comment='' />
-	
-	
-	
-	<property equn='(first = 0)' type='safety' comment='' />
-	<property equn='(last = 0)' type='safety' comment='' />
-	
-
-	
-	<property equn='forall i (q[i] == Fly or q[i] == Holding or q[i] == Base or q[i] == Land)' type='safety' comment='Invariant' />
-
-	<property equn='forall i j ((q[i] == Fly or q[i] == Holding or q[i] == Base or q[i] == Land) and (q[j] == Fly or q[j] == Holding or q[j] == Base or q[j] == Land))' type='safety' comment='Invariant' />
-	
-	
-	
-	<property equn='forall i (x[i] &gt;= 0.0)' type='safety' comment='' />
-	<property equn='forall i (x[i] = 0.0)' type='safety' comment='' />
-	<property equn='forall i (x[i] &gt;= 0.0 and x[i] &lt;= LB)' type='safety' comment='' />
-	<property equn='forall i ((q[i] == Base) implies (x[i] &gt;= 0.0 and x[i] &lt;= LB))' type='safety' comment='' />
-
-	<property equn='forall i (x[i] &gt;= 0.0 and x[i] &lt; LB)' type='safety' comment='' />
-	<property equn='forall i ((q[i] == Base) implies (x[i] &gt;= 0.0 and x[i] &lt; LB))' type='safety' comment='' />
-
-
-
-	
-	
-	<property equn='forall i j ((q[i] == Base and q[j] == Base) imply (x[i] - x[j] &gt;= LS))' type='safety' comment='Safety: there is always at least S distance between any two distinct aircraft.' />
-	
-
-
-	
-	
-	<property equn='forall i j ((x[i] >= x[j]) implies (x[i] - x[j] &gt;= LS))' type='safety' comment='Safety: there is always at least S distance between any two distinct aircraft.' />
--->
 </holism>

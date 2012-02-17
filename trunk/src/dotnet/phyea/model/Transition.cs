@@ -96,11 +96,17 @@ namespace phyea.model
             {
                 return Controller.Instance.Z3.MkOr(post.ToArray());
             }
-            else
+            else if (post.Count == 1)
             {
-                return post.First(); // todo: catch if count == 0
+                return post.First();
+            }
+            else // shouldn't ever call this (Count = 0 shouldn't be used), but true should be identity anywhere this is used
+            {
+                return Controller.Instance.Z3.MkTrue();
             }
         }
+
+        public Term UGuard = null;
 
         public List<AState> NextStates
         {

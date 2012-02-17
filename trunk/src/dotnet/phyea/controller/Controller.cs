@@ -136,6 +136,11 @@ namespace phyea.controller
         private String _inputFile;
 
         /**
+         * filen path
+         */
+        private String _inputFilePath;
+
+        /**
          * theory used to model variables of each agent in the system
          */
         public enum DataOptionType { array, uninterpreted_function };
@@ -148,7 +153,7 @@ namespace phyea.controller
         /**
          * implies is weak, and is strict
          */
-        public enum ExistsOptionType { implies, and };
+        public enum ExistsOptionType { implies, and }; // implies doesn't work
 
         /**
          * conjunction uses a conjunction of implications on control locations in the time transition, whereas separated checks the time transition repeatedly based on each location
@@ -511,25 +516,37 @@ namespace phyea.controller
 
             Dictionary<int, string> inputFiles = new Dictionary<int, string>();
             int inputFileCount = 0;
-            inputFiles.Add(inputFileCount++, "fischer.xml (default)");
+            inputFiles.Add(inputFileCount++, "fischer_umeno.xml");
+            inputFiles.Add(inputFileCount++, "fischer_umeno_buggy.xml");
+            inputFiles.Add(inputFileCount++, "fischer_umeno_five_state.xml");
+            inputFiles.Add(inputFileCount++, "fischer_umeno_five_state_buggy.xml");
+            inputFiles.Add(inputFileCount++, "fischer_umeno_global_clock.xml");
+            inputFiles.Add(inputFileCount++, "fischer_umeno_global_clock_buggy.xml");
+
+            inputFiles.Add(inputFileCount++, "fischer.xml");
             inputFiles.Add(inputFileCount++, "fischer_buggy.xml");
+
+            inputFiles.Add(inputFileCount++, "lynch_shavit.xml");
+
             inputFiles.Add(inputFileCount++, "sats.xml");
             inputFiles.Add(inputFileCount++, "sats_buggy.xml");
+            inputFiles.Add(inputFileCount++, "sats_timed.xml");
+            inputFiles.Add(inputFileCount++, "sats_timed_buggy.xml");
+            inputFiles.Add(inputFileCount++, "sats_timed_counter.xml");
+
+            inputFiles.Add(inputFileCount++, "bakery.xml");
+            inputFiles.Add(inputFileCount++, "bakery_lamport.xml");
+            inputFiles.Add(inputFileCount++, "bakery_lamport_buggy.xml");
+
             inputFiles.Add(inputFileCount++, "nfa.xml");
             inputFiles.Add(inputFileCount++, "nfa_buggy.xml");
             inputFiles.Add(inputFileCount++, "ta.xml");
             inputFiles.Add(inputFileCount++, "ta_buggy.xml");
             inputFiles.Add(inputFileCount++, "gv.xml");
             inputFiles.Add(inputFileCount++, "gv_buggy.xml");
-            inputFiles.Add(inputFileCount++, "sats_timed.xml");
-            inputFiles.Add(inputFileCount++, "sats_timed_buggy.xml");
             inputFiles.Add(inputFileCount++, "flocking.xml");
             inputFiles.Add(inputFileCount++, "flocking_buggy.xml");
-            inputFiles.Add(inputFileCount++, "fischer_umeno.xml");
-            inputFiles.Add(inputFileCount++, "fischer_umeno_five_state.xml");
-            inputFiles.Add(inputFileCount++, "fischer_umeno_global_clock.xml");
-            inputFiles.Add(inputFileCount++, "fischer_umeno_global_clock_buggy.xml");
-            inputFiles.Add(inputFileCount++, "fischer_umeno_buggy.xml");
+
 
             Console.WriteLine("Select an input file: \n\r");
             foreach (var f in inputFiles)
@@ -549,33 +566,35 @@ namespace phyea.controller
 
                         if (io_opt < inputFileCount)
                         {
-                            Instance._inputFile = Instance._inoutPath + inputFiles[io_opt];
+                            Instance._inputFile = inputFiles[io_opt];
                         }
                         else if (io_opt == 256)
                         {
                             Console.WriteLine("Using path " + Instance._inoutPath);
-                            Instance._inputFile = Instance._inoutPath + Console.ReadLine();
+                            Instance._inputFile = Console.ReadLine();
                             Console.WriteLine("File: " + Instance._inputFile + "\n\r");
                         }
                         else
                         {
-                            Instance._inputFile = Instance._inoutPath + "smt_fischer_hyxml.xml";
+                            // todo: handle error
                         }
                     }
                 }
                 catch (Exception)
                 {
-                    Instance._inputFile = Instance._inoutPath + "smt_fischer_hyxml.xml";
+                    Instance._inputFile = "fischer.xml";
                     //Console.WriteLine("Error, picking default file: " + this._inputFile + ".\n\r");
                 }
 
-                if (File.Exists(Instance._inputFile))
+                Instance._inputFilePath = Instance._inoutPath + instance._inputFile;
+
+                if (File.Exists(Instance._inputFilePath))
                 {
                     fileSelected = true;
                 }
                 else
                 {
-                    Console.WriteLine("Error: file " + Instance._inputFile + " does not exist, try again.");
+                    Console.WriteLine("Error: file " + Instance._inputFilePath + " does not exist, try again.");
                 }
 
                 if (fileSelected)
@@ -584,10 +603,10 @@ namespace phyea.controller
                 }
             }
 
-            Console.Write("Checking file: {0}\n\r", Instance._inputFile);
+            Console.Write("Checking file: {0}\n\r", Instance._inputFilePath);
 
             String outFilename;
-            outFilename = Instance._inoutPath + "..\\output\\output" + System.DateTime.Now.ToString("s").Replace(":", "-") + ".log";
+            outFilename = Instance._inoutPath + "..\\output\\output" + "-" + Instance._inputFile.Split('.')[0] + "-" + System.DateTime.Now.ToString("s").Replace(":", "-") + ".log";
 
             //Console.Clear();
             lock (Console.Out)
@@ -605,7 +624,7 @@ namespace phyea.controller
                 Console.SetOut(fileOutput); // do the redirect
             }
 
-            Console.Write("File: {0}\n\r\n\r", Instance._inputFile);
+            Console.Write("File: {0}\n\r\n\r", Instance._inputFilePath);
 
             ISmtSymbols smtSymbols = new SymbolsZ3();
 
@@ -657,7 +676,7 @@ namespace phyea.controller
                     }
             }
 
-            Instance.Sys = ParseHyXML.ParseFile(Instance._inputFile);
+            Instance.Sys = ParseHyXML.ParseFile(Instance._inputFilePath);
 
             // add constraints on index variables (they are between 1 and N)
             foreach (var pair in Instance._indices)

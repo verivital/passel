@@ -21,6 +21,8 @@ namespace phyea.model
          */
         private List<ConcreteHybridAutomaton> _has;
 
+        public List<Transition> Transitions = new List<Transition>();
+
         /**
          * Properties to be checked
          */
@@ -75,6 +77,18 @@ namespace phyea.model
         }
 
         /**
+         * Add a transition to the list of global transitions
+         */
+        public void addTransition(Transition t)
+        {
+            if (this.Transitions == null)
+            {
+                this.Transitions = new List<Transition>();
+            }
+            this.Transitions.Add(t);
+        }
+
+        /**
          * Add a hybrid automaton to the list of automata
          */
         public void addHybridAutomaton(ConcreteHybridAutomaton ha)
@@ -98,6 +112,8 @@ namespace phyea.model
             bool restart = true;
             int proveCount = 0;
             int property_idx = 0;
+            int proofPass = -1;
+            int loops = 0;
 
             System.Console.WriteLine("Attempting to prove the following properties as inductive invariants: >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n\r");
             foreach (Property p in this.Properties)
@@ -112,17 +128,24 @@ namespace phyea.model
                 Term[] core = null;
                 Property p = null;
 
-                if (property_idx == this.Properties.Count) // && this.Properties[property_idx].Status != StatusTypes.toProcess)
+                if (!restart && property_idx == this.Properties.Count) // && this.Properties[property_idx].Status != StatusTypes.toProcess)
                 {
                     break;
                 }
 
-                if (restart)
+                //if (restart)
+                if (restart && property_idx == this.Properties.Count || loops <= 0) // only restart after we go through the whole list of properties (worst case behavior is the same, but on average this seems better)
                 {
-                    Controller.Instance.Z3.Push(); // PUSH1_POP1
-                    Controller.Instance.Z3.CheckAndGetModel(out model);
-                    Term a = Controller.Instance.Z3.GetAssignments();
-                    System.Console.WriteLine("\n\r\n\rASSUMPTIONS: \n\r" + a.ToString() + "\n\r\n\r");
+                    proofPass++;
+                    foreach (var ptmp in this.Properties)
+                    {
+                        if (ptmp.Status == StatusTypes.disproved)
+                        {
+                            ptmp.Status = StatusTypes.toProcess;
+                            ptmp.InductiveInvariants = new List<Term>(); // need to reset this as well
+                            ptmp.Counterexamples = new List<Counterexample>();
+                        }
+                    }
 
                     System.Console.WriteLine("\n\rProperties proved and used as assumption lemmas: \n\r\n\r");
                     foreach (var ptmp in this.Properties)
@@ -141,10 +164,15 @@ namespace phyea.model
                         }
                     }
 
+                    Controller.Instance.Z3.Push(); // PUSH1_POP1
+                    Controller.Instance.Z3.CheckAndGetModel(out model);
+                    Term a = Controller.Instance.Z3.GetAssignments();
+                    System.Console.WriteLine("\n\r\n\rASSUMPTIONS: \n\r" + a.ToString() + "\n\r\n\r");
+
                     LBool ca = Controller.Instance.Z3.CheckAssumptions(out model, null, out proof, out core);
-                    if (ca == LBool.False) // || ca == LBool.Undef
+                    if (ca == LBool.False || ca == LBool.Undef)
                     {
-                        throw new Exception("ERROR: basic assumptions on data types, indices, etc. are not satisfied!");
+                        throw new Exception("ERROR: basic assumptions on data types, indices, etc. cannot be satisfied!");
                     }
                     if (model != null)
                     {
@@ -167,15 +195,8 @@ namespace phyea.model
                     property_idx = 0; // start back over on the properties
                 }
 
-                p = this._properties[property_idx];
+                p = this._properties[property_idx++]; // increment after read
 
-                if (p.FormulaStr == "forall i j ((q[i] == check and g == i and q[j] == set) implies (first[i] > last[j]))")
-                {
-                    Boolean bp = true;
-                }
-
-
-                property_idx++;
                 if (p.Status == StatusTypes.toProcess)
                 {
                     p.InductiveInvariants = new List<Term>(); // need to reset this as well
@@ -186,6 +207,7 @@ namespace phyea.model
                     continue;
                 }
 
+                // runtime statistics
                 Controller.Instance.TimerStats.Reset();
                 Controller.Instance.TimerStats.Start();
 
@@ -193,33 +215,9 @@ namespace phyea.model
                 subpart = false;
                 iinv = true; // reset invariant shortcircuit var
                 inv = true;
-                Term hidx = Controller.Instance.Z3.MkConst("h", Controller.Instance.IndexType);
-                List<Transition> tViolate = new List<Transition>(); // list of transitions which violate invariant
+                Term hidx = Controller.Instance.Z3.MkConst("h", Controller.Instance.IndexType); // h is the process making transitions
+                List<Transition> tViolate = new List<Transition>(); // list of transitions that violate invariant
 
-                /*
-                Boolean tst = Controller.Instance.Z3.checkTerm(p.Formula, out model);
-                tst = Controller.Instance.Z3.checkTerm(h.Initial, out model);
-                tst = Controller.Instance.Z3.checkTerm(p.Formula & h.Initial, out model);
-                tst = Controller.Instance.Z3.checkTerm(p.Formula | h.Initial, out model);
-                tst = Controller.Instance.Z3.checkTerm(Controller.Instance.Z3.MkImplies(p.Formula, h.Initial), out model);
-                tst = Controller.Instance.Z3.checkTerm(Controller.Instance.Z3.MkImplies(h.Initial, p.Formula), out model);
-                tst = Controller.Instance.Z3.checkTerm(Controller.Instance.Z3.MkIff(p.Formula, h.Initial), out model);
-
-                tst = Controller.Instance.Z3.proveTerm(p.Formula, out model);
-                tst = Controller.Instance.Z3.proveTerm(h.Initial, out model);
-                tst = Controller.Instance.Z3.proveTerm(p.Formula & h.Initial, out model);
-                tst = Controller.Instance.Z3.proveTerm(p.Formula | h.Initial, out model);
-                tst = Controller.Instance.Z3.proveTerm(Controller.Instance.Z3.MkImplies(p.Formula, h.Initial), out model);
-                tst = Controller.Instance.Z3.proveTerm(Controller.Instance.Z3.MkImplies(h.Initial, p.Formula), out model);
-                tst = Controller.Instance.Z3.proveTerm(Controller.Instance.Z3.MkIff(p.Formula, h.Initial), out model);
-                */
-
-                //Controller.Instance.Z3.Push();
-                //Controller.Instance.Z3.AssertCnstr(p.Formula);
-
-                //Term initialImpliesInv = !Controller.Instance.Z3.MkAnd(h.Initial, p.Formula); // todo: check this
-                //Term initialImpliesInv = Controller.Instance.Z3.MkImplies(p.Formula, h.Initial); // todo: check this
-                //if (Controller.Instance.Z3.proveTerm(initialImpliesInv))
                 String tmp_stat;
                 if (!Controller.Instance.Z3.proveTerm(Controller.Instance.Z3.MkImplies(h.Initial, p.Formula), out model, out core, out tmp_stat, true))
                 {
@@ -242,139 +240,98 @@ namespace phyea.model
                 {
                     List<Term> timeall = new List<Term>(); // conjunction of all possible locations for time transition
 
+                    // global discrete transitions
+                    foreach (var t in this.Transitions)
+                    {
+                        Term inductiveInvariant = p.Formula;
+
+                        Term transitionTerm = this.makeTransitionTerm(t, null);
+
+                        inductiveInvariant = inductiveInvariant & transitionTerm;
+
+                        // alternative next, get the body and recreate
+                        //Quantifier orig = inductiveInvariant.GetQuantifier();
+                        //inductiveInvariant = inductiveInvariant.GetQuantifier().Body & Controller.Instance.Z3.MkExists(0, bound.ToArray(), null, locInvariantAnd);
+                        //inductiveInvariant = Controller.Instance.Z3.MkForall(orig.Weight, null, orig.Sorts, orig.Names, inductiveInvariant);
+
+                        //if (Controller.Instance.Z3.checkTerm(inductiveInvariant, out model, out core, true))
+                        //if (Controller.Instance.Z3.proveTerm(inductiveInvariant, out model, out core, true))
+                        if (true)
+                        {
+                            //Controller.Instance.Z3.checkTerm(inductiveInvariant, out model, out core, true);
+                            Console.WriteLine("\n\r<><><><><> GUARDED MODEL START\n\r\n\r");
+                            Console.WriteLine(inductiveInvariant.ToString() + "\n\r\n\r");
+                            if (model != null)
+                            {
+                                model.Display(Console.Out);
+                                model = null;
+                            }
+                            Console.WriteLine("\n\r<><><><><> GUARDED MODEL END\n\r\n\r");
+
+                            Term claim = Controller.Instance.Z3.MkImplies(inductiveInvariant, p.Post);
+
+                            Console.WriteLine("\n\r<><><><><> INDUCTIVE INVARIANT START\n\r\n\r");
+                            Console.WriteLine(claim.ToString() + "\n\r\n\r");
+                            if (model != null)
+                            {
+                                model.Display(Console.Out);
+                            }
+                            Console.WriteLine("\n\r<><><><><> INDUCTIVE INVARIANT END\n\r\n\r");
+
+                            //Controller.Instance.Z3.Push();
+                            //Controller.Instance.Z3.AssertCnstr(inductiveInvariant);
+                            //claim = Controller.Instance.Z3.Simplify(claim);
+
+                            //if (Controller.Instance.Z3.proveTerm(p.Post, out model, out core, out tmp_stat, true))
+                            if (Controller.Instance.Z3.proveTerm(claim, out model, out core, out tmp_stat, true))
+                            {
+                                p.Statistics.Add(tmp_stat);
+                                if (core != null)
+                                {
+                                    Console.WriteLine("Unsat core:\n\r");
+                                    foreach (Term c in core)
+                                    {
+                                        Console.WriteLine("{0}", c);
+                                    }
+                                    core = null;
+                                }
+                                // proved inductive invariant (for this transition)
+                                //subpart = true;
+                                proveCount++;
+                            }
+                            else
+                            {
+                                p.Statistics.Add(tmp_stat);
+                                inv = false;
+                                iinv = false;
+                                tViolate.Add(t);
+                                p.Counterexamples.Add(new Counterexample(model, claim));
+                            }
+                            //Controller.Instance.Z3.Pop();
+
+                            p.addInductiveInvariant(claim);
+                        }
+
+                    } // end global discrete actions
+
                     foreach (ConcreteLocation l in h.Locations)
                     {
                         foreach (var t in l.Transitions)
                         {
-                            Boolean nastyDebug = false; // flag used for forcing for instance identity transition
                             Term inductiveInvariant = p.Formula;
-                            Term inductiveInvariantPrimed = p.Formula;
-                            Controller.Instance.Z3.primeAllVariables(ref inductiveInvariantPrimed);
 
-                            List<Term> locInvariant = new List<Term>();
-
-                            if (nastyDebug && l.StatePredicate.ToString() == "(= (q i) 5)")
-                            {
-                                //nop
-                            }
-                            else
-                            {
-                                locInvariant.Add(l.StatePredicate); // discrete location prestate   (e.g., loc[i]  = 1)
-                                locInvariant.Add(t.ToTerm());       // discrete location post-state (e.g., loc'[i] = 2)
-                            }
-
-                            // add guard, if one exists
-                            if (t.Guard != null)
-                            {
-                                locInvariant.Add(t.Guard);
-                            }
-
-                            // add invariant, if one exists
-                            if (l.Invariant != null)
-                            {
-                                locInvariant.Add(l.Invariant);
-                            }
-
-                            // add stopping condition, if one exists
-                            if (l.Stop != null)
-                            {
-                                locInvariant.Add(l.Stop);
-                            }
-
-                            List<String> globalVariableResets = new List<String>(); // global variables not reset
-                            List<String> indexVariableResets = new List<String>();  // indexed variables of process moving that are not reset
-
-                            if (t.Reset != null)
-                            {
-                                locInvariant.Add(t.Reset);
-
-                                globalVariableResets = Controller.Instance.Z3.findGlobalVariableResets(t.Reset);
-                                indexVariableResets = Controller.Instance.Z3.findIndexedVariableResets(t.Reset);
-                            }
-                            else
-                            {
-                                // global variable was not mentioned since reset is null: add it to the identity global variables (g' = g)
-                                globalVariableResets = Controller.Instance.Z3.findGlobalVariableResets(null);
-                                indexVariableResets = Controller.Instance.Z3.findIndexedVariableResets(null);
-                            }
-
-                            Term locInvariantAnd;
-                            // create conjunction of pre-state and post-state conditions
-                            if (locInvariant.Count > 0)
-                            {
-                                locInvariantAnd = Controller.Instance.Z3.MkAnd(locInvariant.ToArray());
-                            }
-                            else
-                            {
-                                locInvariantAnd = Controller.Instance.Z3.MkTrue();
-                            }
-
+                            Term transitionTerm = this.makeTransitionTerm(t, l);
 
                             List<Term> bound = new List<Term>();
                             hidx = Controller.Instance.Z3.MkConst("h", Controller.Instance.IndexType);
                             bound.Add(hidx);
-                            Controller.Instance.Z3.replaceTerm(ref locInvariantAnd, locInvariantAnd, Controller.Instance.Indices["i"], hidx, true); // replace i by h
 
-                            // add quantifiers based on pre-state and post-state, using implies vs. and options and indexing options
-                            switch (Controller.Instance.IndexOption)
-                            {
-                                case Controller.IndexOptionType.naturalOneToN:
-                                    switch (Controller.Instance.ExistsOption)
-                                    {
-                                        case Controller.ExistsOptionType.and:
-                                            if (nastyDebug && l.StatePredicate.ToString() == "(= (q i) 5)")
-                                            {
-                                                locInvariantAnd = locInvariantAnd & Controller.Instance.Z3.forallIdentity(null, globalVariableResets, null);
-                                            }
-                                            else
-                                            {
-                                                locInvariantAnd = Controller.Instance.Z3.MkAnd(hidx >= Controller.Instance.IntOne & hidx <= Controller.Instance.IndexN, locInvariantAnd & Controller.Instance.Z3.forallIdentity(hidx, globalVariableResets, indexVariableResets)); // 1 <= h <= N, enforce identity for all other processes not moving
-                                            }
-                                            break;
-                                        case Controller.ExistsOptionType.implies:
-                                        default:
-                                            locInvariantAnd = Controller.Instance.Z3.MkImplies(hidx >= Controller.Instance.IntOne & hidx <= Controller.Instance.IndexN, locInvariantAnd & Controller.Instance.Z3.forallIdentity(hidx, globalVariableResets, indexVariableResets)); // 1 <= h <= N, enforce identity for all other processes not moving
-                                            break;
-                                    }
-                                    break;
-                                case Controller.IndexOptionType.enumeration:
-                                case Controller.IndexOptionType.integer:
-                                default:
-                                    locInvariantAnd = locInvariantAnd & Controller.Instance.Z3.forallIdentity(hidx, globalVariableResets, indexVariableResets);
-                                    break;
-                            }
-
-                            //Pattern pA = Controller.Instance.Z3.MkPattern(new Term[] { hidx >= Controller.Instance.IntOne, hidx <= Controller.Instance.N });
-                            //Pattern[] pS = new Pattern[] { pA };
-
-                            if (nastyDebug && l.StatePredicate.ToString() == "(= (q i) 5)")
-                            {
-                                inductiveInvariant = inductiveInvariant & locInvariantAnd;
-                            }
-                            else
-                            {
-                                inductiveInvariant = inductiveInvariant & Controller.Instance.Z3.MkExists(0, bound.ToArray(), null, locInvariantAnd);
-                            }
-
-                            // if a location is initial, we can also assert the initial condition
-                            // actually, we can't do this: it makes an assertion about all processes: we could make this assertion just for the process making the transition though
-                            //if (l.Initial)
-                            //{
-                            //    inductiveInvariant = inductiveInvariant & h.Initial;
-                            //}
+                            inductiveInvariant = inductiveInvariant & Controller.Instance.Z3.MkExists(0, bound.ToArray(), null, transitionTerm);
 
                             // alternative next, get the body and recreate
                             //Quantifier orig = inductiveInvariant.GetQuantifier();
                             //inductiveInvariant = inductiveInvariant.GetQuantifier().Body & Controller.Instance.Z3.MkExists(0, bound.ToArray(), null, locInvariantAnd);
                             //inductiveInvariant = Controller.Instance.Z3.MkForall(orig.Weight, null, orig.Sorts, orig.Names, inductiveInvariant);
-
-                            //if (!Controller.Instance.Z3.checkTerm(inductiveInvariant, out model, out core, true)) // if the guard is unsatisfiable, exclude this from being an inductive invariant... todo: check
-                            //{
-                            //    ////shouldn't have to do this
-                            //    iinv = iinv & false;
-                            //    tViolate.Add(t);
-                            //    p.Counterexamples.Add(new Counterexample(model, inductiveInvariant));
-                            //}
 
                             //if (Controller.Instance.Z3.checkTerm(inductiveInvariant, out model, out core, true))
                             //if (Controller.Instance.Z3.proveTerm(inductiveInvariant, out model, out core, true))
@@ -390,7 +347,7 @@ namespace phyea.model
                                 }
                                 Console.WriteLine("\n\r<><><><><> GUARDED MODEL END\n\r\n\r");
 
-                                Term claim = Controller.Instance.Z3.MkImplies(inductiveInvariant, inductiveInvariantPrimed);
+                                Term claim = Controller.Instance.Z3.MkImplies(inductiveInvariant, p.Post);
 
                                 Console.WriteLine("\n\r<><><><><> INDUCTIVE INVARIANT START\n\r\n\r");
                                 Console.WriteLine(claim.ToString() + "\n\r\n\r");
@@ -402,10 +359,9 @@ namespace phyea.model
 
                                 //Controller.Instance.Z3.Push();
                                 //Controller.Instance.Z3.AssertCnstr(inductiveInvariant);
-                                //Controller.Instance.Z3.AssertCnstr(inductiveInvariantPrimed);
                                 //claim = Controller.Instance.Z3.Simplify(claim);
 
-                                //if (Controller.Instance.Z3.proveTerm(inductiveInvariantPrimed, out model, out core, out tmp_stat, true))
+                                //if (Controller.Instance.Z3.proveTerm(p.Post, out model, out core, out tmp_stat, true))
                                 if (Controller.Instance.Z3.proveTerm(claim, out model, out core, out tmp_stat, true))
                                 {
                                     p.Statistics.Add(tmp_stat);
@@ -434,10 +390,11 @@ namespace phyea.model
 
                                 p.addInductiveInvariant(claim);
                             }
+
                         } // end discrete actions
 
                         // start continuous transition (we add a a part for each location as we iterate over them)
-                        hidx = Controller.Instance.Z3.MkConst("h", Controller.Instance.IndexType);
+                        hidx = Controller.Instance.Z3.MkConst("h", Controller.Instance.IndexType); // make fresh
 
                         if (l.Flow == null)
                         {
@@ -455,8 +412,6 @@ namespace phyea.model
                         }
 
                         Term timeii = p.Formula;
-                        Term timeiiPrimed = p.Formula;
-                        Controller.Instance.Z3.primeAllVariables(ref timeiiPrimed);
 
                         List<Term> exprlist = new List<Term>();
                         Term expr = null;
@@ -763,7 +718,7 @@ namespace phyea.model
                         //if (Controller.Instance.Z3.proveTerm(inductiveInvariant, out model, out core, true))
                         if (true)
                         {
-                            timeii = Controller.Instance.Z3.MkImplies(timeii, timeiiPrimed);
+                            timeii = Controller.Instance.Z3.MkImplies(timeii, p.Post);
 
                             if (Controller.Instance.Z3.proveTerm(timeii, out model, out core, out tmp_stat, true))
                             {
@@ -808,14 +763,28 @@ namespace phyea.model
                     Console.WriteLine("\n\r\n\rProperty was an inductive invariant! Property checked was: \n\r" + p.Formula.ToString());
                     p.Status = StatusTypes.inductiveInvariant;
 
-                    // assert the property as a lemma
-                    Controller.Instance.Z3.AssertCnstr(p.Formula);
+                    switch (p.Type)
+                    {
+                        case Property.PropertyType.safety_weak:
+                            {
+                                //Controller.Instance.Z3.AssertCnstr(Controller.Instance.Z3.MkImplies(p.Formula, p.Post));
+                                break;
+                            }
+                        case Property.PropertyType.safety:
+                        case Property.PropertyType.invariant:
+                        default:
+                            {
+                                // assert the property as a lemma
+                                Controller.Instance.Z3.AssertCnstr(p.Formula);
 
-                    Term formulaPrime = p.Formula;
-                    Controller.Instance.Z3.primeAllVariables(ref formulaPrime);
-                    Term simple_ii = Controller.Instance.Z3.MkImplies(p.Formula, formulaPrime);
-                    //Controller.Instance.Z3.AssertCnstr(simple_ii);
-                    Controller.Instance.Z3.AssertCnstr(formulaPrime);
+                                //Term simple_ii = Controller.Instance.Z3.MkImplies(p.Formula, formulaPrime);
+                                //Controller.Instance.Z3.AssertCnstr(simple_ii);
+                                Controller.Instance.Z3.AssertCnstr(p.Post);
+
+                                p.ProvedPass = proofPass;
+                                break;
+                            }
+                    }
 
                     //Controller.Instance.Z3.AssertCnstr(Controller.Instance.Z3.MkOr(p.InductiveInvariants.ToArray())); // disjunction of all transitions is the transition relation, not conjunction!
                     // also assert the inductive invariant claim since it is strictly stronger than an invariant property (i.e., ii => i, but ii !<= i necessarily)
@@ -848,21 +817,15 @@ namespace phyea.model
                 {
                     restart = true;
 
-                    foreach (var ptmp in this.Properties)
+                    // edge case if last lemma is disproved
+                    if (property_idx == this.Properties.Count)
                     {
-                        if (ptmp.Status == StatusTypes.disproved)
-                        {
-                            ptmp.Status = StatusTypes.toProcess;
-                            ptmp.InductiveInvariants = new List<Term>(); // need to reset this as well
-                            ptmp.Counterexamples = new List<Counterexample>();
-
-                        }
+                        property_idx = 0;
                     }
-
-                    property_idx = 0; // edge case if last lemma is disproved
                 }
 
                 p.Time = Controller.Instance.TimerStats.Elapsed;
+                loops++;
             }
 
 
@@ -959,25 +922,31 @@ namespace phyea.model
 
 
             System.Console.WriteLine("DISPROVED INVARIANTS SUMMARY WITH SHORT RUNTIME >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n\r");
+            int num_dis = 0;
             foreach (Property p in this.Properties)
             {
                 if (p.Status == StatusTypes.disproved)
                 {
                     System.Console.WriteLine(p.Formula.ToString() + "\n\r");
                     System.Console.WriteLine("Time: " + String.Format("{0}", p.Time.TotalSeconds) + "\n\r\n\r");
+                    num_dis++;
                 }
             }
 
             System.Console.WriteLine("\n\rPROVED INVARIANTS >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n\r");
+            int num_inv = 0;
             foreach (Property p in this.Properties)
             {
                 if (p.Status == StatusTypes.inductiveInvariant)
                 {
                     System.Console.WriteLine(p.Formula.ToString() + "\n\r");
+                    System.Console.WriteLine("Proof pass: " + p.ProvedPass.ToString() + "\n\r");
                     System.Console.WriteLine("Time: " + String.Format("{0}", p.Time.TotalSeconds) + "\n\r\n\r");
+                    num_inv++;
                 }
             }
 
+            int num_ind = 0;
             System.Console.WriteLine("\n\rPROVED INDUCTIVE >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n\r");
             foreach (Property p in this.Properties)
             {
@@ -985,8 +954,25 @@ namespace phyea.model
                 {
                     System.Console.WriteLine(p.Formula.ToString() + "\n\r");
                     System.Console.WriteLine("Time: " + String.Format("{0}", p.Time.TotalSeconds) + "\n\r\n\r");
+                    num_ind++;
                 }
             }
+
+            System.Console.WriteLine("\n\rSUMMARY\n\r");
+            System.Console.WriteLine("Disproved: " + num_dis.ToString());
+            System.Console.WriteLine("Invariant: " + num_inv.ToString());
+            System.Console.WriteLine("Inductive: " + num_ind.ToString());
+
+            
+        }
+
+        /**
+         * Print the system in HyXML form by walking the data structure
+         */
+        public void PrintHyXML()
+        {
+            // need helper to print a Z3 term in infix form
+            
         }
 
         /**
@@ -1002,6 +988,126 @@ namespace phyea.model
         public Boolean checkBackReachableNonempty(Term p)
         {
             return true;
+        }
+
+
+        /**
+         * Make terms corresponding to pre and post-state for a transition (can be local or global transition)
+         */
+        public Term makeTransitionTerm(Transition t, ConcreteLocation l)
+        {
+            List<Term> locInvariant = new List<Term>();
+
+            if (l != null)
+            {
+                locInvariant.Add(l.StatePredicate); // discrete location prestate   (e.g., loc[i]  = 1)
+            }
+            if (t.NextStates.Count > 0)
+            {
+                locInvariant.Add(t.ToTerm());       // discrete location post-state (e.g., loc'[i] = 2)
+            }
+
+            // add guard, if one exists
+            if (t.Guard != null)
+            {
+                locInvariant.Add(t.Guard);
+            }
+
+            if (l != null)
+            {
+                // add invariant, if one exists
+                if (l.Invariant != null)
+                {
+                    locInvariant.Add(l.Invariant);
+                }
+
+                // add stopping condition, if one exists
+                if (l.Stop != null)
+                {
+                    locInvariant.Add(l.Stop);
+                }
+            }
+
+            List<String> globalVariableResets = new List<String>(); // global variables not reset
+            List<String> indexVariableResets = new List<String>();  // indexed variables of process moving that are not reset
+            List<String> universalIndexVariableResets = new List<String>();  // universally quantified indexed variables that are reset
+
+            if (t.Reset != null)
+            {
+                locInvariant.Add(t.Reset);
+
+                globalVariableResets = Controller.Instance.Z3.findGlobalVariableResets(t.Reset);
+                indexVariableResets = Controller.Instance.Z3.findIndexedVariableResets(t.Reset);
+            }
+            else
+            {
+                // global variable was not mentioned since reset is null: add it to the identity global variables (g' = g)
+                globalVariableResets = Controller.Instance.Z3.findGlobalVariableResets(null);
+                indexVariableResets = Controller.Instance.Z3.findIndexedVariableResets(null);
+            }
+
+            if (t.UGuard != null)
+            {
+                universalIndexVariableResets = Controller.Instance.Z3.findIndexedVariableResetsNeg(t.UGuard);
+            }
+
+            Term locInvariantAnd = null;
+            // create conjunction of pre-state and post-state conditions
+            if (locInvariant.Count > 0)
+            {
+                locInvariantAnd = Controller.Instance.Z3.MkAnd(locInvariant.ToArray());
+            }
+
+            Term identity;
+            Term hidx = Controller.Instance.Z3.MkConst("h", Controller.Instance.IndexType);
+            if (l == null)
+            {
+                identity = Controller.Instance.Z3.forallIdentity(null, globalVariableResets, indexVariableResets, universalIndexVariableResets, t.UGuard); // no process moves if no location
+            }
+            else
+            {
+                identity = Controller.Instance.Z3.forallIdentity(hidx, globalVariableResets, indexVariableResets, universalIndexVariableResets, t.UGuard);
+            }
+
+            if (locInvariantAnd == null)
+            {
+                locInvariantAnd = identity;
+            }
+            else
+            {
+                locInvariantAnd = locInvariantAnd & identity;
+            }
+
+            if (l != null)
+            {
+                Controller.Instance.Z3.replaceTerm(ref locInvariantAnd, locInvariantAnd, Controller.Instance.Indices["i"], hidx, true); // replace i by h
+
+                // add quantifiers based on pre-state and post-state, using implies vs. and options and indexing options
+                switch (Controller.Instance.IndexOption)
+                {
+                    case Controller.IndexOptionType.naturalOneToN:
+                        switch (Controller.Instance.ExistsOption)
+                        {
+                            case Controller.ExistsOptionType.and:
+                                locInvariantAnd = Controller.Instance.Z3.MkAnd(hidx >= Controller.Instance.IntOne & hidx <= Controller.Instance.IndexN, locInvariantAnd); // 1 <= h <= N, enforce identity for all other processes not moving
+                                break;
+                            case Controller.ExistsOptionType.implies:
+                            default:
+                                locInvariantAnd = Controller.Instance.Z3.MkImplies(hidx >= Controller.Instance.IntOne & hidx <= Controller.Instance.IndexN, locInvariantAnd); // 1 <= h <= N, enforce identity for all other processes not moving
+                                break;
+                        }
+                        break;
+                    case Controller.IndexOptionType.enumeration:
+                    case Controller.IndexOptionType.integer:
+                    default:
+                        //locInvariantAnd = locInvariantAnd & Controller.Instance.Z3.forallIdentity(hidx, globalVariableResets, indexVariableResets);
+                        break;
+                }
+            }
+
+            //Pattern pA = Controller.Instance.Z3.MkPattern(new Term[] { hidx >= Controller.Instance.IntOne, hidx <= Controller.Instance.N });
+            //Pattern[] pS = new Pattern[] { pA };
+            return locInvariantAnd;
         }
 
     }
