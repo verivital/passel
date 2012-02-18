@@ -14,18 +14,7 @@ namespace phyea.model
     {
         Term _invariant;
         Term _stop;
-        Term _flow;
-
-        public DynamicsTypes DynamicsType;
-
-        public enum DynamicsTypes
-        {
-            timed,
-            rectangular,
-            linear,
-            affine,
-            nonlinear
-        }
+        List<Flow> _flows = new List<Flow>();
 
         // todo: use this later, for now let's just have a single flow term
         IDictionary<Variable, Term> _varRates;
@@ -59,10 +48,10 @@ namespace phyea.model
             set { this._stop = value; }
         }
 
-        public Term Flow
+        public List<Flow> Flows
         {
-            get { return this._flow; }
-            set { this._flow = value; }
+            get { return this._flows; }
+            set { this._flows = value; }
         }
 
         public IDictionary<Variable, Term> VariableRates

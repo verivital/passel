@@ -116,10 +116,21 @@ namespace phyea.model
             int loops = 0;
 
             System.Console.WriteLine("Attempting to prove the following properties as inductive invariants: >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n\r");
+            //List<Term> andAll = new List<Term>();
             foreach (Property p in this.Properties)
             {
                 System.Console.WriteLine(p.Formula.ToString() + "\n\r");
+                //andAll.Add(p.Formula);
             }
+            /* seeing if a very large conjunction is useful (get a very strong IH)
+            Term andAllOne = Controller.Instance.Z3.MkAnd(andAll.ToArray());
+            Property newP = new Property(andAllOne);
+            newP.Type = Property.PropertyType.invariant;
+            Term andAllPrime = andAllOne;
+            Controller.Instance.Z3.primeAllVariables(ref andAllPrime);
+            newP.Post = andAllPrime;
+            this.Properties.Add(newP);
+             */
 
             while (true)
             {
@@ -396,7 +407,7 @@ namespace phyea.model
                         // start continuous transition (we add a a part for each location as we iterate over them)
                         hidx = Controller.Instance.Z3.MkConst("h", Controller.Instance.IndexType); // make fresh
 
-                        if (l.Flow == null)
+                        if (l.Flows == null || l.Flows.Count == 0)
                         {
                             Term tmpterm = Controller.Instance.Z3.MkImplies(l.StatePredicate, Controller.Instance.Z3.timeNoFlowIdentity(hidx));
                             Controller.Instance.Z3.replaceTerm(ref tmpterm, tmpterm, Controller.Instance.Indices["i"], hidx, true); // replace i by h
@@ -439,39 +450,42 @@ namespace phyea.model
                                             {
                                                 //Controller.Instance.Z3.replaceFuncDecl(ref tmpterm, tmpterm, Controller.Instance.DataU.IndexedVariableDecl[v.Name], Controller.Instance.DataU.IndexedVariableDeclPrimed[v.Name], false);
 
-                                                if (l.Flow != null)
+                                                if (l.Flows != null && l.Flows.Count > 0)
                                                 {
-                                                    switch (l.DynamicsType)
+                                                    foreach (Flow f in l.Flows)
                                                     {
-                                                        case Location.DynamicsTypes.timed:
-                                                            {
-                                                                Term flowInv = l.Flow;
-                                                                flowInv = flowInv.GetAppArgs()[1];
-                                                                Controller.Instance.Z3.replaceTerm(ref flowInv, flowInv, t1, t2, true); // replace t1 with t2
+                                                        switch (f.DynamicsType)
+                                                        {
+                                                            case Flow.DynamicsTypes.timed:
+                                                                {
+                                                                    Term flowInv = f.Value;
+                                                                    flowInv = flowInv.GetAppArgs()[1];
+                                                                    Controller.Instance.Z3.replaceTerm(ref flowInv, flowInv, t1, t2, true); // replace t1 with t2
 
-                                                                Controller.Instance.Z3.replaceTerm(ref tmpterm, tmpterm, Controller.Instance.IndexedVariables[new KeyValuePair<string, string>(v.Name, "i")], flowInv, false);
-                                                                break;
-                                                            }
-                                                        case Location.DynamicsTypes.rectangular:
-                                                        default:
-                                                            {
-                                                                Term flowInvA = l.Flow;
-                                                                Term flowInvB = l.Flow;
-                                                                flowInvA = flowInvA.GetAppArgs()[0].GetAppArgs()[1];
-                                                                flowInvB = flowInvB.GetAppArgs()[1].GetAppArgs()[1];
-                                                                Controller.Instance.Z3.replaceTerm(ref flowInvA, flowInvA, t1, t2, true); // replace t1 with t2
-                                                                Controller.Instance.Z3.replaceTerm(ref flowInvB, flowInvB, t1, t2, true); // replace t1 with t2
+                                                                    Controller.Instance.Z3.replaceTerm(ref tmpterm, tmpterm, Controller.Instance.IndexedVariables[new KeyValuePair<string, string>(v.Name, "i")], flowInv, false);
+                                                                    break;
+                                                                }
+                                                            case Flow.DynamicsTypes.rectangular:
+                                                            default:
+                                                                {
+                                                                    Term flowInvA = f.Value;
+                                                                    Term flowInvB = f.Value;
+                                                                    flowInvA = flowInvA.GetAppArgs()[0].GetAppArgs()[1];
+                                                                    flowInvB = flowInvB.GetAppArgs()[1].GetAppArgs()[1];
+                                                                    Controller.Instance.Z3.replaceTerm(ref flowInvA, flowInvA, t1, t2, true); // replace t1 with t2
+                                                                    Controller.Instance.Z3.replaceTerm(ref flowInvB, flowInvB, t1, t2, true); // replace t1 with t2
 
-                                                                Term tmptermA = tmpterm;
-                                                                Term tmptermB = tmpterm;
+                                                                    Term tmptermA = tmpterm;
+                                                                    Term tmptermB = tmpterm;
 
-                                                                Controller.Instance.Z3.replaceTerm(ref tmptermA, tmptermA, Controller.Instance.IndexedVariables[new KeyValuePair<string, string>(v.Name, "i")], flowInvA, false);
-                                                                Controller.Instance.Z3.replaceTerm(ref tmptermB, tmptermB, Controller.Instance.IndexedVariables[new KeyValuePair<string, string>(v.Name, "i")], flowInvB, false);
+                                                                    Controller.Instance.Z3.replaceTerm(ref tmptermA, tmptermA, Controller.Instance.IndexedVariables[new KeyValuePair<string, string>(v.Name, "i")], flowInvA, false);
+                                                                    Controller.Instance.Z3.replaceTerm(ref tmptermB, tmptermB, Controller.Instance.IndexedVariables[new KeyValuePair<string, string>(v.Name, "i")], flowInvB, false);
 
-                                                                //tmpterm = tmptermA & tmptermB;
-                                                                tmpterm = tmptermB;
-                                                                break;
-                                                            }
+                                                                    //tmpterm = tmptermA & tmptermB;
+                                                                    tmpterm = tmptermB;
+                                                                    break;
+                                                                }
+                                                        }
                                                     }
                                                 }
                                                 break;
@@ -485,39 +499,42 @@ namespace phyea.model
                             {
                                 if (v.UpdateType == Variable.VarUpdateType.continuous)
                                 {
-                                    if (l.Flow != null)
+                                    if (l.Flows != null && l.Flows.Count > 0)
                                     {
-                                        switch (l.DynamicsType)
+                                        foreach (Flow f in l.Flows)
                                         {
-                                            case Location.DynamicsTypes.timed:
-                                                {
-                                                    Term flowInv = l.Flow;
-                                                    flowInv = flowInv.GetAppArgs()[1]; // todo: rewrite
-                                                    Controller.Instance.Z3.replaceTerm(ref flowInv, flowInv, t1, t2, true); // replace t1 with t2
+                                            switch (f.DynamicsType)
+                                            {
+                                                case Flow.DynamicsTypes.timed:
+                                                    {
+                                                        Term flowInv = f.Value;
+                                                        flowInv = flowInv.GetAppArgs()[1]; // todo: rewrite
+                                                        Controller.Instance.Z3.replaceTerm(ref flowInv, flowInv, t1, t2, true); // replace t1 with t2
 
-                                                    Controller.Instance.Z3.replaceTerm(ref tmpterm, tmpterm, Controller.Instance.GlobalVariables[v.Name], flowInv, false);
-                                                    break;
-                                                }
-                                            case Location.DynamicsTypes.rectangular:
-                                            default:
-                                                {
-                                                    Term flowInvA = l.Flow;
-                                                    Term flowInvB = l.Flow;
-                                                    flowInvA = flowInvA.GetAppArgs()[0].GetAppArgs()[1];
-                                                    flowInvB = flowInvB.GetAppArgs()[1].GetAppArgs()[1];
-                                                    Controller.Instance.Z3.replaceTerm(ref flowInvA, flowInvA, t1, t2, true); // replace t1 with t2
-                                                    Controller.Instance.Z3.replaceTerm(ref flowInvB, flowInvB, t1, t2, true); // replace t1 with t2
+                                                        Controller.Instance.Z3.replaceTerm(ref tmpterm, tmpterm, Controller.Instance.GlobalVariables[v.Name], flowInv, false);
+                                                        break;
+                                                    }
+                                                case Flow.DynamicsTypes.rectangular:
+                                                default:
+                                                    {
+                                                        Term flowInvA = f.Value;
+                                                        Term flowInvB = f.Value;
+                                                        flowInvA = flowInvA.GetAppArgs()[0].GetAppArgs()[1];
+                                                        flowInvB = flowInvB.GetAppArgs()[1].GetAppArgs()[1];
+                                                        Controller.Instance.Z3.replaceTerm(ref flowInvA, flowInvA, t1, t2, true); // replace t1 with t2
+                                                        Controller.Instance.Z3.replaceTerm(ref flowInvB, flowInvB, t1, t2, true); // replace t1 with t2
 
-                                                    Term tmptermA = tmpterm;
-                                                    Term tmptermB = tmpterm;
+                                                        Term tmptermA = tmpterm;
+                                                        Term tmptermB = tmpterm;
 
-                                                    Controller.Instance.Z3.replaceTerm(ref tmptermA, tmptermA, Controller.Instance.GlobalVariables[v.Name], flowInvA, false);
-                                                    Controller.Instance.Z3.replaceTerm(ref tmptermB, tmptermB, Controller.Instance.GlobalVariables[v.Name], flowInvB, false);
+                                                        Controller.Instance.Z3.replaceTerm(ref tmptermA, tmptermA, Controller.Instance.GlobalVariables[v.Name], flowInvA, false);
+                                                        Controller.Instance.Z3.replaceTerm(ref tmptermB, tmptermB, Controller.Instance.GlobalVariables[v.Name], flowInvB, false);
 
-                                                    //tmpterm = tmptermA & tmptermB;
-                                                    tmpterm = tmptermB;
-                                                    break;
-                                                }
+                                                        //tmpterm = tmptermA & tmptermB;
+                                                        tmpterm = tmptermB;
+                                                        break;
+                                                    }
+                                            }
                                         }
                                     }
                                 }
@@ -549,37 +566,41 @@ namespace phyea.model
                                                 //Controller.Instance.Z3.replaceTerm(ref tmpterm, tmpterm, Controller.Instance.IndexedVariables[new KeyValuePair<string,string>(v.Name, "i")], l.Flow, false);
 
                                                 // todo: make next thing a function
-                                                switch (l.DynamicsType)
+                                                foreach (Flow f in l.Flows)
                                                 {
-                                                    case Location.DynamicsTypes.timed:
-                                                        {
-                                                            Term flowStop = l.Flow;
-                                                            flowStop = flowStop.GetAppArgs()[1]; // todo: rewrite
-                                                            Controller.Instance.Z3.replaceTerm(ref flowStop, flowStop, t1, t2, true); // replace t1 with t2
 
-                                                            Controller.Instance.Z3.replaceTerm(ref tmpterm, tmpterm, Controller.Instance.IndexedVariables[new KeyValuePair<string, string>(v.Name, "i")], flowStop, false);
-                                                            break;
-                                                        }
-                                                    case Location.DynamicsTypes.rectangular:
-                                                    default:
-                                                        {
-                                                            Term flowStopA = l.Flow;
-                                                            Term flowStopB = l.Flow;
-                                                            flowStopA = flowStopA.GetAppArgs()[0].GetAppArgs()[1];
-                                                            flowStopB = flowStopB.GetAppArgs()[1].GetAppArgs()[1];
-                                                            Controller.Instance.Z3.replaceTerm(ref flowStopA, flowStopA, t1, t2, true); // replace t1 with t2
-                                                            Controller.Instance.Z3.replaceTerm(ref flowStopB, flowStopB, t1, t2, true); // replace t1 with t2
+                                                    switch (f.DynamicsType)
+                                                    {
+                                                        case Flow.DynamicsTypes.timed:
+                                                            {
+                                                                Term flowStop = f.Value;
+                                                                flowStop = flowStop.GetAppArgs()[1]; // todo: rewrite
+                                                                Controller.Instance.Z3.replaceTerm(ref flowStop, flowStop, t1, t2, true); // replace t1 with t2
 
-                                                            Term tmptermA = tmpterm;
-                                                            Term tmptermB = tmpterm;
+                                                                Controller.Instance.Z3.replaceTerm(ref tmpterm, tmpterm, Controller.Instance.IndexedVariables[new KeyValuePair<string, string>(v.Name, "i")], flowStop, false);
+                                                                break;
+                                                            }
+                                                        case Flow.DynamicsTypes.rectangular:
+                                                        default:
+                                                            {
+                                                                Term flowStopA = f.Value;
+                                                                Term flowStopB = f.Value;
+                                                                flowStopA = flowStopA.GetAppArgs()[0].GetAppArgs()[1];
+                                                                flowStopB = flowStopB.GetAppArgs()[1].GetAppArgs()[1];
+                                                                Controller.Instance.Z3.replaceTerm(ref flowStopA, flowStopA, t1, t2, true); // replace t1 with t2
+                                                                Controller.Instance.Z3.replaceTerm(ref flowStopB, flowStopB, t1, t2, true); // replace t1 with t2
 
-                                                            Controller.Instance.Z3.replaceTerm(ref tmptermA, tmptermA, Controller.Instance.IndexedVariables[new KeyValuePair<string, string>(v.Name, "i")], flowStopA, false);
-                                                            Controller.Instance.Z3.replaceTerm(ref tmptermB, tmptermB, Controller.Instance.IndexedVariables[new KeyValuePair<string, string>(v.Name, "i")], flowStopB, false);
+                                                                Term tmptermA = tmpterm;
+                                                                Term tmptermB = tmpterm;
 
-                                                            //tmpterm = tmptermA & tmptermB;
-                                                            tmpterm = tmptermB;
-                                                            break;
-                                                        }
+                                                                Controller.Instance.Z3.replaceTerm(ref tmptermA, tmptermA, Controller.Instance.IndexedVariables[new KeyValuePair<string, string>(v.Name, "i")], flowStopA, false);
+                                                                Controller.Instance.Z3.replaceTerm(ref tmptermB, tmptermB, Controller.Instance.IndexedVariables[new KeyValuePair<string, string>(v.Name, "i")], flowStopB, false);
+
+                                                                //tmpterm = tmptermA & tmptermB;
+                                                                tmpterm = tmptermB;
+                                                                break;
+                                                            }
+                                                    }
                                                 }
                                                 break;
                                             }
@@ -592,39 +613,42 @@ namespace phyea.model
                             {
                                 if (v.UpdateType == Variable.VarUpdateType.continuous)
                                 {
-                                    if (l.Flow != null)
+                                    if (l.Flows != null && l.Flows.Count > 0)
                                     {
-                                        switch (l.DynamicsType)
+                                        foreach (Flow f in l.Flows)
                                         {
-                                            case Location.DynamicsTypes.timed:
-                                                {
-                                                    Term flowInv = l.Flow;
-                                                    flowInv = flowInv.GetAppArgs()[1]; // todo: rewrite
-                                                    Controller.Instance.Z3.replaceTerm(ref flowInv, flowInv, t1, t2, true); // replace t1 with t2
+                                            switch (f.DynamicsType)
+                                            {
+                                                case Flow.DynamicsTypes.timed:
+                                                    {
+                                                        Term flowInv = f.Value;
+                                                        flowInv = flowInv.GetAppArgs()[1]; // todo: rewrite
+                                                        Controller.Instance.Z3.replaceTerm(ref flowInv, flowInv, t1, t2, true); // replace t1 with t2
 
-                                                    Controller.Instance.Z3.replaceTerm(ref tmpterm, tmpterm, Controller.Instance.GlobalVariables[v.Name], flowInv, false);
-                                                    break;
-                                                }
-                                            case Location.DynamicsTypes.rectangular:
-                                            default:
-                                                {
-                                                    Term flowInvA = l.Flow;
-                                                    Term flowInvB = l.Flow;
-                                                    flowInvA = flowInvA.GetAppArgs()[0].GetAppArgs()[1];
-                                                    flowInvB = flowInvB.GetAppArgs()[1].GetAppArgs()[1];
-                                                    Controller.Instance.Z3.replaceTerm(ref flowInvA, flowInvA, t1, t2, true); // replace t1 with t2
-                                                    Controller.Instance.Z3.replaceTerm(ref flowInvB, flowInvB, t1, t2, true); // replace t1 with t2
+                                                        Controller.Instance.Z3.replaceTerm(ref tmpterm, tmpterm, Controller.Instance.GlobalVariables[v.Name], flowInv, false);
+                                                        break;
+                                                    }
+                                                case Flow.DynamicsTypes.rectangular:
+                                                default:
+                                                    {
+                                                        Term flowInvA = f.Value;
+                                                        Term flowInvB = f.Value;
+                                                        flowInvA = flowInvA.GetAppArgs()[0].GetAppArgs()[1];
+                                                        flowInvB = flowInvB.GetAppArgs()[1].GetAppArgs()[1];
+                                                        Controller.Instance.Z3.replaceTerm(ref flowInvA, flowInvA, t1, t2, true); // replace t1 with t2
+                                                        Controller.Instance.Z3.replaceTerm(ref flowInvB, flowInvB, t1, t2, true); // replace t1 with t2
 
-                                                    Term tmptermA = tmpterm;
-                                                    Term tmptermB = tmpterm;
+                                                        Term tmptermA = tmpterm;
+                                                        Term tmptermB = tmpterm;
 
-                                                    Controller.Instance.Z3.replaceTerm(ref tmptermA, tmptermA, Controller.Instance.GlobalVariables[v.Name], flowInvA, false);
-                                                    Controller.Instance.Z3.replaceTerm(ref tmptermB, tmptermB, Controller.Instance.GlobalVariables[v.Name], flowInvB, false);
+                                                        Controller.Instance.Z3.replaceTerm(ref tmptermA, tmptermA, Controller.Instance.GlobalVariables[v.Name], flowInvA, false);
+                                                        Controller.Instance.Z3.replaceTerm(ref tmptermB, tmptermB, Controller.Instance.GlobalVariables[v.Name], flowInvB, false);
 
-                                                    //tmpterm = tmptermA & tmptermB;
-                                                    tmpterm = tmptermB;
-                                                    break;
-                                                }
+                                                        //tmpterm = tmptermA & tmptermB;
+                                                        tmpterm = tmptermB;
+                                                        break;
+                                                    }
+                                            }
                                         }
                                     }
                                 }
@@ -633,9 +657,12 @@ namespace phyea.model
                         }
 
                         // do flow afterward, it already has primed variables
-                        if (l.Flow != null)
+                        if (l.Flows != null)
                         {
-                            exprlist.Add(l.Flow);
+                            foreach (Flow f in l.Flows)
+                            {
+                                exprlist.Add(f.Value);
+                            }
                         }
 
                         // mkimplies: l.StatePredicate

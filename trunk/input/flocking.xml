@@ -16,16 +16,16 @@
 	<assumption equn='rf &gt; 0.0' comment='' />
 	<assumption equn='rs &gt; 0.0' comment=''/>
 	<assumption equn='rf &gt; 10.0*rs' comment=''/>
-	<assumption equn='N == 5' comment='there are at least 2 aircraft in the system, but no more than 10' />
+	<assumption equn='N == 5' comment='' />
 	<assumption equn='delta &gt; 0.0' />
-	<assumption equn='beta &lt;= (delta / (4.0 * 5.0))' comment='z3 cannot handle integer + real arithmetic, so we must use a real-valued copy of N that has the same value; alternatively, we could just fix beta to be some value satisfying this constraint' />
+	<assumption equn='beta &lt;= (delta / (4.0 * (ToReal N)))' comment='must convert N to real (Z3 limitation)' />
 	<assumption equn='vmin &lt;= vmax' />
-	<assumption equn='Ts &gt; 0.0' comment='sampling time' />
+	<assumption equn='Ts &gt; 0.0 and Ts &lt;= (1.0 / 100.0)' comment='sampling time' />
 	<assumption equn='vmin == 1.0' />
 	<assumption equn='vmax == 2.0' />
 
 	<automaton name='default_automaton'>
-		<variable name='x[i]' type='real' update_type='Continuous' />
+		<variable name='x[i]' type='nnreal' update_type='Continuous' />
 		<variable name='t[i]' type='nnreal' update_type='Continuous' />
 		<variable name='left[i]' type='index' update_type='Discrete' />
 		<variable name='right[i]' type='index' update_type='Discrete' />
@@ -47,39 +47,37 @@
 		</mode>
 
 		<mode id='2' name='MoveLeft' initial='False'>
-			<!-- <dai variable='x[i]' equn='x[i]_dot &gt;= -vmax and x[i]_dot &lt;= -vmin'/> -->
-			<dai variable='x[i]' equn='x[i]_dot = -1.0'/>
+			<dai variable='x[i]' equn='x[i]_dot &gt;= -vmax and x[i]_dot &lt;= -vmin'/>
 			<dai variable='t[i]' equn='t[i]_dot = 1.0' />
 			<stop equn='t[i] &gt;= Ts'/>
 			<invariant equn='t[i] &lt;= Ts'/>
 		</mode>
 		
 		<mode id='3' name='MoveRight' initial='False'>
-			<!-- <dai variable='x[i]' equn='x[i]_dot &gt;= vmin and x[i]_dot &lt;= vmax'/> -->
-			<dai variable='x[i]' equn='x[i]_dot = 1.0'/>
+			<dai variable='x[i]' equn='x[i]_dot &gt;= vmin and x[i]_dot &lt;= vmax'/>
+			<!-- <dai variable='x[i]' equn='x[i]_dot = 1.0'/> -->
 			<dai variable='t[i]' equn='t[i]_dot = 1.0' />
 			<stop equn='t[i] &gt;= Ts'/>
 			<invariant equn='t[i] &lt;= Ts'/>
 		</mode>
 		
-		<!-- todo: this is wrong: have to get the nearest left and right agents; assuming N = 3, this is okay -->
 		<!-- middle agents -->
 		<transition source='Initial' destination='Stationary'>
 			<guard equn='left[i] == 0 and right[i] == 0'/>
-			<action equn='t[i]&apos; = 0.0 and ((exists nl nr (forall l r ( ((nl != r and nr != l and i != l and i != r and x[nl] &gt;= x[l] and x[nl] &lt; x[i] and x[l] &lt; x[i] and x[nr] &lt;= x[r] and x[nr] &gt; x[i] and x[r] &gt; x[i]) implies (left[i]&apos; = nl and right[i]&apos; = nr)))  )))'/>
+			<action equn='t[i]&apos; = 0.0 and ((exists nl nr (forall l r ( ((nl != r and nr != l and i != l and i != r and i != nl and i != nr and x[nl] &gt;= x[l] and x[nl] &lt; x[i] and x[l] &lt; x[i] and x[nr] &lt;= x[r] and x[nr] &gt; x[i] and x[r] &gt; x[i]) implies (left[i]&apos; = nl and right[i]&apos; = nr)))  )))'/>
 			<!-- N=3 version: <action equn='t[i]&apos; = 0.0 and ((exists l r ((i != l and i != r and x[l] &lt; x[i] and x[r] &gt; x[i]) and (left[i]&apos; = l and right[i]&apos; = r)  )))'/> -->
 		</transition>
 		
-		<!-- head agent -->
+		<!-- head agent (leftmost) -->
 		<transition source='Initial' destination='Stationary'>
-			<guard equn='left[i] == 0 and right[i] == 0 and (forall r ((i != r) implies (x[i] &lt; x[r])))'/>
-			<action equn='t[i]&apos; = 0.0 and (exists nr (forall r ((i != nr and i != r) implies (x[i] &lt;= x[nr] and x[nr] &lt;= x[r] and left[i]&apos; = 0 and right[i]&apos; = nr and rightmost&apos; == i)  )))'/>
+			<guard equn='left[i] == 0 and right[i] == 0 and leftmost == 0 and (forall r ((i != r) implies (x[i] &lt; x[r])))'/>
+			<action equn='t[i]&apos; = 0.0 and (exists nr (forall r ((i != nr and i != r) implies (x[i] &lt;= x[nr] and x[nr] &lt;= x[r] and left[i]&apos; = 0 and right[i]&apos; = nr and leftmost&apos; == i)  )))'/>
 		</transition>
 		
-		<!-- tail agent -->
+		<!-- tail agent (rightmost) -->
 		<transition source='Initial' destination='Stationary'>
-			<guard equn='left[i] == 0 and right[i] == 0 and (forall l ((i != l) implies (x[i] &gt; x[l])))'/>
-			<action equn='t[i]&apos; = 0.0 and (exists nl (forall l ((i != nl and i != l) implies (x[i] &gt;= x[nl] and x[nl] &gt;= x[l] and left[i]&apos; = nl and right[i]&apos; = 0 and leftmost&apos; == i)  )))'/>
+			<guard equn='left[i] == 0 and right[i] == 0 and rightmost == 0 and (forall l ((i != l) implies (x[i] &gt; x[l])))'/>
+			<action equn='t[i]&apos; = 0.0 and (exists nl (forall l ((i != nl and i != l) implies (x[i] &gt;= x[nl] and x[nl] &gt;= x[l] and left[i]&apos; = nl and right[i]&apos; = 0 and rightmost&apos; == i)  )))'/>
 		</transition>
 		
 		
@@ -106,37 +104,39 @@
 
 	</automaton>
 	
-	<!-- todo: how to specify if q[i] > initial => q[i]prime > initial? i.e., q[i] > initial is inductive, but not an inductive invariant since it won't imply the initial condition -->
-	
-
 	<property equn='forall i ((q[i] != Initial) implies (left[i] != 0 or right[i] != 0))' type='safety' comment='once agents leave initial, they have either a left or right' />
 	
-	<property equn='forall i ((q[i] != Initial) implies (left[i] != 0 and right[i] != 0))' type='safety' comment='once agents leave initial, they have either a left or right' />
+	
+	<property equn='forall i ((q[i] == Initial) implies (left[i] == 0 and right[i] == 0))' type='safety' comment='' />
+	
 
 
-
+<!--
 	<property equn='forall i ((q[i] != Initial) implies (exists j (leftmost == j)))' type='safety' comment='there is an agent with the lowest position' />
 	<property equn='forall i ((q[i] != Initial) implies (exists j (rightmost == j)))' type='safety' comment='there is an agent with the lowest position' />
-	
-	
-	
+
 	<property equn='exists j (forall i ((i != j) implies (x[j] &lt; x[i] )))' type='safety' comment='there is an agent with the lowest position' />
 	<property equn='exists j (forall i ((i != j) implies (x[i] &lt; x[j] )))' type='safety' comment='there is an agent with the highest position' />
-	
-	<!--
-	
-	<property equn='forall i ((q[i] == Initial) implies (left[i] == 0))' type='safety' comment='' />
-	<property equn='forall i ((q[i] == Initial) implies (right[i] == 0))' type='safety' comment='' />
-	
-	<property equn='exists j (forall i ((i != j and j == leftmost and q[j] == Stationary and q[i] == Stationary) implies (x[j] &lt;= x[i] )))' type='safety' comment='The leftmost agent has the lowest position' />
-	<property equn='exists j (forall i ((i != j and j == rightmost and q[j] == Stationary and q[i] == Stationary) implies (x[i] &lt;= x[j] )))' type='safety' comment='The leftmost agent has the lowest position' />
-	
+-->
+
+
+<!--
+	<property equn='exists j (forall i ((i != j and j == leftmost and q[j] != Initial and q[i] != Initial) implies (x[j] &lt;= x[i] )))' type='safety' comment='The leftmost agent has the lowest position' />
+	<property equn='exists j (forall i ((i != j and j == rightmost and q[j] != Initial and q[i] != Initial) implies (x[i] &lt;= x[j] )))' type='safety' comment='The leftmost agent has the lowest position' />
+-->
 	<property equn='forall i ((q[i] == Stationary) implies (left[i] != 0 or i == leftmost))' type='safety' comment='Every agent either has a left neighbor, or is the leftmost node' />
 	<property equn='forall i ((q[i] == Stationary) implies (right[i] != 0 or i == rightmost))' type='safety' comment='Every agent either has a left neighbor, or is the leftmost node' />
 	
-	<property equn='forall i j ( ((i != j and right[i] == j) implies (x[i] - x[j] &gt;= rs)) )' type='safety' comment='' />
-	
-	<property equn='forall i j ( ((i != j and x[i] > x[j]) implies (x[i] - x[j] &gt;= rs)) )' type='safety' comment='' />
 
--->
+
+	<property equn='forall i j ( ((i != j and right[j] == i) implies (x[i] - x[j] &gt;= rs)) )' type='safety' comment='' />
+	<property equn='forall i j ( ((i != j and x[i] &gt; x[j]) implies (x[i] - x[j] &gt;= rs)) )' type='safety' comment='' />
+	<property equn='forall i j ( ((i != j and right[j] == i and x[i] &gt; x[j]) implies (x[i] - x[j] &gt;= rs)) )' type='safety' comment='' />
+
+
+
+<!-- if i and j are exactly spaced at rs, then they cannot be in the moving states -->
+	<property equn='forall i j ( ((i != j and right[i] == j and x[i] &gt; x[j] and (x[i] - x[j] == rs)) implies (q[i] != MoveLeft and q[i] != MoveRight and q[j] != MoveLeft and q[j] != MoveRight)) )' type='safety' comment='' />
+
+
 </holism>

@@ -199,7 +199,7 @@ namespace phyea.controller.smt.z3
                     {
                         foreach (var v in Controller.Instance.DataA.IndexedVariableDeclPrimed)
                         {
-                            if (this.findFunc(reset, v.Key, false))
+                            if (this.findFunc(reset, v.Key, true))
                             {
                                 vars.Add(v.Key);
                             }
@@ -211,7 +211,7 @@ namespace phyea.controller.smt.z3
                     {
                         foreach (var v in Controller.Instance.DataU.IndexedVariableDeclPrimed)
                         {
-                            if (this.findFunc(reset, v.Key, false))
+                            if (this.findFunc(reset, v.Key, true))
                             {
                                 vars.Add(v.Key);
                             }

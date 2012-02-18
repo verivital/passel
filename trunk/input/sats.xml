@@ -94,9 +94,6 @@
 	
 <!-- uniqueness property of lists
 <property equn='forall i (exists j ((next[j] == i) implies (forall k ((k != j) implies (next[k] != i)))))' type='safety' comment='' />	
-
-
-
 	<property equn='forall i j ((q[i] == Base and q[j] == Base and next[j] == i) implies (x[i] &gt; x[j]))' type='safety' comment='not a necessary lemma' />
 -->
 
@@ -112,7 +109,8 @@
 <!-- <property equn='forall i j ((q[i] == Base and q[j] == Base and next[j] == i) implies (x[i] - x[j] &gt;= LS))' post='forall i j ((q[i] == Base and q[j] == Base and next[j] == i) implies (x[i] - x[j] &gt;= LSsmall))'  type='safety_weak' comment='weak safety: we have to assume there is LS space in the prestate to show there is LSsmall space in the post-state due to the rectangular dynamics' /> -->
 
 
-	<property equn='forall i j ((q[i] == Base and q[j] == Base and next[j] == i) implies (x[i] &gt;= LSsmall + (LB - x[j]) / (a) * (b - a)))' type='safety' />
+	<property equn='forall i j ((q[i] == Base and q[j] == Base and next[j] == i) implies (x[i] &gt;= LSsmall + (LB - x[j]) / (a) * (b - a)))' type='safety' comment='inductive invariant of safety' />
+	<property equn='forall i j ((i != j and q[i] == Base and q[j] == Base and next[j] == i) implies (x[i] - x[j] &gt;= LSsmall))' type='safety' comment='Safety: there is always at least LSsmall distance between any two distinct aircraft.' />
 
 
 

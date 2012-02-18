@@ -73,7 +73,7 @@
     <Compile Include="model\AgentDataUninterpreted.cs" />
     <Compile Include="model\AHybridAutomaton.cs" />
     <Compile Include="model\AAgentDataTheory.cs" />
-    <Compile Include="model\ARate.cs" />
+    <Compile Include="model\Flow.cs" />
     <Compile Include="model\AState.cs" />
     <Compile Include="model\Transition.cs" />
     <Compile Include="model\ConcreteHybridAutomaton.cs" />

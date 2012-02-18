@@ -365,6 +365,8 @@ namespace phyea.controller.parsing
                                             List<Term> flows = new List<Term>();
                                             Term t1 = Controller.Instance.Z3.MkConst("t_1", Controller.Instance.RealType);
 
+                                            Flow f = new Flow();
+
                                             // indexed if the variable appears e.g., as x[i], else assume global, e.g., x
                                             if (variable.Contains("[") && variable.Contains("]"))
                                             {
@@ -390,11 +392,11 @@ namespace phyea.controller.parsing
                                                 // todo: check if this works in general to distinguish timed vs. rectangular
                                                 if (constants.Count + pvars.Count <= 1)
                                                 {
-                                                    l.DynamicsType = Location.DynamicsTypes.timed;
+                                                    f.DynamicsType = Flow.DynamicsTypes.timed;
                                                 }
                                                 else if (constants.Count + pvars.Count == 2)
                                                 {
-                                                    l.DynamicsType = Location.DynamicsTypes.rectangular;
+                                                    f.DynamicsType = Flow.DynamicsTypes.rectangular;
                                                 }
 
                                                 if (pvars.Count > 0)
@@ -494,6 +496,9 @@ namespace phyea.controller.parsing
                                             // todo: generalize: we assume anything with a 0 in it is constant dynamics
                                             if (!Controller.Instance.Z3.findTerm(expr, Controller.Instance.RealZero, true))
                                             {
+                                                f.Value = expr;
+                                                l.Flows.Add(f);
+                                                /*
                                                 // todo: move zero diffeq detection to this part, as currently we may be removing some actual diffeqs if any of them are 0
                                                 if (l.Flow != null)
                                                 {
@@ -505,6 +510,7 @@ namespace phyea.controller.parsing
                                                     // one solution is to use a list of flows
                                                     // another is to create a flow object, which is the more natural choice, and keep a list of flow objects (so they may have different types, e.g., timed vs rect vs linear)
                                                 }
+                                                 */
                                             }
                                         }
 
