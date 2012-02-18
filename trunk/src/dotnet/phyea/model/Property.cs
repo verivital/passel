@@ -58,6 +58,7 @@ namespace phyea.model
         public PropertyType Type
         {
             get { return this._type; }
+            set { this._type = value; }
         }
 
         public Term Post;

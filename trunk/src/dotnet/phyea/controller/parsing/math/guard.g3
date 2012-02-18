@@ -122,9 +122,13 @@ unaryExpression
     |	NOT^ primaryExpression
     |	MINUS primaryExpression -> ^(UNARY_MINUS primaryExpression)
 	|	IF primaryExpression THEN primaryExpression ELSE primaryExpression -> ^(ITE primaryExpression primaryExpression primaryExpression)
+	|	TOREAL^ primaryExpression
+	|	TOINT^ primaryExpression
    	;
   
 NOT	:	'!' | 'not';
+TOREAL : 'ToReal' | 'toReal' | 'to_real';
+TOINT : 'ToInt' | 'toInt' | 'to_int';
 
 primaryExpression
 	:	'('! logicalExpression ')'!

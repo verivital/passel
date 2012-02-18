@@ -410,6 +410,12 @@ namespace phyea.controller.parsing.math.ast
                 case guardLexer.UNARY_MINUS:
                     return Controller.Instance.Z3.MkUnaryMinus(CreateTerm((CommonTree)ast.GetChild(0)));
 
+                case guardLexer.TOREAL:
+                    return Controller.Instance.Z3.MkToReal(CreateTerm((CommonTree)ast.GetChild(0)));
+
+                case guardLexer.TOINT:
+                    return Controller.Instance.Z3.MkToInt(CreateTerm((CommonTree)ast.GetChild(0)));
+
                 case guardLexer.MULT:
                     return CreateTerm((CommonTree)ast.GetChild(0)) * CreateTerm((CommonTree)ast.GetChild(1));
 
@@ -472,7 +478,7 @@ namespace phyea.controller.parsing.math.ast
                 case guardLexer.XOR:
                     return Controller.Instance.Z3.MkXor(CreateTerm((CommonTree)ast.GetChild(0)), CreateTerm((CommonTree)ast.GetChild(1)));
 
-                case guardLexer.ITE:
+                case guardLexer.ITE: // if then else
                     return Controller.Instance.Z3.MkIte(CreateTerm((CommonTree)ast.GetChild(0)), CreateTerm((CommonTree)ast.GetChild(1)), CreateTerm((CommonTree)ast.GetChild(2)));
 
                 case guardLexer.ID:
