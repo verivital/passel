@@ -389,7 +389,7 @@ namespace phyea.controller.parsing
                                                         }
                                                 }
 
-                                                // todo: check if this works in general to distinguish timed vs. rectangular
+                                                // todo: rewrite in more general form for timed vs. rectangular
                                                 if (constants.Count + pvars.Count <= 1)
                                                 {
                                                     f.DynamicsType = Flow.DynamicsTypes.timed;
@@ -397,6 +397,10 @@ namespace phyea.controller.parsing
                                                 else if (constants.Count + pvars.Count == 2)
                                                 {
                                                     f.DynamicsType = Flow.DynamicsTypes.rectangular;
+
+                                                    // todo: generalize
+                                                    f.RectRateA = Controller.Instance.Params[pvars[0]];
+                                                    f.RectRateB = Controller.Instance.Params[pvars[1]];
                                                 }
 
                                                 if (pvars.Count > 0)
@@ -604,8 +608,8 @@ namespace phyea.controller.parsing
                                         UInt32 value = UInt32.Parse(reader.GetAttribute(LocationAttributes.id.ToString()));
                                         String label = reader.GetAttribute(LocationAttributes.name.ToString());
                                         Boolean initial = Boolean.Parse(reader.GetAttribute(LocationAttributes.initial.ToString()));
+                                        Controller.Instance.LocationNumToName.Add(value, label);
                                         l = new ConcreteLocation(label, value, initial);
-
                                         // bound control location variable values: 0 <= q_i <= # states, 0 <= q_j <= # states, 0 <= q_k <= # states
                                         break;
                                     }

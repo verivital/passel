@@ -10,7 +10,7 @@
 	<variable name='now' type='nnreal' update_type='continuous' />
 	
 	<assumption equn='A &gt; 0.0 and B &gt; 0.0 and A &gt;= B' comment='A *stictly less than* B for mutual exclusion' />
-	<assumption equn='N &gt;= 2 and N &lt;= 9' comment='' />
+	<assumption equn='N &gt;= 2 and N &lt;= 100' comment='' />
 
 	<automaton name='default_automaton'>
 		<variable name='last[i]' type='nnreal' update_type='Discrete' comment='' />

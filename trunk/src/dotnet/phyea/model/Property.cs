@@ -39,6 +39,8 @@ namespace phyea.model
         // if we prove a property, record the pass through the set of properties in which it was proved (so we may order the properties appropriately to decrease runtime)
         public int ProvedPass = 0;
 
+        public int QuantInstantiations = 0;
+
         public TimeSpan Time;
 
         public void addInductiveInvariant(Term ii)

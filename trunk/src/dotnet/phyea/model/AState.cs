@@ -3,6 +3,10 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 
+using Microsoft.Z3;
+
+using phyea.controller;
+
 namespace phyea.model
 {
     /**
@@ -14,6 +18,9 @@ namespace phyea.model
          * Value for the state
          */
         protected UInt32 _value;
+
+        public Term ValueTerm;
+        private Term _statePredicate;
 
         /**
          * Name for the state
@@ -39,6 +46,18 @@ namespace phyea.model
             this._label = label;
             this._value = value;
             this._initial = initial;
+
+            this.ValueTerm = Controller.Instance.Z3.MkIntNumeral(value);
+            this._statePredicate = Controller.Instance.Z3.MkEq(Controller.Instance.Q["i"], this.ValueTerm);
+
+            // add label to value map
+            if (label == "")
+            {
+                label = "mode" + value.ToString();
+            }
+            Controller.Instance.Locations.Add(label, this.ValueTerm);
+
+            Controller.Instance.LocationNumTermToName.Add(this.ValueTerm, label);
         }
 
         public AState(String label, UInt32 value, Boolean initial, List<Transition> transitions)
@@ -58,6 +77,12 @@ namespace phyea.model
         public override String ToString()
         {
             return this._label;
+        }
+
+        public Term StatePredicate
+        {
+            get { return this._statePredicate; }
+            set { this._statePredicate = value; }
         }
 
         public UInt32 Value
