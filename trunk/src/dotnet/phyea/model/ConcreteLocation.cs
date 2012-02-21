@@ -13,9 +13,6 @@ namespace phyea.model
     // create a new class for abstract locations if necessary once we start doing more work on abstractions
     public class ConcreteLocation : Location
     {
-        private Term _statePredicate;
-        private Term _valueTerm;
-
         public ConcreteLocation()
             : base()
         {
@@ -24,41 +21,8 @@ namespace phyea.model
 	    public ConcreteLocation(String label, UInt32 value, Boolean initial)
             : base(label, value, initial)
         {
-            this._valueTerm = Controller.Instance.Z3.MkIntNumeral(value);
-            this._statePredicate = Controller.Instance.Z3.MkEq(Controller.Instance.Q["i"], this._valueTerm);
 
-            // add label to value map
-            if (label == "")
-            {
-                label = "mode" + value.ToString();
-            }
-            Controller.Instance.Locations.Add(label, this._valueTerm);
 	    }
-
-        public ConcreteLocation(String label, UInt32 value, Boolean initial, Term statePredicate)
-            : base(label, value, initial)
-        {
-            this._statePredicate = statePredicate;
-        }
-
-        public ConcreteLocation(String label, UInt32 value, Boolean initial, Term statePredicate, List<Transition> transitions)
-            : base(label, value, initial)
-        {
-            this.Transitions = transitions;
-            this._statePredicate = statePredicate;
-        }
-
-        public Term StatePredicate
-        {
-            get { return this._statePredicate; }
-            set { this._statePredicate = value; }
-        }
-
-        public Term StateValue
-        {
-            get { return this._valueTerm; }
-            set { this._valueTerm = value; }
-        }
 
         public override object Clone()
         {

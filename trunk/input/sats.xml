@@ -38,7 +38,7 @@
 	<assumption equn='LB == 15.0' comment='the base length is at least as large as the safety spacing'/>
 	<assumption equn='LSsmall &gt; 0.0 and LSsmall &lt;= LS - (b - a) * (LB / a)  and LSsmall &lt;= LB and LSsmall &lt;= LS' comment='max time in base is LB/A; max speed difference is b - a; thus, max difference in position through base is (b-a)*(LB/a)'/>
 <!-- equivalent to LS + (b - a) * ((LB - LS) / a) -->
-	<assumption equn='N &gt;= 2 and N &lt;= 5' comment='there are at least 2 aircraft in the system, but no more than 10' />
+	<assumption equn='N &gt;= 2 and N &lt;= 4' comment='there are at least 2 aircraft in the system, but no more than 100' />
 
 	<automaton name='default_automaton'>
 		<variable name='x[i]' type='nnreal' update_type='Continuous' />
@@ -71,21 +71,21 @@
 		
 
 		<transition source='Holding' destination='Base'>
-			<guard equn='(next[i] = 0) or (next[i] != 0 and q[ next[i] ] == Base and x[ next[i] ] &gt;= LS)'/>
+			<guard equn='(next[i] == 0) or (next[i] != 0 and q[ next[i] ] == Base and x[ next[i] ] &gt;= LS)'/>
 			<action equn='x[i]&apos; = 0.0'/>
 		</transition>
 
-<!-- was a bug here for missing transition: need if last != i, then next'[i] = last, else next'[i] = 0 (or use next[i], since it should be 0) -->
-
 		<transition source='Base' destination='Holding'>
-			<guard equn='x[i] &gt;= LB'/>
-			<action equn='x[i]&apos; = 0.0 and (if (last != i) then (next[i]&apos; = last) else (next[i]&apos; = next[i])) and last&apos; = i and (forall j (if (j != i and next[j] = i) then (next[j]&apos; = j) else (next[j]&apos; = next[j])))'/>
+			<guard equn='x[i] &gt;= LB and next[i] == 0'/>
+			<uguard equn='if (next[j] = i) then (next[j]&apos; = 0) else (next[j]&apos; = next[j])' />
+			<action equn='x[i]&apos; = 0.0 and (if (last != i) then (next[i]&apos; = last) else (next[i]&apos; = 0)) and last&apos; = i'/>
 		</transition>
 		
 	
 		<transition source='Base' destination='Land'>
-			<guard equn='x[i] &gt;= LB'/>
-			<action equn='x[i]&apos; = 0.0 and next[i]&apos; = 0 and (if (last == i) then (last&apos; = 0) else (last&apos; = last)) and (forall j (if (j != i and next[j] = i) then (next[j]&apos; = j) else (next[j]&apos; = next[j])))'/>
+			<guard equn='x[i] &gt;= LB and next[i] == 0'/>
+			<uguard equn='if (next[j] = i) then (next[j]&apos; = 0) else (next[j]&apos; = next[j])' />
+			<action equn='x[i]&apos; = 0.0 and next[i]&apos; = 0 and (if (last == i) then (last&apos; = 0) else (last&apos; = last))'/>
 		</transition>
 
 	</automaton>
@@ -98,6 +98,8 @@
 -->
 
 
+	<property equn='forall i ((q[i] == Base) implies (x[i] &lt;= LB))' type='safety' comment='' />
+	<property equn='forall i ((x[i] &lt;= LB))' type='safety' comment='' />
 
 
 	<property equn='forall i ((q[i] == Fly) implies (last != i))' type='safety' comment='key lemma 3: must hold to show key lemma 2' />
@@ -106,18 +108,7 @@
 	
 
 
-<!-- <property equn='forall i j ((q[i] == Base and q[j] == Base and next[j] == i) implies (x[i] - x[j] &gt;= LS))' post='forall i j ((q[i] == Base and q[j] == Base and next[j] == i) implies (x[i] - x[j] &gt;= LSsmall))'  type='safety_weak' comment='weak safety: we have to assume there is LS space in the prestate to show there is LSsmall space in the post-state due to the rectangular dynamics' /> -->
 
-
-	<property equn='forall i j ((q[i] == Base and q[j] == Base and next[j] == i) implies (x[i] &gt;= LSsmall + (LB - x[j]) / (a) * (b - a)))' type='safety' comment='inductive invariant of safety' />
-	<property equn='forall i j ((i != j and q[i] == Base and q[j] == Base and next[j] == i) implies (x[i] - x[j] &gt;= LSsmall))' type='safety' comment='Safety: there is always at least LSsmall distance between any two distinct aircraft.' />
-
-
-
-
-	
-	<property equn='forall i j ((q[i] == Base and q[j] == Base and next[j] == i) implies (x[i] - x[j] &gt;= LS))' type='safety' comment='Safety: there is always at least S distance between any two distinct aircraft.' />
-	<property equn='forall i j ((i != j and q[i] == Base and q[j] == Base and next[j] == i) implies (x[i] - x[j] &gt;= LS))' type='safety' comment='Safety: there is always at least S distance between any two distinct aircraft.' />
 
 	<property equn='forall i ((q[i] == Fly) implies (next[i] == 0))' type='safety' comment='' />
 	<property equn='forall i ((q[i] == Land) implies (next[i] == 0))' type='safety' comment='' />
@@ -125,7 +116,6 @@
 	<property equn='forall i j ((q[i] == Land) implies (next[i] != j))' type='safety' comment='' />
 	<property equn='forall i j ((q[i] == Fly) implies (next[j] != i))' type='safety' comment='' />
 	<property equn='forall i j ((q[i] == Land) implies (next[j] != i))' type='safety' comment='' />
-	<property equn='forall i j ((next[i] == 0 and last == i) implies (next[j] != i))' type='safety' comment='' />
 
 
 	<property equn='forall i (next[i] != i)' type='safety' comment='key lemma 1 for landing order property' />
@@ -154,8 +144,17 @@
 	<property equn='forall i (q[i] != Land)' type='safety' comment='' />
 	
 	
+	<property equn='forall i j ((next[i] == 0 and last == i) implies (next[j] != i))' type='safety' comment='' />
 
 
+
+
+<!-- <property equn='forall i j ((q[i] == Base and q[j] == Base and next[j] == i) implies (x[i] - x[j] &gt;= LS))' post='forall i j ((q[i] == Base and q[j] == Base and next[j] == i) implies (x[i] - x[j] &gt;= LSsmall))'  type='safety_weak' comment='weak safety: we have to assume there is LS space in the prestate to show there is LSsmall space in the post-state due to the rectangular dynamics' /> -->
+	<property equn='forall i j ((q[i] == Base and q[j] == Base and next[j] == i) implies (x[i] &gt;= LSsmall + (LB - x[j]) / (a) * (b - a)))' type='safety' comment='inductive invariant of safety' />
+	<property equn='forall i j ((i != j and q[i] == Base and q[j] == Base and next[j] == i) implies (x[i] - x[j] &gt;= LSsmall))' type='safety' comment='Safety: there is always at least LSsmall distance between any two distinct aircraft.' />
+	<property equn='forall i j ((i != j and q[i] == Base and q[j] == Base and next[j] == i) implies (x[i] - x[j] &gt;= LB))' type='safety' comment='Safety: there is always at least LSsmall distance between any two distinct aircraft.' />
+	<property equn='forall i j ((q[i] == Base and q[j] == Base and next[j] == i) implies (x[i] - x[j] &gt;= LS))' type='safety' comment='Safety: there is always at least S distance between any two distinct aircraft.' />
+	<property equn='forall i j ((i != j and q[i] == Base and q[j] == Base and next[j] == i) implies (x[i] - x[j] &gt;= LS))' type='safety' comment='Safety: there is always at least S distance between any two distinct aircraft.' />
 
 
 <!--

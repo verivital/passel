@@ -333,7 +333,7 @@ namespace phyea.model
                 // disjunction of all states specified as initial
                 if (acl.Initial)
                 {
-                    initialStates.Add(Controller.Instance.Z3.MkEq(Controller.Instance.Q["i"], acl.StateValue));
+                    initialStates.Add(Controller.Instance.Z3.MkEq(Controller.Instance.Q["i"], acl.ValueTerm));
                 }
             }
 

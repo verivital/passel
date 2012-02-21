@@ -150,6 +150,10 @@ namespace phyea.controller
          */
         public enum IndexOptionType { integer, natural, naturalOneToN, enumeration };
 
+        public Dictionary<UInt32, String> LocationNumToName = new Dictionary<UInt32, String>();
+
+        public Dictionary<Term, String> LocationNumTermToName = new Dictionary<Term, String>();
+
         /**
          * implies is weak, and is strict
          */
@@ -242,11 +246,14 @@ namespace phyea.controller
 
             //c.SetParamValue("STATISTICS", "true"); // crashes
 
-            //c.SetParamValue("ARITH_SOLVER", "2"); // simplex solver
-            //c.SetParamValue("NL_ARITH", "true"); // nonlinear arithmetic support: requires arith_solver 2
-            //c.SetParamValue("NL_ARITH_GB_EQS", "true");
-            //c.SetParamValue("ARITH_ADAPTIVE", "true");
-            //c.SetParamValue("ARITH_PROCESS_ALL_EQS", "true");
+            c.SetParamValue("ARITH_SOLVER", "2"); // simplex solver
+            c.SetParamValue("NL_ARITH", "true"); // nonlinear arithmetic support: requires arith_solver 2
+            c.SetParamValue("NL_ARITH_GB_EQS", "true");
+            c.SetParamValue("ARITH_ADAPTIVE", "true");
+            c.SetParamValue("ARITH_PROCESS_ALL_EQS", "true");
+            //c.SetParamValue("ARITH_EUCLIDEAN_SOLVER", "true");
+            //c.SetParamValue("ARITH_FORCE_SIMPLEX", "true");
+            //c.SetParamValue("ARITH_MAX_LEMMA_SIZE", "512"); // default 128
 
             //c.SetParamValue("CHECK_PROOF", "true");
             //c.SetParamValue("DL_COMPILE_WITH_WIDENING", "true");
@@ -269,9 +276,7 @@ namespace phyea.controller
             //c.SetParamValue("MINIMIZE_LEMMAS_STRUCT", "true");
             //c.SetParamValue("MODEL_DISPLAY_ARG_SORT", "true");
 
-            //c.SetParamValue("ARITH_EUCLIDEAN_SOLVER", "true");
-            //c.SetParamValue("ARITH_FORCE_SIMPLEX", "true");
-            //c.SetParamValue("ARITH_MAX_LEMMA_SIZE", "512"); // default 128
+
 
             //c.SetParamValue("enable-cores", "true");
 
@@ -542,6 +547,7 @@ namespace phyea.controller
             inputFiles.Add(inputFileCount++, "nfa_buggy.xml");
             inputFiles.Add(inputFileCount++, "ta.xml");
             inputFiles.Add(inputFileCount++, "ta_buggy.xml");
+            inputFiles.Add(inputFileCount++, "ra.xml");
             inputFiles.Add(inputFileCount++, "gv.xml");
             inputFiles.Add(inputFileCount++, "gv_buggy.xml");
             inputFiles.Add(inputFileCount++, "flocking.xml");

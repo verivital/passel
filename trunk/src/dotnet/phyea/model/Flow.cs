@@ -39,5 +39,8 @@ namespace phyea.model
             this.Value = flow;
         }
 
+        public Term RectRateA;
+        public Term RectRateB;
+
     }
 }

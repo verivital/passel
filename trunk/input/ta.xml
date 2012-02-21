@@ -169,7 +169,8 @@ In the example:
 	
 	<property equn='forall i ((q[i] == a or q[i] == b or q[i] == c || q[i] == d))' type='safety' expectation='true' />
 	
-	<property equn='forall i j ((q[i] == b or q[i] == c || q[i] == d) and (q[j] == b or q[j] == c || q[j] == d))' type='inductive' expectation='true' comment='this property is inductive, but not an inductive invariant since it does not intersect initial' />
+<!-- todo next: ind vs ind inv -->
+	<property equn='forall i j ((q[i] == b or q[i] == c || q[i] == d) and (q[j] == b or q[j] == c || q[j] == d))' type='invariant' expectation='true' comment='this property is inductive, but not an inductive invariant since it does not intersect initial' />
 	
 	<property equn='forall i j ((q[i] == a or q[i] == b or q[i] == c || q[i] == d) and (q[j] == a or q[j] == b or q[j] == c || q[j] == d))' type='safety' expectation='true' />
 

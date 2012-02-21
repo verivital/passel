@@ -850,109 +850,224 @@ namespace phyea.controller.smt.z3
         /**
          * Print a term as a latex string
          */
-        public static String ToStringLatex(Term t)
+        public String ToStringLatex(Term t)
         {
             String s = "";
-            TermKind a = t.GetKind();
-            
+            TermKind k = t.GetKind();
 
-            Term[] args = t.GetAppArgs();
 
-            if (args != null)
+            switch (k)
             {
-                DeclKind k = t.GetAppDecl().GetKind();
-
-                if (args.Length >= 2)
-                {
-                    uint i = 0;
-                    do 
+                case TermKind.Quantifier:
                     {
-                        s += ToStringLatex(args[i]);
-                        switch (k)
-                        {
+                        Quantifier q = t.GetQuantifier();
 
-                            case DeclKind.Add:
-                                s += " + ";
-                                break;
-                            case DeclKind.And:
-                                s += " \\wedge ";
-                                break;
-                            case DeclKind.Complement:
-                                s += " \\not ";
-                                break;
-                            case DeclKind.Difference:
-                                s += " \\setminus ";
-                                break;
-                            case DeclKind.Distinct:
-                                break;
-                            case DeclKind.Div:
-                                s += " / ";
-                                break;
-                            case DeclKind.Eq:
-                                s += " = ";
-                                break;
-                            case DeclKind.False:
-                                s += " \\false ";
-                                break;
-                            case DeclKind.Ge:
-                                s += " \\geq ";
-                                break;
-                            case DeclKind.Gt:
-                                s += " > ";
-                                break;
-                            case DeclKind.Iff:
-                                s += " \\Leftrightarrow ";
-                                break;
-                            case DeclKind.Implies:
-                                s += " \\Rightarrow ";
-                                break;
-                            case DeclKind.Intersect:
-                                s += " \\cap ";
-                                break;
-                            case DeclKind.Ite:
-                                break;
-                            case DeclKind.Le:
-                                s += " \\leq ";
-                                break;
-                            case DeclKind.Lt:
-                                s += " < ";
-                                break;
-                            case DeclKind.Mod:
-                            case DeclKind.Mul:
-                                s += " * ";
-                                break;
-                            case DeclKind.Not:
-                                s += " \\neg ";
-                                break;
-                            case DeclKind.Or:
-                                s += " \\vee ";
-                                break;
-                            case DeclKind.Rem:
-                                break;
-                            case DeclKind.Sub:
-                                s += " - ";
-                                break;
-                            case DeclKind.Subset:
-                                s += " \\subset ";
-                                break;
-                            case DeclKind.True:
-                                s += " \\true ";
-                                break;
-                            case DeclKind.Uminus:
-                                s += " - ";
-                                break;
-                            case DeclKind.Union:
-                                s += " \\cup ";
-                                break;
-                            case DeclKind.Xor:
-                                break;
-                            default:
-                                break;
+                        if (q.IsForall)
+                        {
+                            s += "\\forall ";
                         }
-                        i++;
-                    } while (i < args.Length - 1);
-                    //s += toStringLatex(args[i]);
-                }
+                        else
+                        {
+                            s += "\\exists";
+                        }
+
+                        int i = 0;
+                        int j = q.Names.Length - 1;
+                        foreach (Symbol y in q.Names)
+                        {
+                            s += y.ToString();// +"\\in ";
+                            if (i < q.Names.Length - 1)
+                            {
+                                s += ", ";
+                            }
+                            if (q.Sorts[i].ToString() == "Int")
+                            {
+                                //s += "\\mathbb{Z}";
+                                //s += "\\ID";
+                            }
+                            else if (q.Sorts[i].ToString() == "Real")
+                            {
+                                //s += "\\mathbb{R}";
+                            }
+                            else{
+                                //s += q.Sorts[i].ToString();
+                            }
+                            this.replaceTerm(ref q.Body, q.Body, Controller.Instance.Z3.MkConst("#" + j.ToString(), q.Sorts[i]), Controller.Instance.Z3.MkConst(y, q.Sorts[i]), true);
+                            i++;
+                            j--;
+                        }
+
+                        // todo: term replace in q.Body
+                        s += " : " + this.ToStringLatex(q.Body.GetAppArgs()[1]); // hack to avoid printing the indexing assumption
+                        break;
+                    }
+                case TermKind.Numeral:
+                    {
+                        s += t.ToString();
+                        break;
+                    }
+                case TermKind.Var:
+                    {
+                        s += t.ToString();
+                        break;
+                    }
+                case TermKind.App:
+                    {
+                        Term[] args = t.GetAppArgs();
+
+                        if (args != null)
+                        {
+                            DeclKind dk = t.GetAppDecl().GetKind();
+                            if (args.Length == 0) // nullary (constants, etc.)
+                            {
+                                s += t.ToString();
+                            }
+                            else if (args.Length == 1) // unary (but have to avoid some weird types)
+                            {
+                                //s += this.DeclKindToStringLatex(dk);
+                                switch (dk)
+                                {
+                                    case DeclKind.Uninterpreted:
+                                        {
+                                            s += t.GetAppDecl().GetDeclName();
+                                            s += "[" + this.ToStringLatex(args[0]) + "]";
+                                            break;
+                                        }
+                                    case DeclKind.Not:
+                                    case DeclKind.BNeg:
+                                        {
+                                            s += " \\neg " + this.ToStringLatex(args[0]);
+                                            break;
+                                        }
+                                    case DeclKind.Difference:
+                                    case DeclKind.Uminus:
+                                    case DeclKind.Sub:
+                                        {
+                                            s += " - " + this.ToStringLatex(args[0]);
+                                            break;
+                                        }
+                                    default:
+                                        {
+                                            s += this.ToStringLatex(args[0]);
+                                            break;
+                                        }
+                                }
+
+                            }
+                            else if (args.Length >= 2)
+                            {
+                                uint i = 0;
+                                while (i < args.Length)
+                                {
+                                    // hack to detect location to print the mode name if it exists
+                                    if (i > 0 && s.Contains("q[") && args[i - 1].ToString().StartsWith("(q"))
+                                    {
+                                        // only display first letter of location in caps (e.g., for SATS)
+                                        s += Controller.Instance.LocationNumTermToName[args[i]].Substring(0,1).ToUpper(); // todo: add error handling
+                                    }
+                                    else
+                                    {
+                                        s += this.ToStringLatex(args[i]);
+                                    }
+
+                                    if (i < args.Length - 1)
+                                    {
+                                        s += this.DeclKindToStringLatex(dk);
+                                    }
+                                    i++;
+                                }
+                            }
+                        }
+                        break;
+                    }
+            }
+            return s;
+        }
+
+        public String DeclKindToStringLatex(DeclKind dk)
+        {
+            String s = "";
+            switch (dk)
+            {
+
+                case DeclKind.Add:
+                    s += " + ";
+                    break;
+                case DeclKind.And:
+                    s += " \\wedge ";
+                    break;
+                case DeclKind.Complement:
+                    s += " \\not ";
+                    break;
+                case DeclKind.Difference:
+                    s += " \\setminus ";
+                    break;
+                case DeclKind.Distinct:
+                    break;
+                case DeclKind.Div:
+                    s += " / ";
+                    break;
+                case DeclKind.Eq:
+                    s += " = ";
+                    break;
+                case DeclKind.False:
+                    s += " \\false ";
+                    break;
+                case DeclKind.Ge:
+                    s += " \\geq ";
+                    break;
+                case DeclKind.Gt:
+                    s += " > ";
+                    break;
+                case DeclKind.Iff:
+                    s += " \\Leftrightarrow ";
+                    break;
+                case DeclKind.Implies:
+                    s += " \\Rightarrow ";
+                    break;
+                case DeclKind.Intersect:
+                    s += " \\cap ";
+                    break;
+                case DeclKind.Ite:
+                    s += " ite ";
+                    break;
+                case DeclKind.Le:
+                    s += " \\leq ";
+                    break;
+                case DeclKind.Lt:
+                    s += " < ";
+                    break;
+                case DeclKind.Mod:
+                case DeclKind.Mul:
+                    s += " * ";
+                    break;
+                case DeclKind.Not:
+                    s += " \\neg ";
+                    break;
+                case DeclKind.Or:
+                    s += " \\vee ";
+                    break;
+                case DeclKind.Rem:
+                    break;
+                case DeclKind.Sub:
+                    s += " - ";
+                    break;
+                case DeclKind.Subset:
+                    s += " \\subset ";
+                    break;
+                case DeclKind.True:
+                    s += " \\true ";
+                    break;
+                case DeclKind.Uminus:
+                    s += " - ";
+                    break;
+                case DeclKind.Union:
+                    s += " \\cup ";
+                    break;
+                case DeclKind.Xor:
+                    break;
+                default:
+                    break;
             }
             return s;
         }

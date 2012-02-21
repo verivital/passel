@@ -8,7 +8,7 @@
 	<variable name='g' type='index' update_type='Discrete' comment='lock' />
 	
 	<assumption equn='A &gt; 0.0 and B &gt; 0.0 and A &gt;= B' comment='A *stictly less than* B for mutual exclusion' />
-	<assumption equn='N &gt;= 2 and N &lt;= 1000' comment='' />
+	<assumption equn='N &gt;= 2 and N &lt;= 100' comment='' />
 
 	<automaton name='default_automaton'>
 		<variable name='x[i]' type='nnreal' update_type='Continuous' />
