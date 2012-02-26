@@ -37,50 +37,50 @@ namespace phyea.controller
          * Special variable for control states / locations (modes)
          * - All other variables go into the _vars dictionary
          */
-        private IDictionary<String, Term> _q = new Dictionary<String, Term>();
+        private IDictionary<String, Term> _q;
 
         /**
          * Special variable for control states / locations (modes)
          * - All other variables go into the _vars dictionary
          */
-        private IDictionary<String, Term> _qPrimed = new Dictionary<String, Term>();
+        private IDictionary<String, Term> _qPrimed;
         
         /**
          * Indexed variables: input, e.g., (x i) returns the function corresponding to variable x at process i
          * 
          */
-        private IDictionary<KeyValuePair<String, String>, Term> _ivars = new Dictionary<KeyValuePair<String, String>, Term>();
+        private IDictionary<KeyValuePair<String, String>, Term> _ivars;
 
         /**
          * Primed indexed variables: input, e.g., (x' i) returns the function corresponding to variable x at process i
          * 
          */
-        private IDictionary<KeyValuePair<String, String>, Term> _ivarsPrimed = new Dictionary<KeyValuePair<String, String>, Term>();
+        private IDictionary<KeyValuePair<String, String>, Term> _ivarsPrimed;
 
         /**
          * Parameter variables (N, S, etc.)
          */
-        private IDictionary<String, Term> _params = new Dictionary<String, Term>();
+        private IDictionary<String, Term> _params;
 
         /**
          * Global variables
          */
-        private IDictionary<String, Term> _globalVariables = new Dictionary<String, Term>();
+        private IDictionary<String, Term> _globalVariables;
 
         /**
          * Primed global variables
          */
-        private IDictionary<String, Term> _globalVariablesPrimed = new Dictionary<String, Term>();
+        private IDictionary<String, Term> _globalVariablesPrimed;
 
         /**
          * Location labels to value map
          */
-        private IDictionary<String, Term> _locations = new Dictionary<String, Term>();
+        private IDictionary<String, Term> _locations;
 
         /**
          * Process indices (i, j, k, etc.)
          */
-        private IDictionary<String, Term> _indices = new Dictionary<String, Term>();
+        private IDictionary<String, Term> _indices;
 
         /**
          * integer for control state
@@ -135,6 +135,8 @@ namespace phyea.controller
          */
         private String _inputFile;
 
+        private List<String> _inputFiles;
+
         /**
          * filen path
          */
@@ -150,9 +152,9 @@ namespace phyea.controller
          */
         public enum IndexOptionType { integer, natural, naturalOneToN, enumeration };
 
-        public Dictionary<UInt32, String> LocationNumToName = new Dictionary<UInt32, String>();
+        public Dictionary<UInt32, String> LocationNumToName;
 
-        public Dictionary<Term, String> LocationNumTermToName = new Dictionary<Term, String>();
+        public Dictionary<Term, String> LocationNumTermToName;
 
         /**
          * implies is weak, and is strict
@@ -180,6 +182,27 @@ namespace phyea.controller
          */
         private Controller()
         {
+            this.InitializeZ3();
+        }
+
+        /**
+         * Instantiate data structures, create Z3 object, populate data structures with pointers to Z3 objects, etc.
+         */
+        private void InitializeZ3()
+        {
+            this._q = new Dictionary<String, Term>();
+            this._qPrimed = new Dictionary<String, Term>();
+            this._ivars = new Dictionary<KeyValuePair<String, String>, Term>();
+            this._ivarsPrimed = new Dictionary<KeyValuePair<String, String>, Term>();
+            this._params = new Dictionary<String, Term>();
+            this._globalVariables = new Dictionary<String, Term>();
+            this._globalVariablesPrimed = new Dictionary<String, Term>();
+            this._locations = new Dictionary<String, Term>();
+            this._indices = new Dictionary<String, Term>();
+            this.LocationNumToName = new Dictionary<UInt32, String>();
+            this.LocationNumTermToName = new Dictionary<Term, String>();
+             _inputFiles = new List<string>();
+
             Config c = new Config();
 
             c.SetParamValue("AUTO_CONFIG", "false"); // disable auto-configuration (use all logics)
@@ -199,7 +222,7 @@ namespace phyea.controller
             c.SetParamValue("MBQI", "true"); //  (see http://research.microsoft.com/en-us/um/redmond/projects/z3/mbqi-tutorial/)
             //c.SetParamValue("MBQI_MAX_ITERATIONS", "50000");
 
-            
+
             c.SetParamValue("ELIM_QUANTIFIERS", "true"); // if we fix N to be small, we can rely on MBQI, but if we have N large or unbounded, we may need Q.E.
             c.SetParamValue("ELIM_NLARITH_QUANTIFIERS", "true");
             c.SetParamValue("ELIM_BOUNDS", "true");
@@ -559,6 +582,7 @@ namespace phyea.controller
             {
                 Console.WriteLine("[" + f.Key.ToString() + "]" + " " + f.Value);
             }
+            Console.WriteLine("[255] generate FORTE/FMOODS table\n\r");
             Console.WriteLine("[256] enter custom file\n\r");
 
             while (true)
@@ -572,12 +596,23 @@ namespace phyea.controller
 
                         if (io_opt < inputFileCount)
                         {
-                            Instance._inputFile = inputFiles[io_opt];
+                            Instance._inputFiles.Add(inputFiles[io_opt]);
+                        }
+                        else if (io_opt == 255)
+                        {
+                            Console.WriteLine("Generating table for paper (correct vs. buggy versions):");
+
+                            Instance._inputFiles.Add(inputFiles.First(a => a.Value.Contains("sats")).Value);
+                            Instance._inputFiles.Add(inputFiles.First(a => a.Value.Contains("sats_buggy")).Value);
+                            Instance._inputFiles.Add(inputFiles.First(a => a.Value.Contains("sats_timed")).Value);
+                            Instance._inputFiles.Add(inputFiles.First(a => a.Value.Contains("sats_timed_buggy")).Value);
+                            Instance._inputFiles.Add(inputFiles.First(a => a.Value.Contains("fischer_umeno_five_state")).Value);
+                            Instance._inputFiles.Add(inputFiles.First(a => a.Value.Contains("fischer_umeno_five_state_buggy")).Value);
                         }
                         else if (io_opt == 256)
                         {
                             Console.WriteLine("Using path " + Instance._inoutPath);
-                            Instance._inputFile = Console.ReadLine();
+                            Instance._inputFiles.Add(Console.ReadLine()); //todo: dangerous
                             Console.WriteLine("File: " + Instance._inputFile + "\n\r");
                         }
                         else
@@ -588,11 +623,11 @@ namespace phyea.controller
                 }
                 catch (Exception)
                 {
-                    Instance._inputFile = "fischer.xml";
+                    Instance._inputFiles.Add("fischer_umeno_five_state.xml");
                     //Console.WriteLine("Error, picking default file: " + this._inputFile + ".\n\r");
                 }
 
-                Instance._inputFilePath = Instance._inoutPath + instance._inputFile;
+                Instance._inputFilePath = Instance._inoutPath + instance._inputFiles.First();
 
                 if (File.Exists(Instance._inputFilePath))
                 {
@@ -609,96 +644,151 @@ namespace phyea.controller
                 }
             }
 
-            Console.Write("Checking file: {0}\n\r", Instance._inputFilePath);
-
-            String outFilename;
-            outFilename = Instance._inoutPath + "..\\output\\output" + "-" + Instance._inputFile.Split('.')[0] + "-" + System.DateTime.Now.ToString("s").Replace(":", "-") + ".log";
-
-            //Console.Clear();
-            lock (Console.Out)
+            foreach (String f in Instance._inputFiles)
             {
-                // redirect console output to file
-                StreamWriter fileOutput;
-                TextWriter oldOutput;
+                Instance._inputFile = f;
+                Instance._inputFilePath = Instance._inoutPath + f;
 
-                oldOutput = Console.Out;
-                fileOutput = new StreamWriter(
-                    new FileStream(outFilename, FileMode.Create)
-                );
-                fileOutput.AutoFlush = true;
+                Console.Write("Checking file: {0}\n\r", Instance._inputFilePath);
 
-                Console.SetOut(fileOutput); // do the redirect
-            }
+                String outFilename;
+                outFilename = Instance._inoutPath + "..\\output\\output" + "-" + Instance._inputFile.Split('.')[0] + "-" + System.DateTime.Now.ToString("s").Replace(":", "-") + ".log";
 
-            Console.Write("File: {0}\n\r\n\r", Instance._inputFilePath);
+                //Console.Clear();
+                lock (Console.Out)
+                {
+                    // redirect console output to file
+                    StreamWriter fileOutput;
+                    TextWriter oldOutput;
 
-            ISmtSymbols smtSymbols = new SymbolsZ3();
+                    oldOutput = Console.Out;
+                    fileOutput = new StreamWriter(
+                        new FileStream(outFilename, FileMode.Create)
+                    );
+                    fileOutput.AutoFlush = true;
 
-            // constants
-            Term int_zero = Instance.Z3.MkIntNumeral(0);
-            Term int_one = Instance.Z3.MkIntNumeral(1);
-            Term int_two = Instance.Z3.MkIntNumeral(2);
-            Term real_one = Instance.Z3.MkRealNumeral(1);
+                    Console.SetOut(fileOutput); // do the redirect
+                }
 
-            // process index variables
-            Instance._indices = new Dictionary<String, Term>();
-            Instance._indices.Add("i", Instance.Z3.MkConst("i", Instance.IndexType));
-            Instance._indices.Add("j", Instance.Z3.MkConst("j", Instance.IndexType));
-            Instance._indices.Add("h", Instance.Z3.MkConst("h", Instance.IndexType));
+                Console.Write("File: {0}\n\r\n\r", Instance._inputFilePath);
 
-            switch (Instance.DataOption)
-            {
-                case DataOptionType.array:
-                    {
-                        Sort locSort = Instance.Z3.MkArraySort(Instance.IndexType, Instance.IntType);
-                        Term q = Instance.Z3.MkConst("q", locSort); // control location; todo: should map to finite control state (just hack to use integers for now)
-                        Instance.DataA.IndexedVariableDecl.Add("q", q);
-                        Term qPrime = Instance.Z3.MkConst("q'", locSort); ; // control location; todo: should map to finite control state (just hack to use integers for now)
-                        Instance.DataA.IndexedVariableDeclPrimed.Add("q", qPrime);
+                Instance.InitializeZ3();
 
-                        // apply each index to the control location function
-                        foreach (var pair in Instance.Indices)
+                ISmtSymbols smtSymbols = new SymbolsZ3();
+
+                // constants
+                Term int_zero = Instance.Z3.MkIntNumeral(0);
+                Term int_one = Instance.Z3.MkIntNumeral(1);
+                Term int_two = Instance.Z3.MkIntNumeral(2);
+                Term real_one = Instance.Z3.MkRealNumeral(1);
+
+                // process index variables
+                Instance._indices = new Dictionary<String, Term>();
+                Instance._indices.Add("i", Instance.Z3.MkConst("i", Instance.IndexType));
+                Instance._indices.Add("j", Instance.Z3.MkConst("j", Instance.IndexType));
+                Instance._indices.Add("k", Instance.Z3.MkConst("k", Instance.IndexType));
+                Instance._indices.Add("h", Instance.Z3.MkConst("h", Instance.IndexType));
+
+                switch (Instance.DataOption)
+                {
+                    case DataOptionType.array:
                         {
-                            Instance.Q.Add(pair.Key, Instance.Z3.MkArraySelect(q, pair.Value));
-                            Instance.QPrimed.Add(pair.Key, Instance.Z3.MkArraySelect(qPrime, pair.Value));
-                        }
-                        break;
-                    }
-                case DataOptionType.uninterpreted_function:
-                default:
-                    {
-                        FuncDecl q = Instance.Z3.MkFuncDecl("q", Instance.IndexType, Instance.IntType); // control location; todo: should map to finite control state (just hack to use integers for now)
-                        Instance.DataU.IndexedVariableDecl.Add("q", q);
-                        FuncDecl qPrime = Instance.Z3.MkFuncDecl("q'", Instance.IndexType, Instance.IntType); // control location; todo: should map to finite control state (just hack to use integers for now)
-                        Instance.DataU.IndexedVariableDeclPrimed.Add("q", qPrime);
+                            Sort locSort = Instance.Z3.MkArraySort(Instance.IndexType, Instance.IntType);
+                            Term q = Instance.Z3.MkConst("q", locSort); // control location; todo: should map to finite control state (just hack to use integers for now)
+                            Instance.DataA.IndexedVariableDecl.Add("q", q);
+                            Term qPrime = Instance.Z3.MkConst("q'", locSort); ; // control location; todo: should map to finite control state (just hack to use integers for now)
+                            Instance.DataA.IndexedVariableDeclPrimed.Add("q", qPrime);
 
-                        // apply each index to the control location function
-                        foreach (var pair in Instance.Indices)
+                            // apply each index to the control location function
+                            foreach (var pair in Instance.Indices)
+                            {
+                                Instance.Q.Add(pair.Key, Instance.Z3.MkArraySelect(q, pair.Value));
+                                Instance.QPrimed.Add(pair.Key, Instance.Z3.MkArraySelect(qPrime, pair.Value));
+                            }
+                            break;
+                        }
+                    case DataOptionType.uninterpreted_function:
+                    default:
                         {
-                            Instance.Q.Add(pair.Key, Instance.Z3.MkApp(q, pair.Value));
-                            Instance.QPrimed.Add(pair.Key, Instance.Z3.MkApp(qPrime, pair.Value));
+                            FuncDecl q = Instance.Z3.MkFuncDecl("q", Instance.IndexType, Instance.IntType); // control location; todo: should map to finite control state (just hack to use integers for now)
+                            Instance.DataU.IndexedVariableDecl.Add("q", q);
+                            FuncDecl qPrime = Instance.Z3.MkFuncDecl("q'", Instance.IndexType, Instance.IntType); // control location; todo: should map to finite control state (just hack to use integers for now)
+                            Instance.DataU.IndexedVariableDeclPrimed.Add("q", qPrime);
+
+                            // apply each index to the control location function
+                            foreach (var pair in Instance.Indices)
+                            {
+                                Instance.Q.Add(pair.Key, Instance.Z3.MkApp(q, pair.Value));
+                                Instance.QPrimed.Add(pair.Key, Instance.Z3.MkApp(qPrime, pair.Value));
+                            }
+                            break;
                         }
-                        break;
-                    }
+                }
+
+                Instance.Sys = ParseHyXML.ParseFile(Instance._inputFilePath);
+
+
+                if (Instance._inputFile.Contains("sats"))
+                {
+                    // want to use a macro, e.g.: http://stackoverflow.com/questions/9313616/quantifier-in-z3
+                    /**
+                     * When you use (assert (forall ((i Int)) (> i 10))), i is a bounded variable and the quantified formula is equivalent to a truth value, which is false in this case.
+                        I think you want to define a macro using quantifiers:
+
+                        (declare-fun greaterThan10 (Int) Bool)
+                        (assert (forall ((i Int)) (= (greaterThan10 i) (> i 10))))
+                        And you can use them to avoid code repetition:
+
+                        (declare-const x (Int))
+                        (declare-const y (Int))
+                        (assert (greaterThan10 x))
+                        (assert (greaterThan10 y))
+                        (check-sat)
+                        It is essentially the way to define macros using uninterpreted functions when you're working with Z3 API. Note that you have to set (set-option :macro-finder true) in order that Z3 replaces universal quantifiers with bodies of those functions.
+
+                        However, if you're working with the textual interface, the macro define-fun in SMT-LIB v2 is an easier way to do what you want:
+
+                        (define-fun greaterThan10 ((i Int)) Bool
+                          (> i 10))
+                     */
+
+
+
+                    //Sort[] indexByIndex = { Instance.IndexType, Instance.IndexType };
+                    FuncDecl pathFunc = Instance.Z3.MkFuncDecl("path", Instance.IndexType, Instance.IndexType, Instance.Z3.MkBoolSort());
+                    Term pathTerm = Instance.Z3.MkApp(pathFunc, Instance.Indices["i"], Instance.Indices["j"]);
+                    Instance.Params.Add("path", pathTerm);
+                    Term iEqj = Instance.Z3.MkEq(Instance.Indices["i"], Instance.Indices["j"]);
+                    Term iNeqj = Instance.Z3.MkNot(iEqj);
+                    Instance.Z3.AssertCnstr(Instance.Z3.MkIff(Instance.Z3.MkEq(pathTerm, Instance.Z3.MkTrue()), iEqj)); // base case
+
+                    Term pathTermik = Instance.Z3.MkApp(pathFunc, Instance.Indices["i"], Instance.Indices["k"]);
+                    Term nextEq = Instance.Z3.MkEq(Instance.IndexedVariables[new KeyValuePair<string, string>("next", "k")], Instance.Indices["j"]);
+                    Term existsPart = Instance.Z3.MkExists(0, new Term[] { Instance.Indices["k"] }, null, pathTermik & nextEq);
+                    Instance.Z3.AssertCnstr(Instance.Z3.MkIff(Instance.Z3.MkEq(pathTerm, Instance.Z3.MkTrue()), iNeqj & existsPart)); // inductive case
+
+                    //Term pt = Instance.Z3.MkForall(0, new Term[] { Instance.Indices["i"], Instance.Indices["j"] }, null, );
+                    //Property p = new Property();
+                    //Instance.Sys.Properties.Add(p);
+                }
+
+
+                // add constraints on index variables (they are between 1 and N)
+                foreach (var pair in Instance._indices)
+                {
+                    // 1 <= i <= N, 1 <= j <= N, etc.
+                    //                Instance.Z3.AssertCnstr(Instance.Z3.MkGe(pair.Value, int_one));
+                    //                Instance.Z3.AssertCnstr(Instance.Z3.MkLe(pair.Value, Instance.Params["N"])); // todo: error handling, what if we don't have this parameter in the specification file?
+                }
+
+                // counter / environment abstraction
+                //AbstractHybridAutomaton aha = new AbstractHybridAutomaton(sys, (AConcreteHybridAutomaton)sys.HybridAutomata.First());
+
+                // inductive invariant checking for small model theorem
+                Instance.Sys.checkInductiveInvariants();
+
+                //PrintPhaver.writeAbstractSystem(aha, "output.pha", PrintPhaver.OutputMode.phaver);
             }
-
-            Instance.Sys = ParseHyXML.ParseFile(Instance._inputFilePath);
-
-            // add constraints on index variables (they are between 1 and N)
-            foreach (var pair in Instance._indices)
-            {
-                // 1 <= i <= N, 1 <= j <= N, etc.
-//                Instance.Z3.AssertCnstr(Instance.Z3.MkGe(pair.Value, int_one));
-//                Instance.Z3.AssertCnstr(Instance.Z3.MkLe(pair.Value, Instance.Params["N"])); // todo: error handling, what if we don't have this parameter in the specification file?
-            }
-
-            // counter / environment abstraction
-            //AbstractHybridAutomaton aha = new AbstractHybridAutomaton(sys, (AConcreteHybridAutomaton)sys.HybridAutomata.First());
-
-            // inductive invariant checking for small model theorem
-            Instance.Sys.checkInductiveInvariants();
-
-            //PrintPhaver.writeAbstractSystem(aha, "output.pha", PrintPhaver.OutputMode.phaver);
 
             Instance.Z3.CloseLog();
             Instance.Z3.Dispose();

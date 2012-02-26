@@ -38,7 +38,7 @@
 	<assumption equn='LB == 15.0' comment='the base length is at least as large as the safety spacing'/>
 	<assumption equn='LSsmall &gt; 0.0 and LSsmall &lt;= LS - (b - a) * (LB / a)  and LSsmall &lt;= LB and LSsmall &lt;= LS' comment='max time in base is LB/A; max speed difference is b - a; thus, max difference in position through base is (b-a)*(LB/a)'/>
 <!-- equivalent to LS + (b - a) * ((LB - LS) / a) -->
-	<assumption equn='N &gt;= 2 and N &lt;= 4' comment='there are at least 2 aircraft in the system, but no more than 100' />
+	<assumption equn='N &gt;= 2 and N &lt;= 100' comment='there are at least 2 aircraft in the system, but no more than 100' />
 
 	<automaton name='default_automaton'>
 		<variable name='x[i]' type='nnreal' update_type='Continuous' />
