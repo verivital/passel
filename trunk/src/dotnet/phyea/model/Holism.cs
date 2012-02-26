@@ -706,7 +706,7 @@ namespace phyea.model
 
 
                 String quantInstStr = p.Statistics[p.Statistics.Count-1];
-                quantInstStr = quantInstStr.Substring(quantInstStr.IndexOf("quant instantiations:")).Trim();
+                quantInstStr = quantInstStr.Substring(quantInstStr.IndexOf("\nquant instantiations:")).Trim(); // use newline: there is another statistic called "lazy quantifier instantiations:", so we don't want to match that (otherwise get wrong or even negative values)
                 quantInstStr = quantInstStr.Split(':')[1].Split('\n')[0];
                 p.QuantInstantiations = int.Parse(quantInstStr) - QuantInstantiationsLast;
                 //
