@@ -1,0 +1,86 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 11.00
+# Visual Studio 2010
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "passel", "passel.csproj", "{76980A74-E105-48B3-9F06-008AF6162711}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug DLL|Any CPU = Debug DLL|Any CPU
+		Debug DLL|Mixed Platforms = Debug DLL|Mixed Platforms
+		Debug DLL|Win32 = Debug DLL|Win32
+		Debug DLL|x64 = Debug DLL|x64
+		Debug DLL|x86 = Debug DLL|x86
+		Debug Static|Any CPU = Debug Static|Any CPU
+		Debug Static|Mixed Platforms = Debug Static|Mixed Platforms
+		Debug Static|Win32 = Debug Static|Win32
+		Debug Static|x64 = Debug Static|x64
+		Debug Static|x86 = Debug Static|x86
+		Debug|Any CPU = Debug|Any CPU
+		Debug|Mixed Platforms = Debug|Mixed Platforms
+		Debug|Win32 = Debug|Win32
+		Debug|x64 = Debug|x64
+		Debug|x86 = Debug|x86
+		Release DLL|Any CPU = Release DLL|Any CPU
+		Release DLL|Mixed Platforms = Release DLL|Mixed Platforms
+		Release DLL|Win32 = Release DLL|Win32
+		Release DLL|x64 = Release DLL|x64
+		Release DLL|x86 = Release DLL|x86
+		Release Static|Any CPU = Release Static|Any CPU
+		Release Static|Mixed Platforms = Release Static|Mixed Platforms
+		Release Static|Win32 = Release Static|Win32
+		Release Static|x64 = Release Static|x64
+		Release Static|x86 = Release Static|x86
+		Release|Any CPU = Release|Any CPU
+		Release|Mixed Platforms = Release|Mixed Platforms
+		Release|Win32 = Release|Win32
+		Release|x64 = Release|x64
+		Release|x86 = Release|x86
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{76980A74-E105-48B3-9F06-008AF6162711}.Debug DLL|Any CPU.ActiveCfg = Debug|x86
+		{76980A74-E105-48B3-9F06-008AF6162711}.Debug DLL|Mixed Platforms.ActiveCfg = Debug|x86
+		{76980A74-E105-48B3-9F06-008AF6162711}.Debug DLL|Mixed Platforms.Build.0 = Debug|x86
+		{76980A74-E105-48B3-9F06-008AF6162711}.Debug DLL|Win32.ActiveCfg = Debug|x86
+		{76980A74-E105-48B3-9F06-008AF6162711}.Debug DLL|x64.ActiveCfg = Debug|x86
+		{76980A74-E105-48B3-9F06-008AF6162711}.Debug DLL|x86.ActiveCfg = Debug|x86
+		{76980A74-E105-48B3-9F06-008AF6162711}.Debug DLL|x86.Build.0 = Debug|x86
+		{76980A74-E105-48B3-9F06-008AF6162711}.Debug Static|Any CPU.ActiveCfg = Debug|x86
+		{76980A74-E105-48B3-9F06-008AF6162711}.Debug Static|Mixed Platforms.ActiveCfg = Debug|x86
+		{76980A74-E105-48B3-9F06-008AF6162711}.Debug Static|Mixed Platforms.Build.0 = Debug|x86
+		{76980A74-E105-48B3-9F06-008AF6162711}.Debug Static|Win32.ActiveCfg = Debug|x86
+		{76980A74-E105-48B3-9F06-008AF6162711}.Debug Static|x64.ActiveCfg = Debug|x86
+		{76980A74-E105-48B3-9F06-008AF6162711}.Debug Static|x86.ActiveCfg = Debug|x86
+		{76980A74-E105-48B3-9F06-008AF6162711}.Debug Static|x86.Build.0 = Debug|x86
+		{76980A74-E105-48B3-9F06-008AF6162711}.Debug|Any CPU.ActiveCfg = Debug|x86
+		{76980A74-E105-48B3-9F06-008AF6162711}.Debug|Mixed Platforms.ActiveCfg = Debug|x86
+		{76980A74-E105-48B3-9F06-008AF6162711}.Debug|Mixed Platforms.Build.0 = Debug|x86
+		{76980A74-E105-48B3-9F06-008AF6162711}.Debug|Win32.ActiveCfg = Debug|x86
+		{76980A74-E105-48B3-9F06-008AF6162711}.Debug|x64.ActiveCfg = Debug|x86
+		{76980A74-E105-48B3-9F06-008AF6162711}.Debug|x86.ActiveCfg = Debug|x86
+		{76980A74-E105-48B3-9F06-008AF6162711}.Debug|x86.Build.0 = Debug|x86
+		{76980A74-E105-48B3-9F06-008AF6162711}.Release DLL|Any CPU.ActiveCfg = Release|x86
+		{76980A74-E105-48B3-9F06-008AF6162711}.Release DLL|Mixed Platforms.ActiveCfg = Release|x86
+		{76980A74-E105-48B3-9F06-008AF6162711}.Release DLL|Mixed Platforms.Build.0 = Release|x86
+		{76980A74-E105-48B3-9F06-008AF6162711}.Release DLL|Win32.ActiveCfg = Release|x86
+		{76980A74-E105-48B3-9F06-008AF6162711}.Release DLL|x64.ActiveCfg = Release|x86
+		{76980A74-E105-48B3-9F06-008AF6162711}.Release DLL|x86.ActiveCfg = Release|x86
+		{76980A74-E105-48B3-9F06-008AF6162711}.Release DLL|x86.Build.0 = Release|x86
+		{76980A74-E105-48B3-9F06-008AF6162711}.Release Static|Any CPU.ActiveCfg = Release|x86
+		{76980A74-E105-48B3-9F06-008AF6162711}.Release Static|Mixed Platforms.ActiveCfg = Release|x86
+		{76980A74-E105-48B3-9F06-008AF6162711}.Release Static|Mixed Platforms.Build.0 = Release|x86
+		{76980A74-E105-48B3-9F06-008AF6162711}.Release Static|Win32.ActiveCfg = Release|x86
+		{76980A74-E105-48B3-9F06-008AF6162711}.Release Static|x64.ActiveCfg = Release|x86
+		{76980A74-E105-48B3-9F06-008AF6162711}.Release Static|x86.ActiveCfg = Release|x86
+		{76980A74-E105-48B3-9F06-008AF6162711}.Release Static|x86.Build.0 = Release|x86
+		{76980A74-E105-48B3-9F06-008AF6162711}.Release|Any CPU.ActiveCfg = Release|x86
+		{76980A74-E105-48B3-9F06-008AF6162711}.Release|Mixed Platforms.ActiveCfg = Release|x86
+		{76980A74-E105-48B3-9F06-008AF6162711}.Release|Mixed Platforms.Build.0 = Release|x86
+		{76980A74-E105-48B3-9F06-008AF6162711}.Release|Win32.ActiveCfg = Release|x86
+		{76980A74-E105-48B3-9F06-008AF6162711}.Release|x64.ActiveCfg = Release|x86
+		{76980A74-E105-48B3-9F06-008AF6162711}.Release|x86.ActiveCfg = Release|x86
+		{76980A74-E105-48B3-9F06-008AF6162711}.Release|x86.Build.0 = Release|x86
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
