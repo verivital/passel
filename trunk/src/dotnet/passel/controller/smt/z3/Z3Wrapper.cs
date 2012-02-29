@@ -5,9 +5,9 @@ using System.Text;
 
 using Microsoft.Z3;
 
-using phyea.model;
+using passel.model;
 
-namespace phyea.controller.smt.z3
+namespace passel.controller.smt.z3
 {
     public class Z3Wrapper : Microsoft.Z3.Context
     {

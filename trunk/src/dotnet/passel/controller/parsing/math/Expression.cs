@@ -5,9 +5,9 @@ using Antlr;
 using Antlr.Runtime;
 using Antlr.Runtime.Tree;
 
-using phyea.controller.parsing.math.ast;
+using passel.controller.parsing.math.ast;
 
-namespace phyea.controller.parsing.math
+namespace passel.controller.parsing.math
 {
     public class Expression
     {

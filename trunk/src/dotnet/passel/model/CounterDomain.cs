@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 
-namespace phyea.model
+namespace passel.model
 {
     /**
      * Quotient space of natural numbers defined by a cut at N and at a pre-specified maximum value

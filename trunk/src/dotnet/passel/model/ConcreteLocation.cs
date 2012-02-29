@@ -5,9 +5,9 @@ using System.Text;
 
 using Microsoft.Z3;
 
-using phyea.controller;
+using passel.controller;
 
-namespace phyea.model
+namespace passel.model
 {
     // todo: refactor and remove this class, move to Location
     // create a new class for abstract locations if necessary once we start doing more work on abstractions

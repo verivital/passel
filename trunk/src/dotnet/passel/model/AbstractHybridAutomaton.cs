@@ -5,11 +5,11 @@ using System.Text;
 
 using Microsoft.Z3;
 
-using phyea.controller;
-using phyea.controller.smt;
-using phyea.controller.smt.z3;
+using passel.controller;
+using passel.controller.smt;
+using passel.controller.smt.z3;
 
-namespace phyea.model
+namespace passel.model
 {
     public class AbstractHybridAutomaton : AHybridAutomaton
     {

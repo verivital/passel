@@ -1,7 +1,7 @@
 ﻿using Antlr.Runtime;
 using Antlr.Runtime.Tree;
 
-namespace phyea.controller.parsing.math
+namespace passel.controller.parsing.math
 {
     partial class guardParser
     {

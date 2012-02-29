@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 
-namespace phyea.controller.smt.z3
+namespace passel.controller.smt.z3
 {
     public class SymbolsZ3 : ISmtSymbols
     {

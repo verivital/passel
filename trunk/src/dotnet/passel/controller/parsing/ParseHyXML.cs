@@ -13,13 +13,13 @@ using Antlr.Runtime.Misc;
 
 using Microsoft.Z3;
 
-using phyea.model;
-using phyea.controller;
-using phyea.controller.parsing;
-using phyea.controller.parsing.math;
-using phyea.controller.parsing.math.ast;
+using passel.model;
+using passel.controller;
+using passel.controller.parsing;
+using passel.controller.parsing.math;
+using passel.controller.parsing.math.ast;
 
-namespace phyea.controller.parsing
+namespace passel.controller.parsing
 {
     public enum ElementNames
     {

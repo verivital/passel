@@ -5,7 +5,7 @@ using System.Text;
 
 using Microsoft.Z3;
 
-namespace phyea.controller.smt.z3
+namespace passel.controller.smt.z3
 {
 
     /** 

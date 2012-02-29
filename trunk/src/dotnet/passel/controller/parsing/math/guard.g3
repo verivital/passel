@@ -21,8 +21,8 @@ tokens
 }
 
 // these directives MUST appear AFTER tokens
-@parser::namespace{phyea.controller.parsing.math}
-@lexer::namespace{phyea.controller.parsing.math}
+@parser::namespace{passel.controller.parsing.math}
+@lexer::namespace{passel.controller.parsing.math}
 
 @members {
 	ArrayList exceptions = new ArrayList();
