@@ -5,11 +5,11 @@ using System.Text;
 
 using Microsoft.Z3;
 
-using phyea.controller;
-using phyea.controller.parsing;
-using phyea.controller.parsing.math;
+using passel.controller;
+using passel.controller.parsing;
+using passel.controller.parsing.math;
 
-namespace phyea.model
+namespace passel.model
 {
     /**
      * Hybrid automaton object
@@ -340,8 +340,8 @@ namespace phyea.model
             // parse initial condition string
             if (this.InitialString != null)
             {
-                Antlr.Runtime.Tree.CommonTree tmptree = phyea.controller.parsing.math.Expression.Parse(this.InitialString);
-                this._initial = phyea.controller.parsing.math.ast.LogicalExpression.CreateTerm(tmptree);
+                Antlr.Runtime.Tree.CommonTree tmptree = passel.controller.parsing.math.Expression.Parse(this.InitialString);
+                this._initial = passel.controller.parsing.math.ast.LogicalExpression.CreateTerm(tmptree);
                 this._initial = this._initial & Controller.Instance.Z3.MkForall(0, new Term[] { Controller.Instance.Indices["i"] }, null, Controller.Instance.Z3.MkOr(initialStates.ToArray())); // note the or, this is correct, non-deterministic start state
             }
             else

@@ -4,9 +4,9 @@ using System.IO;
 using System.Linq;
 using System.Text;
 
-using phyea.model;
+using passel.model;
 
-namespace phyea.controller.output
+namespace passel.controller.output
 {
     public class PrintPhaver
     {

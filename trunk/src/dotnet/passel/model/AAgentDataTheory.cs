@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using Microsoft.Z3;
 
-namespace phyea.model
+namespace passel.model
 {
     public abstract class AAgentDataTheory<T>
     {

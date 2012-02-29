@@ -5,12 +5,12 @@ using System.Text;
 
 using Microsoft.Z3;
 
-using phyea.controller;
-using phyea.controller.parsing;
-using phyea.controller.parsing.math;
-using phyea.controller.parsing.math.ast;
+using passel.controller;
+using passel.controller.parsing;
+using passel.controller.parsing.math;
+using passel.controller.parsing.math.ast;
 
-namespace phyea.model
+namespace passel.model
 {
     public enum StatusTypes
     {
@@ -118,7 +118,7 @@ namespace phyea.model
 
             if (post != null)
             {
-                Antlr.Runtime.Tree.CommonTree tmptree = phyea.controller.parsing.math.Expression.Parse(post);
+                Antlr.Runtime.Tree.CommonTree tmptree = passel.controller.parsing.math.Expression.Parse(post);
                 this.Post = LogicalExpression.CreateTerm(tmptree);
             }
 

@@ -1,6 +1,6 @@
-using phyea.controller.parsing.math;
+using passel.controller.parsing.math;
 
-namespace phyea.controller.parsing.math.ast
+namespace passel.controller.parsing.math.ast
 {
     public abstract class LogicalExpressionVisitor
     {

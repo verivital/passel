@@ -7,11 +7,11 @@ using Antlr.Runtime.Tree;
 
 using Microsoft.Z3;
 
-using phyea.controller;
-using phyea.controller.parsing.math;
-using phyea.model;
+using passel.controller;
+using passel.controller.parsing.math;
+using passel.model;
 
-namespace phyea.controller.parsing.math.ast
+namespace passel.controller.parsing.math.ast
 {
     public abstract class LogicalExpression
     {

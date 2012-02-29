@@ -5,10 +5,10 @@ using System.Text;
 
 using Microsoft.Z3;
 
-using phyea.controller;
-using phyea.controller.smt;
+using passel.controller;
+using passel.controller.smt;
 
-namespace phyea.model
+namespace passel.model
 {
     /**
      * Complete system specification (couldn't name it system for obvious reasons, e.g., name conflicts)
@@ -157,6 +157,12 @@ namespace phyea.model
                             ptmp.QuantInstantiations = 0;
                             ptmp.Status = StatusTypes.toProcess;
                             ptmp.InductiveInvariants = new List<Term>(); // need to reset this as well
+
+                            // clear out counterexample models
+                            foreach (var v in ptmp.Counterexamples)
+                            {
+                                v.Model.Dispose();
+                            }
                             ptmp.Counterexamples = new List<Counterexample>();
                         }
                     }

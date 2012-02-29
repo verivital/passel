@@ -10,13 +10,13 @@ using System.IO;
 
 using Microsoft.Z3;
 
-using phyea.model;
-using phyea.controller.output;
-using phyea.controller.smt;
-using phyea.controller.smt.z3;
-using phyea.controller.parsing;
+using passel.model;
+using passel.controller.output;
+using passel.controller.smt;
+using passel.controller.smt.z3;
+using passel.controller.parsing;
 
-namespace phyea.controller
+namespace passel.controller
 {
     /**
      * Main interface between external libraries (parsing, SMT solving, etc.) and local model manipulation and abstraction
@@ -176,6 +176,8 @@ namespace phyea.controller
 
         public Stopwatch TimerStats = new Stopwatch();
 
+        public Config Config;
+
 
         /**
          * Singleton constructor
@@ -201,52 +203,53 @@ namespace phyea.controller
             this._indices = new Dictionary<String, Term>();
             this.LocationNumToName = new Dictionary<UInt32, String>();
             this.LocationNumTermToName = new Dictionary<Term, String>();
-             _inputFiles = new List<string>();
+            this._inputFiles = new List<string>();
 
-            Config c = new Config();
 
-            c.SetParamValue("AUTO_CONFIG", "false"); // disable auto-configuration (use all logics)
+            this.Config = new Config();
 
-            /*c.SetParamValue("ARRAY_CANONIZE", "true");
-            c.SetParamValue("ARRAY_CG", "true");
-            c.SetParamValue("ARRAY_LAZY_IEQ", "true");
-            c.SetParamValue("ARRAY_WEAK", "true");
+            this.Config.SetParamValue("AUTO_CONFIG", "false"); // disable auto-configuration (use all logics)
+
+            /*this.Config.SetParamValue("ARRAY_CANONIZE", "true");
+            this.Config.SetParamValue("ARRAY_CG", "true");
+            this.Config.SetParamValue("ARRAY_LAZY_IEQ", "true");
+            this.Config.SetParamValue("ARRAY_WEAK", "true");
              */
-            //c.SetParamValue("ARRAY_SOLVER", "1"); // 0 to 3
+            //this.Config.SetParamValue("ARRAY_SOLVER", "1"); // 0 to 3
 
-            //c.SetParamValue("QI_PROFILE", "true");
-            //c.SetParamValue("QI_PROFILE_FREQ", "1000");
-            //c.SetParamValue("MBQI_TRACE", "true");
+            //this.Config.SetParamValue("QI_PROFILE", "true");
+            //this.Config.SetParamValue("QI_PROFILE_FREQ", "1000");
+            //this.Config.SetParamValue("MBQI_TRACE", "true");
 
-            c.SetParamValue("MODEL", "true");
-            c.SetParamValue("MBQI", "true"); //  (see http://research.microsoft.com/en-us/um/redmond/projects/z3/mbqi-tutorial/)
-            //c.SetParamValue("MBQI_MAX_ITERATIONS", "50000");
+            this.Config.SetParamValue("MODEL", "true");
+            this.Config.SetParamValue("MBQI", "true"); //  (see http://research.microsoft.com/en-us/um/redmond/projects/z3/mbqi-tutorial/)
+            //this.Config.SetParamValue("MBQI_MAX_ITERATIONS", "50000");
 
 
-            c.SetParamValue("ELIM_QUANTIFIERS", "true"); // if we fix N to be small, we can rely on MBQI, but if we have N large or unbounded, we may need Q.E.
-            c.SetParamValue("ELIM_NLARITH_QUANTIFIERS", "true");
-            c.SetParamValue("ELIM_BOUNDS", "true");
-            c.SetParamValue("QI_LAZY_INSTANTIATION", "true");
+            this.Config.SetParamValue("ELIM_QUANTIFIERS", "true"); // if we fix N to be small, we can rely on MBQI, but if we have N large or unbounded, we may need Q.E.
+            this.Config.SetParamValue("ELIM_NLARITH_QUANTIFIERS", "true");
+            this.Config.SetParamValue("ELIM_BOUNDS", "true");
+            this.Config.SetParamValue("QI_LAZY_INSTANTIATION", "true");
 
-            c.SetParamValue("PULL_CHEAP_ITE_TREES", "true");
-            c.SetParamValue("EMATCHING", "true");
-            c.SetParamValue("MACRO_FINDER", "true");
-            c.SetParamValue("STRONG_CONTEXT_SIMPLIFIER", "true");
-            c.SetParamValue("CONTEXT_SIMPLIFIER", "true");
+            this.Config.SetParamValue("PULL_CHEAP_ITE_TREES", "true");
+            this.Config.SetParamValue("EMATCHING", "true");
+            this.Config.SetParamValue("MACRO_FINDER", "true");
+            this.Config.SetParamValue("STRONG_CONTEXT_SIMPLIFIER", "true");
+            this.Config.SetParamValue("CONTEXT_SIMPLIFIER", "true");
 
-            c.SetParamValue("PI_PULL_QUANTIFIERS", "true");     // check with on / off 
-            c.SetParamValue("PULL_NESTED_QUANTIFIERS", "true"); // check with on / off (see mbqi tutorial)
-            c.SetParamValue("MODEL_PARTIAL", "true");
-            c.SetParamValue("MODEL_V2", "true");
-            c.SetParamValue("VERBOSE", "10");
+            this.Config.SetParamValue("PI_PULL_QUANTIFIERS", "true");     // check with on / off 
+            this.Config.SetParamValue("PULL_NESTED_QUANTIFIERS", "true"); // check with on / off (see mbqi tutorial)
+            this.Config.SetParamValue("MODEL_PARTIAL", "true");
+            this.Config.SetParamValue("MODEL_V2", "true");
+            //this.Config.SetParamValue("VERBOSE", "10");
 
-            c.SetParamValue("DISPLAY_ERROR_FOR_VISUAL_STUDIO", "true");
-            c.SetParamValue("DISTRIBUTE_FORALL", "true");
+            this.Config.SetParamValue("DISPLAY_ERROR_FOR_VISUAL_STUDIO", "true");
+            this.Config.SetParamValue("DISTRIBUTE_FORALL", "true");
 
-            c.SetParamValue("MODEL_COMPACT", "true"); // slower, but more accurate (as in the models are more useful) it seems
-            c.SetParamValue("MODEL_ON_FINAL_CHECK", "true");
-            c.SetParamValue("MODEL_COMPLETION", "true");
-            c.SetParamValue("DISPLAY_UNSAT_CORE", "true");
+            this.Config.SetParamValue("MODEL_COMPACT", "true"); // slower, but more accurate (as in the models are more useful) it seems
+            //this.Config.SetParamValue("MODEL_ON_FINAL_CHECK", "true"); // leave this off, prints lots of crap
+            this.Config.SetParamValue("MODEL_COMPLETION", "true");
+            this.Config.SetParamValue("DISPLAY_UNSAT_CORE", "true");
 
 
 
@@ -254,59 +257,76 @@ namespace phyea.controller
 
 
             // bad syntax for next...
-            //c.SetParamValue("produce-proofs", "true");
-            //c.SetParamValue("produce-models", "true");
-            //c.SetParamValue("produce-unsat-cores", "true");
-            //c.SetParamValue("produce-assignments", "true");
-            //c.SetParamValue("expand-definitions", "true");
+            //this.Config.SetParamValue("produce-proofs", "true");
+            //this.Config.SetParamValue("produce-models", "true");
+            //this.Config.SetParamValue("produce-unsat-cores", "true");
+            //this.Config.SetParamValue("produce-assignments", "true");
+            //this.Config.SetParamValue("expand-definitions", "true");
 
-            //c.SetParamValue("CNF_FACTOR", "10");
-            //c.SetParamValue("CNF_MODE", "3");
+            //this.Config.SetParamValue("CNF_FACTOR", "10");
+            //this.Config.SetParamValue("CNF_MODE", "3");
 
             //todo: SOFT_TIMEOUT // can use this option to force queries to return unknown instead of running forever
 
-            //c.SetParamValue("SPC", "true");
+            //this.Config.SetParamValue("SPC", "true");
 
-            //c.SetParamValue("STATISTICS", "true"); // crashes
+            //this.Config.SetParamValue("STATISTICS", "true"); // crashes
 
-            c.SetParamValue("ARITH_SOLVER", "2"); // simplex solver
-            c.SetParamValue("NL_ARITH", "true"); // nonlinear arithmetic support: requires arith_solver 2
-            c.SetParamValue("NL_ARITH_GB_EQS", "true");
-            c.SetParamValue("ARITH_ADAPTIVE", "true");
-            c.SetParamValue("ARITH_PROCESS_ALL_EQS", "true");
-            //c.SetParamValue("ARITH_EUCLIDEAN_SOLVER", "true");
-            //c.SetParamValue("ARITH_FORCE_SIMPLEX", "true");
-            //c.SetParamValue("ARITH_MAX_LEMMA_SIZE", "512"); // default 128
+            this.Config.SetParamValue("ARITH_SOLVER", "2"); // simplex solver
 
-            //c.SetParamValue("CHECK_PROOF", "true");
-            //c.SetParamValue("DL_COMPILE_WITH_WIDENING", "true");
-            //c.SetParamValue("DACK", "2");
-            //c.SetParamValue("DACK_EQ", "true");
+            /**
+             * we need nonlinear real arithmetic for converting the rectangular flow relation to a flow function
+             */
+            this.Config.SetParamValue("NL_ARITH", "true"); // nonlinear arithmetic support: requires arith_solver 2
+            this.Config.SetParamValue("NL_ARITH_GB_EQS", "true"); // boolean, default: false, enable/disable equations in the Grobner Basis to be copied to the Simplex tableau..
+            this.Config.SetParamValue("NL_ARITH_ROUNDS", "2048"); // unsigned integer, default: 1024, threshold for number of (nested) final checks for non linear arithmetic..
+            this.Config.SetParamValue("NL_ARITH_GB_THRESHOLD", "1024"); // unsigned integer, default: 512, Grobner basis computation can be very expensive. This is a threshold on the number of new equalities that can be generated..
+
+            this.Config.SetParamValue("PI_NON_NESTED_ARITH_WEIGHT", "10"); // shows up in some examples
+/*
+NL_ARITH: boolean, default: true, enable/disable non linear arithmetic support. This option is ignored when ARITH_SOLVER != 2..
+NL_ARITH_BRANCHING: boolean, default: true, enable/disable branching on integer variables in non linear clusters.
+NL_ARITH_GB: boolean, default: true, enable/disable Grobner Basis computation. This option is ignored when NL_ARITH=false.
+NL_ARITH_GB_PERTURBATE: boolean, default: true, enable/disable perturbation of the variable order in GB when searching for new polynomials..
+NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing new monomials..
+ */
+
+
+            this.Config.SetParamValue("ARITH_ADAPTIVE", "true");
+            this.Config.SetParamValue("ARITH_PROCESS_ALL_EQS", "true");
+            //this.Config.SetParamValue("ARITH_EUCLIDEAN_SOLVER", "true");
+            //this.Config.SetParamValue("ARITH_FORCE_SIMPLEX", "true");
+            //this.Config.SetParamValue("ARITH_MAX_LEMMA_SIZE", "512"); // default 128
+
+            //this.Config.SetParamValue("CHECK_PROOF", "true");
+            //this.Config.SetParamValue("DL_COMPILE_WITH_WIDENING", "true");
+            //this.Config.SetParamValue("DACK", "2");
+            //this.Config.SetParamValue("DACK_EQ", "true");
 
             // some bugs in the next ones
-            //c.SetParamValue("FWD_SR_CHEAP", "true");
-            //c.SetParamValue("LOOKAHEAD", "true");
-            //c.SetParamValue("MBQI_MAX_CEXS", "true"); // crashes
-            //c.SetParamValue("MODEL_VALIDATE", "true"); // corrupts memory?
+            //this.Config.SetParamValue("FWD_SR_CHEAP", "true");
+            //this.Config.SetParamValue("LOOKAHEAD", "true");
+            //this.Config.SetParamValue("MBQI_MAX_CEXS", "true"); // crashes
+            //this.Config.SetParamValue("MODEL_VALIDATE", "true"); // corrupts memory?
             // end buggy ones
 
 
-            //c.SetParamValue("LOOKAHEAD_DISEQ", "true");
+            //this.Config.SetParamValue("LOOKAHEAD_DISEQ", "true");
 
-            //c.SetParamValue("LIFT_ITE", "2"); // buggy: get memory corruption sometimes
-            //c.SetParamValue("ELIM_TERM_ITE", "true"); // buggy: get memory corruption sometimes
+            //this.Config.SetParamValue("LIFT_ITE", "2"); // buggy: get memory corruption sometimes
+            //this.Config.SetParamValue("ELIM_TERM_ITE", "true"); // buggy: get memory corruption sometimes
 
-            //c.SetParamValue("MINIMIZE_LEMMAS_STRUCT", "true");
-            //c.SetParamValue("MODEL_DISPLAY_ARG_SORT", "true");
+            //this.Config.SetParamValue("MINIMIZE_LEMMAS_STRUCT", "true");
+            //this.Config.SetParamValue("MODEL_DISPLAY_ARG_SORT", "true");
 
 
 
-            //c.SetParamValue("enable-cores", "true");
+            //this.Config.SetParamValue("enable-cores", "true");
 
-            //c.SetParamValue("DISPLAY_PROOF", "true");
-            //c.SetParamValue("PROOF_MODE", "1"); // BUG: DO NOT USE THIS OPTION, IT CAN CAUSE FORMULAS TO TOGGLE SATISFIABILITY
+            //this.Config.SetParamValue("DISPLAY_PROOF", "true");
+            //this.Config.SetParamValue("PROOF_MODE", "1"); // BUG: DO NOT USE THIS OPTION, IT CAN CAUSE FORMULAS TO TOGGLE SATISFIABILITY
 
-            this._z3 = new Z3Wrapper(c);
+            this.Z3 = new Z3Wrapper(this.Config);
             this.Z3.OpenLog("asserted.log");
 
             this._intType = Z3.MkIntSort();
@@ -388,20 +408,7 @@ namespace phyea.controller
                     }
             }
 
-            if (System.Environment.MachineName.ToLower().StartsWith("johnso99"))
-            {
-                this._inoutPath = "C:\\Documents and Settings\\tjohnson\\My Documents\\My Dropbox\\Research\\tools\\phyea\\repos\\trunk\\input\\";
-            }
-            else if (System.Environment.MachineName.ToLower().StartsWith("lh-lapto"))
-            {
-                this._inoutPath = "C:\\Users\\tjohnson\\Dropbox\\Research\\tools\\phyea\\repos\\trunk\\input\\";
-            }
-            else
-            {
-                this._inoutPath = "D:\\Dropbox\\Research\\tools\\phyea\\repos\\trunk\\input\\";
-            }
-
-            this.Z3.EnableDebugTrace("debug");
+            //this.Z3.EnableDebugTrace("debug");
         }
 
         /**
@@ -422,6 +429,7 @@ namespace phyea.controller
         public Z3Wrapper Z3
         {
             get { return this._z3; }
+            set { this._z3 = value; }
         }
 
         public Sort RealType
@@ -576,6 +584,22 @@ namespace phyea.controller
             inputFiles.Add(inputFileCount++, "flocking.xml");
             inputFiles.Add(inputFileCount++, "flocking_buggy.xml");
 
+            if (System.Environment.MachineName.ToLower().StartsWith("johnso99"))
+            {
+                Instance._inoutPath = "C:\\Documents and Settings\\tjohnson\\My Documents\\My Dropbox\\Research\\tools\\passel\\repos\\trunk\\input\\";
+            }
+            else if (System.Environment.MachineName.ToLower().StartsWith("lh-lapto"))
+            {
+                Instance._inoutPath = "C:\\Users\\tjohnson\\Dropbox\\Research\\tools\\passel\\repos\\trunk\\input\\";
+            }
+            else
+            {
+                Instance._inoutPath = Directory.GetCurrentDirectory();
+                //this._inoutPath = "D:\\Dropbox\\Research\\tools\\passel\\repos\\trunk\\input\\";
+            }
+            Instance._inoutPath = Directory.GetCurrentDirectory() + "\\input\\"; // uncomment for release version
+            Console.WriteLine("Using directory path: " + Instance._inoutPath);
+
 
             Console.WriteLine("Select an input file: \n\r");
             foreach (var f in inputFiles)
@@ -644,24 +668,24 @@ namespace phyea.controller
                 }
             }
 
+            // check each file
             foreach (String f in Instance._inputFiles)
             {
+                Instance.InitializeZ3();
+
                 Instance._inputFile = f;
                 Instance._inputFilePath = Instance._inoutPath + f;
 
                 Console.Write("Checking file: {0}\n\r", Instance._inputFilePath);
 
-                String outFilename;
-                outFilename = Instance._inoutPath + "..\\output\\output" + "-" + Instance._inputFile.Split('.')[0] + "-" + System.DateTime.Now.ToString("s").Replace(":", "-") + ".log";
+                String outFilename = Instance._inoutPath + "..\\output\\output" + "-" + Instance._inputFile.Split('.')[0] + "-" + System.DateTime.Now.ToString("s").Replace(":", "-") + ".log";
 
                 //Console.Clear();
                 lock (Console.Out)
                 {
                     // redirect console output to file
                     StreamWriter fileOutput;
-                    TextWriter oldOutput;
-
-                    oldOutput = Console.Out;
+                    TextWriter oldOutput = Console.Out;
                     fileOutput = new StreamWriter(
                         new FileStream(outFilename, FileMode.Create)
                     );
@@ -671,8 +695,6 @@ namespace phyea.controller
                 }
 
                 Console.Write("File: {0}\n\r\n\r", Instance._inputFilePath);
-
-                Instance.InitializeZ3();
 
                 ISmtSymbols smtSymbols = new SymbolsZ3();
 
@@ -727,7 +749,6 @@ namespace phyea.controller
 
                 Instance.Sys = ParseHyXML.ParseFile(Instance._inputFilePath);
 
-
                 if (Instance._inputFile.Contains("sats"))
                 {
                     // want to use a macro, e.g.: http://stackoverflow.com/questions/9313616/quantifier-in-z3
@@ -755,6 +776,8 @@ namespace phyea.controller
 
 
                     //Sort[] indexByIndex = { Instance.IndexType, Instance.IndexType };
+                    /** TODO: TRY NEXT
+                    
                     FuncDecl pathFunc = Instance.Z3.MkFuncDecl("path", Instance.IndexType, Instance.IndexType, Instance.Z3.MkBoolSort());
                     Term pathTerm = Instance.Z3.MkApp(pathFunc, Instance.Indices["i"], Instance.Indices["j"]);
                     Instance.Params.Add("path", pathTerm);
@@ -766,7 +789,7 @@ namespace phyea.controller
                     Term nextEq = Instance.Z3.MkEq(Instance.IndexedVariables[new KeyValuePair<string, string>("next", "k")], Instance.Indices["j"]);
                     Term existsPart = Instance.Z3.MkExists(0, new Term[] { Instance.Indices["k"] }, null, pathTermik & nextEq);
                     Instance.Z3.AssertCnstr(Instance.Z3.MkIff(Instance.Z3.MkEq(pathTerm, Instance.Z3.MkTrue()), iNeqj & existsPart)); // inductive case
-
+                    */
                     //Term pt = Instance.Z3.MkForall(0, new Term[] { Instance.Indices["i"], Instance.Indices["j"] }, null, );
                     //Property p = new Property();
                     //Instance.Sys.Properties.Add(p);
@@ -774,24 +797,24 @@ namespace phyea.controller
 
 
                 // add constraints on index variables (they are between 1 and N)
-                foreach (var pair in Instance._indices)
-                {
+                //foreach (var pair in Instance._indices)
+                //{
                     // 1 <= i <= N, 1 <= j <= N, etc.
                     //                Instance.Z3.AssertCnstr(Instance.Z3.MkGe(pair.Value, int_one));
                     //                Instance.Z3.AssertCnstr(Instance.Z3.MkLe(pair.Value, Instance.Params["N"])); // todo: error handling, what if we don't have this parameter in the specification file?
-                }
+                //}
 
                 // counter / environment abstraction
                 //AbstractHybridAutomaton aha = new AbstractHybridAutomaton(sys, (AConcreteHybridAutomaton)sys.HybridAutomata.First());
+                //PrintPhaver.writeAbstractSystem(aha, "output.pha", PrintPhaver.OutputMode.phaver);
 
                 // inductive invariant checking for small model theorem
                 Instance.Sys.checkInductiveInvariants();
 
-                //PrintPhaver.writeAbstractSystem(aha, "output.pha", PrintPhaver.OutputMode.phaver);
+                Instance.Z3.CloseLog();
+                Instance.Config.Dispose();
+                Instance.Z3.Dispose();
             }
-
-            Instance.Z3.CloseLog();
-            Instance.Z3.Dispose();
         }
 
         /**
@@ -801,6 +824,5 @@ namespace phyea.controller
         {
             return s.Replace("\n", "").Replace("\r", "").Replace("  ", "");
         }
-
     }
 }

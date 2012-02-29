@@ -8,8 +8,8 @@
     <ProjectGuid>{76980A74-E105-48B3-9F06-008AF6162711}</ProjectGuid>
     <OutputType>Exe</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>phyea</RootNamespace>
-    <AssemblyName>phyea</AssemblyName>
+    <RootNamespace>passel</RootNamespace>
+    <AssemblyName>passel</AssemblyName>
     <TargetFrameworkVersion>v4.0</TargetFrameworkVersion>
     <TargetFrameworkProfile>Client</TargetFrameworkProfile>
     <FileAlignment>512</FileAlignment>
