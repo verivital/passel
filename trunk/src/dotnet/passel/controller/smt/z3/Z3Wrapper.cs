@@ -11,38 +11,56 @@ namespace passel.controller.smt.z3
 {
     public class Z3Wrapper : Microsoft.Z3.Context
     {
-        public Z3Wrapper(Config c) :
-            base(c)
+        public enum PrintFormatMode { latex, phaver };
+
+        public Z3Wrapper(Dictionary<string,string> c)
+            : base(c)
         {
+            this.Assumptions = new List<BoolExpr>();
+            //this.slvr = this.MkSolver();
+            //this.slvr = this.MkSimpleSolver();
+            // doesn't seem to allow nested tactics.... (apply (then simplify propagate-values split-clause propagate-ineqs))
+            this.slvr = this.MkSolver(); // (par-or smt qe)
+            //this.slvr.Parameters.Add("mbqi", true);
         }
+
+        /**
+         * Asserted assumptions
+         */
+        public List<BoolExpr> Assumptions;
+
+        public Solver slvr;
 
         /**
         * Replace all references to a function declaration in a tree of terms
         */
-        public void replaceFuncDecl(ref Term origReplaced, Term orig, FuncDecl find, FuncDecl replace, Boolean byString)
+        public void replaceFuncDecl(ref Expr origReplaced, Expr orig, FuncDecl find, FuncDecl replace, Boolean byString)
         {
             if (orig != null)
             {
-                if (orig.GetKind() == TermKind.App && orig.GetAppDecl().Equals(find) || (byString && orig.ToString().Equals(find.ToString())))
+                if (orig.ASTKind == Z3_ast_kind.Z3_APP_AST && orig.FuncDecl.Equals(find) || (byString && orig.ToString().Equals(find.ToString())))
                 {
-                    origReplaced = Controller.Instance.Z3.MkApp(replace, orig.GetAppArgs());
+                    origReplaced = Controller.Instance.Z3.MkApp(replace, orig.Args);
                 }
                 try
                 {
-                    Term[] ts = null;
+                    Expr[] ts = null;
 
-                    switch (orig.GetKind())
+                    switch (orig.ASTKind)
                     {
-                        case TermKind.Quantifier:
-                            ts = new Term[] { orig.GetQuantifier().Body }; // can't do it this way: we need a pointer to the original memory!
+                        case Z3_ast_kind.Z3_QUANTIFIER_AST:
+                            Quantifier q = (Quantifier)orig;
+                            //ts = new Term[] { orig.GetQuantifier().Body }; // can't do it this way: we need a pointer to the original memory!
+                            ts = new Expr[] { q.Body };
+                            
                             break;
-                        case TermKind.App:
+                        case Z3_ast_kind.Z3_APP_AST:
                             //FuncDecl fd = orig.GetAppDecl(); // todo: do the replacement on this---make another function do this replacement only for priming and unpriming (will be much faster)
-                            ts = orig.GetAppArgs();
+                            ts = orig.Args;
                             break;
-                        case TermKind.Numeral: // bottom of tree
+                        case Z3_ast_kind.Z3_NUMERAL_AST: // bottom of tree
                             return;
-                        case TermKind.Var:
+                        case Z3_ast_kind.Z3_VAR_AST:
                             return;
                         default:
                             return;
@@ -55,20 +73,23 @@ namespace passel.controller.smt.z3
                             replaceFuncDecl(ref ts[i], ts[i], find, replace, byString);
                         }
                     }
+
+
                     // call term modifier from api
 
                     // quantifiers are very nasty to deal with (due to renaming bound variables in scope, etc.)
-                    if (origReplaced.GetKind() == TermKind.Quantifier)
+                    if (origReplaced.ASTKind == Z3_ast_kind.Z3_QUANTIFIER_AST)
                     {
-                        Quantifier q = origReplaced.GetQuantifier();
-                        origReplaced = Controller.Instance.Z3.MkQuantifier(q.IsForall, 0, q.Patterns, q.NoPatterns, q.Sorts, q.Names, ts[0]);
+                        Quantifier q = (Quantifier)origReplaced; // todo: check
+                        origReplaced = Controller.Instance.Z3.MkQuantifier(q.IsUniversal, q.BoundVariableSorts, q.BoundVariableNames, ts[0]);
                     }
                     else
                     {
-                        origReplaced = this.UpdateTerm(origReplaced, ts);
+                        origReplaced.Update(ts);
+                        //origReplaced = origReplaced.Substitute(new Expr[] {origReplaced}, ts); // todo: check if correct
                     }
                 }
-                catch (Microsoft.Z3.Z3Error e)
+                catch (Microsoft.Z3.Z3Exception e)
                 {
                 }
             }
@@ -76,8 +97,9 @@ namespace passel.controller.smt.z3
 
         /**
          * Replace a term in a tree of terms
-         */
-        public void replaceTerm(ref Term origReplaced, Term orig, Term find, Term replace, Boolean byString)
+         * DEPRECATED BY Z3 4.0 Expr.Substitute(from,to)
+         *
+        public void replaceTerm(ref Expr origReplaced, Expr orig, Expr find, Expr replace, Boolean byString)
         {
             if (orig != null)
             {
@@ -88,20 +110,20 @@ namespace passel.controller.smt.z3
                 }
                 try
                 {
-                    Term[] ts;
+                    Expr[] ts;
 
-                    switch (orig.GetKind())
+                    switch (orig.ASTKind)
                     {
-                        case TermKind.Quantifier:
-                            ts = new Term[] { orig.GetQuantifier().Body };
+                        case Z3_ast_kind.Z3_QUANTIFIER_AST:
+                            ts = new Expr[] { ((Quantifier)orig).Body };
                             break;
-                        case TermKind.App:
-                            FuncDecl fd = orig.GetAppDecl(); // todo: do the replacement on this---make another function do this replacement only for priming and unpriming (will be much faster)
-                            ts = orig.GetAppArgs();
+                        case Z3_ast_kind.Z3_APP_AST:
+                            FuncDecl fd = orig.FuncDecl; // TODO: do the replacement on this---make another function do this replacement only for priming and unpriming (will be much faster)
+                            ts = orig.Args;
                             break;
-                        case TermKind.Numeral: // bottom of tree
+                        case Z3_ast_kind.Z3_NUMERAL_AST: // bottom of tree
                             return;
-                        case TermKind.Var:
+                        case Z3_ast_kind.Z3_VAR_AST:
                             return;
                         default:
                             return;
@@ -117,27 +139,31 @@ namespace passel.controller.smt.z3
                     //{
 
                     // quantifiers are very nasty to deal with (due to renaming bound variables in scope, etc.)
-                    if (origReplaced.GetKind() == TermKind.Quantifier)
+                    if (origReplaced.ASTKind == Z3_ast_kind.Z3_QUANTIFIER_AST)
                     {
-                        Quantifier q = origReplaced.GetQuantifier();
-                        origReplaced = Controller.Instance.Z3.MkQuantifier(q.IsForall, 0, q.Patterns, q.NoPatterns, q.Sorts, q.Names, ts[0]);
+                        Quantifier q = (Quantifier)origReplaced; // TODO: check
+                        origReplaced = Controller.Instance.Z3.MkQuantifier(q.IsUniversal, q.BoundVariableSorts, q.BoundVariableNames, ts[0]);
                     }
                     else
                     {
-                        origReplaced = this.UpdateTerm(origReplaced, ts);
+                        origReplaced.Update(ts);
+                        //origReplaced = this.UpdateTerm(origReplaced, ts); // TODO: fix
+                        //origReplaced = origReplaced.Substitute(new Expr[] { origReplaced }, ts); // todo: check if correct
                     }
                     //}
                 }
-                catch (Microsoft.Z3.Z3Error e)
+                catch (Microsoft.Z3.Z3Exception e)
                 {
                 }
             }
         }
 
+         * */
+
         /**
          * Find all global variables that are primed in the reset and exclude them from the identity for transitions
          */
-        public List<String> findGlobalVariableResets(Term reset)
+        public List<String> findGlobalVariableResets(Expr reset)
         {
             List<String> vars = new List<String>();
 
@@ -155,7 +181,7 @@ namespace passel.controller.smt.z3
          * Find all indexed variables that are primed in the reset and exclude them from the identity for transitions of the process making the move
          * Example: a process h may move from state a to b, but the clock x[h] may not be reset on this state, thus we must enforce x'[h] = x[h] (counterexamples otherwise)
          */
-        public List<String> findIndexedVariableResets(Term reset)
+        public List<String> findIndexedVariableResets(Expr reset)
         {
             List<String> vars = new List<String>();
 
@@ -189,7 +215,7 @@ namespace passel.controller.smt.z3
         }
 
 
-        public List<String> findIndexedVariableResetsNeg(Term reset)
+        public List<String> findIndexedVariableResetsNeg(Expr reset)
         {
             List<String> vars = new List<String>();
 
@@ -226,7 +252,7 @@ namespace passel.controller.smt.z3
         /**
          * Determine whether a particular function declaration appears in a tree of terms
          */
-        public Boolean findFunc(Term haystack, String needle, Boolean byString)
+        public Boolean findFunc(Expr haystack, String needle, Boolean byString)
         {
             // todo: horrible hack: just search by string
             if (haystack == null)
@@ -236,7 +262,7 @@ namespace passel.controller.smt.z3
             else
             {
                 String t1 = haystack.ToString();
-                return (haystack.ToString().Contains(needle + "'"));
+                return (haystack.ToString().Contains(needle + Controller.PRIME_SUFFIX));
             }
 
             /*
@@ -282,7 +308,7 @@ namespace passel.controller.smt.z3
         /**
         * Determine if a term exists in a tree off terms
         */
-        public Boolean findTerm(Term haystack, Term needle, Boolean byString)
+        public Boolean findTerm(Expr haystack, Expr needle, Boolean byString)
         {
             // todo: horrible hack: just search by string
             if (haystack == null)
@@ -339,7 +365,7 @@ namespace passel.controller.smt.z3
         /**
          * Prime all variables
          */
-        public void primeAllVariables(ref Term origReplaced)
+        public void primeAllVariables(ref Expr origReplaced)
         {
             switch (Controller.Instance.DataOption)
             {
@@ -347,44 +373,147 @@ namespace passel.controller.smt.z3
                     {
                         foreach (var v in Controller.Instance.DataA.IndexedVariableDecl)
                         {
-                            replaceTerm(ref origReplaced, origReplaced, v.Value, Controller.Instance.DataA.IndexedVariableDeclPrimed[v.Key], false);
+                            origReplaced = origReplaced.Substitute(v.Value, Controller.Instance.DataA.IndexedVariableDeclPrimed[v.Key]);
                         }
                         break;
                     }
                 case Controller.DataOptionType.uninterpreted_function:
                 default:
                     {
+                        
                         foreach (var v in Controller.Instance.DataU.IndexedVariableDecl)
                         {
-                            replaceFuncDecl(ref origReplaced, origReplaced, v.Value, Controller.Instance.DataU.IndexedVariableDeclPrimed[v.Key], false);
+                            //origReplaced = origReplaced.Substitute(v.Value, Controller.Instance.DataU.IndexedVariableDeclPrimed[v.Key]);
+                            replaceFuncDecl(ref origReplaced, origReplaced, v.Value, Controller.Instance.DataU.IndexedVariableDeclPrimed[v.Key], false); // TODO: also buggy, doesn't replace properly
                         }
+                         
+                        /*
+                        foreach (var v in Controller.Instance.IndexedVariables)
+                        {
+                            KeyValuePair<string,string> k = new KeyValuePair<string,string>(v.Key.Key + Controller.PRIME_SUFFIX, v.Key.Value);
+                            /*if (origReplaced.IsQuantifier)
+                            {
+                                foreach (Symbol idx in ((Quantifier)origReplaced).BoundVariableNames)
+                                {
+                                    Expr vconst = Controller.Instance.Z3.MkConst(":var 0", ((Quantifier)origReplaced).BoundVariableSorts[0]);
+                                    Expr app = Controller.Instance.Z3.MkApp(v.Value.FuncDecl, new Expr[] {  vconst});
+                                    origReplaced = origReplaced.Substitute(v.Value, Controller.Instance.IndexedVariablesPrimed[k]);
+                                }
+                            }
+                            else
+                            {***** /
+                            origReplaced = origReplaced.SubstituteVars(new Expr[] { Controller.Instance.IndexedVariablesPrimed[k]});
+                                origReplaced = origReplaced.Substitute(v.Value, Controller.Instance.IndexedVariablesPrimed[k]);
+                            //}
+                        }*/
                         break;
                     }
             }
 
             foreach (var v in Controller.Instance.GlobalVariablesPrimed) // uses primed from earlier revision before global variables added in more coherent manner (were parameters with update_type)
             {
-                replaceTerm(ref origReplaced, origReplaced, Controller.Instance.GlobalVariables[v.Key], v.Value, false);
+                origReplaced = origReplaced.Substitute(Controller.Instance.GlobalVariables[v.Key], v.Value);
+            }
+        }
+
+        /**
+         * Unprime all variables
+         */
+        public void unprimeAllVariables(ref Expr origReplaced)
+        {
+            switch (Controller.Instance.DataOption)
+            {
+                case Controller.DataOptionType.array:
+                    {
+                        foreach (var v in Controller.Instance.DataA.IndexedVariableDeclPrimed)
+                        {
+                            origReplaced = origReplaced.Substitute(v.Value, Controller.Instance.DataA.IndexedVariableDecl[v.Key]);
+                        }
+                        break;
+                    }
+                case Controller.DataOptionType.uninterpreted_function:
+                default:
+                    {
+                        
+                        foreach (var v in Controller.Instance.DataU.IndexedVariableDeclPrimed)
+                        {
+                            replaceFuncDecl(ref origReplaced, origReplaced, v.Value, Controller.Instance.DataU.IndexedVariableDecl[v.Key], false);
+                        }
+/*                        foreach (var v in Controller.Instance.IndexedVariables)
+                        {
+                            origReplaced = origReplaced.Substitute(v.Value, Controller.Instance.IndexedVariablesPrimed[v.Key]); // buggy, substitute doesn't work properly on bound variables of quantifiers
+                        }
+ */
+                        break;
+                    }
+            }
+
+            foreach (var v in Controller.Instance.GlobalVariables) // uses primed from earlier revision before global variables added in more coherent manner (were parameters with update_type)
+            {
+                origReplaced = origReplaced.Substitute(Controller.Instance.GlobalVariablesPrimed[v.Key], v.Value);
+            }
+        }
+
+        /**
+         * Unprime all variables, replace with state at round k, and others with state at round k-1
+         */
+        public void unprimeAllVariables(ref Expr origReplaced, int k)
+        {
+            switch (Controller.Instance.DataOption)
+            {
+                case Controller.DataOptionType.array:
+                    {
+                        foreach (var v in Controller.Instance.DataA.IndexedVariableDeclPrimed)
+                        {
+                            // todo: fix for array modeling
+                        }
+                        break;
+                    }
+                case Controller.DataOptionType.uninterpreted_function:
+                default:
+                    {
+                        // replace unprimed by pre-state index
+                        foreach (var v in Controller.Instance.DataU.IndexedVariableDecl)
+                        {
+                            FuncDecl preState = Controller.Instance.Z3.MkFuncDecl(v.Key + (k-1).ToString(), v.Value.Domain, v.Value.Range);
+                            replaceFuncDecl(ref origReplaced, origReplaced, v.Value, preState, false);
+                        }
+                        // replace primed by post-state index (todo: merge with previous loop)
+                        foreach (var v in Controller.Instance.DataU.IndexedVariableDeclPrimed)
+                        {
+                            FuncDecl postState = Controller.Instance.Z3.MkFuncDecl(v.Key + k.ToString(), v.Value.Domain, v.Value.Range);
+                            replaceFuncDecl(ref origReplaced, origReplaced, v.Value, postState, false);
+                        }
+                        break;
+                    }
+            }
+
+            foreach (var v in Controller.Instance.GlobalVariables) // uses primed from earlier revision before global variables added in more coherent manner (were parameters with update_type)
+            {
+                Expr preState = Controller.Instance.Z3.MkConst(v.Key + (k-1).ToString(), v.Value.Sort); // todo: make sure constructed as appropriately typed sorts, not uninterpreted...
+                Expr postState = Controller.Instance.Z3.MkConst(v.Key + k.ToString(), v.Value.Sort);
+                origReplaced = origReplaced.Substitute(v.Value, preState);
+                origReplaced = origReplaced.Substitute(Controller.Instance.GlobalVariablesPrimed[v.Key], postState);
             }
         }
 
         /**
          * Distinct terms
          */
-        public Term MkDistinct(Term t1, Term t2)
+        public Expr MkDistinct(Expr t1, Expr t2)
         {
-            return this.MkDistinct(new Term[] { t1, t2 });
+            return this.MkDistinct(new Expr[] { t1, t2 });
         }
 
         /**
          * Identity function for all processes not making a transition
          * I.e., forall j \neq i . q[j]' = q[j] /\ \ldots /\ g' = g, if global var g is not modified in transition of i
          */
-        public Term forallIdentity(Term indexMakingMove, List<String> globalVariableResets, List<String> indexVariableResets, List<String> universalIndexVariableResets, Term uguardReset)
+        public Expr forallIdentity(Expr indexMakingMove, List<String> globalVariableResets, List<String> indexVariableResets, List<String> universalIndexVariableResets, Expr uguardReset)
         {
-            List<Term> f = new List<Term>();
-            List<Term> outside_forall = new List<Term>();
-            List<Term> bound = new List<Term>();
+            List<BoolExpr> f = new List<BoolExpr>();
+            List<BoolExpr> outside_forall = new List<BoolExpr>();
+            List<Expr> bound = new List<Expr>();
             String idx = "j";
 
             bound.Add(Controller.Instance.Indices[idx]);
@@ -399,11 +528,14 @@ namespace passel.controller.smt.z3
                             if (!universalIndexVariableResets.Contains(v.Key))
                             {
                                 //grab only idx
-                                f.Add(Controller.Instance.Z3.MkEq(Controller.Instance.Z3.MkArraySelect(v.Value, Controller.Instance.Indices[idx]), Controller.Instance.Z3.MkArraySelect(Controller.Instance.DataA.IndexedVariableDeclPrimed[v.Key], Controller.Instance.Indices[idx])));
+                                f.Add(Controller.Instance.Z3.MkEq(Controller.Instance.Z3.MkSelect(v.Value, Controller.Instance.Indices[idx]), Controller.Instance.Z3.MkSelect(Controller.Instance.DataA.IndexedVariableDeclPrimed[v.Key], Controller.Instance.Indices[idx])));
                             }
                             else
                             {
-                                f.Add(uguardReset);
+                                if (uguardReset != null)
+                                {
+                                    f.Add((BoolExpr)uguardReset);
+                                }
                             }
                         }
                         break;
@@ -413,14 +545,17 @@ namespace passel.controller.smt.z3
                     {
                         foreach (var v in Controller.Instance.DataU.IndexedVariableDecl)
                         {
-                            if (!universalIndexVariableResets.Contains(v.Key))
+                            if (universalIndexVariableResets != null && !universalIndexVariableResets.Contains(v.Key))
                             {
                                 //grab only idx
                                 f.Add(Controller.Instance.Z3.MkEq(Controller.Instance.Z3.MkApp(v.Value, Controller.Instance.Indices[idx]), Controller.Instance.Z3.MkApp(Controller.Instance.DataU.IndexedVariableDeclPrimed[v.Key], Controller.Instance.Indices[idx])));
                             }
                             else
                             {
-                                f.Add(uguardReset);
+                                if (uguardReset != null)
+                                {
+                                    f.Add((BoolExpr)uguardReset);
+                                }
                             }
                         }
                         break;
@@ -430,54 +565,61 @@ namespace passel.controller.smt.z3
             // set equality on all unprimed pre-state and primed post-state of all indexed variables ***NOT APPEARING IN THE RESET*** for the process making the move (e.g., x[h]' == x[h], if x[h] is not reset)
             if (indexMakingMove != null)
             {
-                foreach (var v in indexVariableResets)
+                if (indexVariableResets != null)
                 {
-                    switch (Controller.Instance.DataOption)
+                    foreach (var v in indexVariableResets)
                     {
-                        case Controller.DataOptionType.array:
-                            {
-                                outside_forall.Add(Controller.Instance.Z3.MkEq(Controller.Instance.Z3.MkArraySelect(Controller.Instance.DataA.IndexedVariableDecl[v], indexMakingMove), Controller.Instance.Z3.MkArraySelect(Controller.Instance.DataA.IndexedVariableDeclPrimed[v], indexMakingMove)));
-                                break;
-                            }
-                        case Controller.DataOptionType.uninterpreted_function:
-                        default:
-                            {
-                                outside_forall.Add(Controller.Instance.Z3.MkEq(Controller.Instance.Z3.MkApp(Controller.Instance.DataU.IndexedVariableDecl[v], indexMakingMove), Controller.Instance.Z3.MkApp(Controller.Instance.DataU.IndexedVariableDeclPrimed[v], indexMakingMove)));
-                                break;
-                            }
+                        switch (Controller.Instance.DataOption)
+                        {
+                            case Controller.DataOptionType.array:
+                                {
+                                    outside_forall.Add(Controller.Instance.Z3.MkEq(Controller.Instance.Z3.MkSelect(Controller.Instance.DataA.IndexedVariableDecl[v], indexMakingMove), Controller.Instance.Z3.MkSelect(Controller.Instance.DataA.IndexedVariableDeclPrimed[v], indexMakingMove)));
+                                    break;
+                                }
+                            case Controller.DataOptionType.uninterpreted_function:
+                            default:
+                                {
+                                    outside_forall.Add(Controller.Instance.Z3.MkEq(Controller.Instance.Z3.MkApp(Controller.Instance.DataU.IndexedVariableDecl[v], indexMakingMove), Controller.Instance.Z3.MkApp(Controller.Instance.DataU.IndexedVariableDeclPrimed[v], indexMakingMove)));
+                                    break;
+                                }
+                        }
                     }
                 }
             }
 
-            // set equality on all unprimed pre-state and primed post-tate of all global variables ***NOT APPEARING IN THE RESET*** (e.g., g' == g, if g is not reset)
-            foreach (var v in globalVariableResets)
+            if (globalVariableResets != null)
             {
-                outside_forall.Add(Controller.Instance.Z3.MkEq(Controller.Instance.GlobalVariables[v], Controller.Instance.GlobalVariablesPrimed[v]));
+                // set equality on all unprimed pre-state and primed post-tate of all global variables ***NOT APPEARING IN THE RESET*** (e.g., g' == g, if g is not reset)
+                foreach (var v in globalVariableResets)
+                {
+                    outside_forall.Add(Controller.Instance.Z3.MkEq(Controller.Instance.GlobalVariables[v], Controller.Instance.GlobalVariablesPrimed[v]));
+                }
             }
-            List<Term> ibds = new List<Term>();
+            List<BoolExpr> ibds = new List<BoolExpr>();
             if (Controller.Instance.IndexOption == Controller.IndexOptionType.naturalOneToN)
             {
-                ibds.Add(Controller.Instance.Indices[idx] >= Controller.Instance.IndexOne);
-                ibds.Add(Controller.Instance.Indices[idx] <= Controller.Instance.IndexN);
+                ibds.Add(this.MkGe((ArithExpr)Controller.Instance.Indices[idx], (ArithExpr)Controller.Instance.IndexOne));
+                ibds.Add(this.MkLe((ArithExpr)Controller.Instance.Indices[idx], (ArithExpr)Controller.Instance.IndexN));
             }
 
-            Term ret;
-            Term fand = Controller.Instance.Z3.MkAnd(f.ToArray());
+            Expr ret;
+            Expr fand = Controller.Instance.Z3.MkAnd(f.ToArray());
             if (indexMakingMove != null)
             {
-                Term distinct = Controller.Instance.Z3.MkDistinct(bound.First(), indexMakingMove);
+                Expr distinct = Controller.Instance.Z3.MkDistinct(bound.First(), indexMakingMove);
 
                 switch (Controller.Instance.IndexOption)
                 {
                     case Controller.IndexOptionType.integer:
-                        ret = Controller.Instance.Z3.MkForall(0, bound.ToArray(), null, Controller.Instance.Z3.MkImplies(distinct, fand)); // todo: check order of this distinct...in antecedent or consequent?
+                        ret = Controller.Instance.Z3.MkForall(bound.ToArray(), Controller.Instance.Z3.MkImplies((BoolExpr)distinct, (BoolExpr)fand)); // todo: check order of this distinct...in antecedent or consequent?
                         break;
                     case Controller.IndexOptionType.naturalOneToN:
-                        ret = Controller.Instance.Z3.MkForall(0, bound.ToArray(), null, Controller.Instance.Z3.MkImplies(Controller.Instance.Z3.MkAnd(ibds.ToArray()) & distinct, fand)); // todo: check order of this distinct...in antecedent or consequent?
+                        ibds.Add((BoolExpr)distinct);
+                        ret = Controller.Instance.Z3.MkForall(bound.ToArray(), Controller.Instance.Z3.MkImplies(Controller.Instance.Z3.MkAnd(ibds.ToArray()), (BoolExpr)fand)); // todo: check order of this distinct...in antecedent or consequent?
                         break;
                     case Controller.IndexOptionType.enumeration:
                     default:
-                        ret = Controller.Instance.Z3.MkForall(0, bound.ToArray(), null, Controller.Instance.Z3.MkImplies(distinct, fand)); // todo: check order of this distinct...in antecedent or consequent?
+                        ret = Controller.Instance.Z3.MkForall(bound.ToArray(), Controller.Instance.Z3.MkImplies((BoolExpr)distinct, (BoolExpr)fand)); // todo: check order of this distinct...in antecedent or consequent?
                         break;
                 }
             }
@@ -486,14 +628,14 @@ namespace passel.controller.smt.z3
                 switch (Controller.Instance.IndexOption)
                 {
                     case Controller.IndexOptionType.integer:
-                        ret = Controller.Instance.Z3.MkForall(0, bound.ToArray(), null, fand); // todo: check order of this distinct...in antecedent or consequent?
+                        ret = Controller.Instance.Z3.MkForall(bound.ToArray(), fand); // todo: check order of this distinct...in antecedent or consequent?
                         break;
                     case Controller.IndexOptionType.naturalOneToN:
-                        ret = Controller.Instance.Z3.MkForall(0, bound.ToArray(), null, Controller.Instance.Z3.MkImplies(Controller.Instance.Z3.MkAnd(ibds.ToArray()), fand)); // todo: check order of this distinct...in antecedent or consequent?
+                        ret = Controller.Instance.Z3.MkForall(bound.ToArray(), Controller.Instance.Z3.MkImplies(Controller.Instance.Z3.MkAnd((BoolExpr[])ibds.ToArray()), (BoolExpr)fand)); // todo: check order of this distinct...in antecedent or consequent?
                         break;
                     case Controller.IndexOptionType.enumeration:
                     default:
-                        ret = Controller.Instance.Z3.MkForall(0, bound.ToArray(), null, fand); // todo: check order of this distinct...in antecedent or consequent?
+                        ret = Controller.Instance.Z3.MkForall(bound.ToArray(), fand); // todo: check order of this distinct...in antecedent or consequent?
                         break;
                 }
             }
@@ -501,7 +643,7 @@ namespace passel.controller.smt.z3
             // only add the outside forall constraints if there are any
             if (outside_forall.Count > 0)
             {
-                outside_forall.Add(ret); // prettier printing (fewer ands)
+                outside_forall.Add((BoolExpr)ret); // prettier printing (fewer ands)
                 ret = Controller.Instance.Z3.MkAnd(outside_forall.ToArray());
             }
             return ret;
@@ -513,9 +655,9 @@ namespace passel.controller.smt.z3
          * 
          * indexForall is the name of the universally quantified index
          */
-        public Term timeIdentity(Term indexForall)
+        public Expr timeIdentity(Expr indexForall)
         {
-            List<Term> f = new List<Term>();
+            List<BoolExpr> f = new List<BoolExpr>();
 
             // set equality on all non-clock variables
             switch (Controller.Instance.DataOption)
@@ -526,7 +668,7 @@ namespace passel.controller.smt.z3
                         {
                             if (v.Key.Equals("Q", StringComparison.InvariantCultureIgnoreCase))
                             {
-                                f.Add(Controller.Instance.Z3.MkEq(Controller.Instance.Z3.MkArraySelect(v.Value, indexForall), Controller.Instance.Z3.MkArraySelect(Controller.Instance.DataA.IndexedVariableDeclPrimed[v.Key], indexForall)));
+                                f.Add(Controller.Instance.Z3.MkEq(Controller.Instance.Z3.MkSelect(v.Value, indexForall), Controller.Instance.Z3.MkSelect(Controller.Instance.DataA.IndexedVariableDeclPrimed[v.Key], indexForall)));
                                 continue;
                             }
                             foreach (var ha in Controller.Instance.Sys.HybridAutomata)
@@ -534,7 +676,7 @@ namespace passel.controller.smt.z3
                                 if (ha.GetVariableByName(v.Key).UpdateType != Variable.VarUpdateType.continuous)
                                 {
                                     //grab only the universally quantified one
-                                    f.Add(Controller.Instance.Z3.MkEq(Controller.Instance.Z3.MkArraySelect(v.Value, indexForall), Controller.Instance.Z3.MkArraySelect(Controller.Instance.DataA.IndexedVariableDeclPrimed[v.Key], indexForall)));
+                                    f.Add(Controller.Instance.Z3.MkEq(Controller.Instance.Z3.MkSelect(v.Value, indexForall), Controller.Instance.Z3.MkSelect(Controller.Instance.DataA.IndexedVariableDeclPrimed[v.Key], indexForall)));
                                 }
                             }
                         }
@@ -592,9 +734,9 @@ namespace passel.controller.smt.z3
          * 
          * indexForall is the name of the universally quantified index
          */
-        public Term timeNoFlowIdentity(Term indexForall)
+        public Expr timeNoFlowIdentity(Expr indexForall)
         {
-            List<Term> f = new List<Term>();
+            List<Expr> f = new List<Expr>();
 
             // set equality on all non-clock variables
             switch (Controller.Instance.DataOption)
@@ -612,7 +754,7 @@ namespace passel.controller.smt.z3
                                     if (ha.GetVariableByName(v.Key).UpdateType == Variable.VarUpdateType.continuous)
                                     {
                                         //grab only the universally quantified one
-                                        f.Add(Controller.Instance.Z3.MkEq(Controller.Instance.Z3.MkArraySelect(v.Value, indexForall), Controller.Instance.Z3.MkArraySelect(Controller.Instance.DataA.IndexedVariableDeclPrimed[v.Key], indexForall)));
+                                        f.Add(Controller.Instance.Z3.MkEq(Controller.Instance.Z3.MkSelect(v.Value, indexForall), Controller.Instance.Z3.MkSelect(Controller.Instance.DataA.IndexedVariableDeclPrimed[v.Key], indexForall)));
                                     }
                                 }
                             }
@@ -651,7 +793,7 @@ namespace passel.controller.smt.z3
 
             if (f.Count > 1)
             {
-                return Controller.Instance.Z3.MkAnd(f.ToArray());
+                return Controller.Instance.Z3.MkAnd((BoolExpr[])f.ToArray());
             }
             else if (f.Count == 1)
             {
@@ -662,23 +804,23 @@ namespace passel.controller.smt.z3
             }
         }
 
-        public Term replaceIndices(Term t, Term[] oldIndices, Term[] newIndices)
+        public Expr replaceIndices(Expr t, Expr[] oldIndices, Expr[] newIndices)
         {
             uint c = uint.MaxValue;
 
             if (oldIndices.Length == oldIndices.Length)
             {
-                Term[] placeholder = new Term[oldIndices.Length];
+                Expr[] placeholder = new Expr[oldIndices.Length];
                 for (int i = 0; i < oldIndices.Length; i++)
                 {
-                    placeholder[i] = this.MkIntNumeral(c);
-                    this.replaceTerm(ref t, t, oldIndices[i], placeholder[i], false); // i -> p
+                    placeholder[i] = this.MkInt(c);
+                    t = t.Substitute(oldIndices[i], placeholder[i]); // i -> p
                     c--;
                 }
 
                 for (int i = 0; i < oldIndices.Length; i++)
                 {
-                    this.replaceTerm(ref t, t, placeholder[i], newIndices[i], false); // p -> j
+                    t = t.Substitute(placeholder[i], newIndices[i]); // p -> j
                 }
             }
             return t;
@@ -687,24 +829,26 @@ namespace passel.controller.smt.z3
         /**
          * Macro for a simple max term: if a >= b, then return a, else return b
          */
-        public Term MkMax(Term a, Term b)
+        public Expr MkMax(Expr a, Expr b)
         {
-            return this.MkIte(a >= b, a, b);
+            return this.MkITE( this.MkGe((ArithExpr)a, (ArithExpr)b), a, b);
         }
 
         /**
          * Macro for a simple min term: if a <= b, then return a, else return b
          */
-        public Term MkMin(Term a, Term b)
+        public Expr MkMin(Expr a, Expr b)
         {
-            return this.MkIte(a <= b, a, b);
+            return this.MkITE( this.MkLe((ArithExpr)a, (ArithExpr)b), a, b);
         }
 
         /**
          * Check a term
          */
-        public Boolean checkTerm(Term t, out Model model, out Term[] core, params Boolean[] options)
+        public Boolean checkTerm(Expr t, out Model model, out Expr[] core, params Boolean[] options)
         {
+            model = null;
+            core = null;
             Boolean debug = false;
             try
             {
@@ -720,53 +864,54 @@ namespace passel.controller.smt.z3
                 Console.WriteLine("Term:\n\r" + t.ToString());
             }
 
-            /* save the current state of the context */
-            this.Push();
+            //this.slvr = this.MkSolver(); // WAY slower
+            //this.slvr.Assert(this.Assumptions.ToArray());
 
-            this.AssertCnstr(t);
-            Term[] assumptions = null;
+            // save the current state of the context
+            this.slvr.Push();
+
+            this.slvr.Assert((BoolExpr)t);
+            Expr[] assumptions = null;
             //Term[] assumptions = new Term[] { t };
 
-            Term proof = null;
+            Expr proof = null;
             //switch (this.CheckAndGetModel(out model))
             //switch (this.CheckAssumptions(out model, new Term[] {this.GetAssignments()}, out proof, out core))
-            switch (this.CheckAssumptions(out model, assumptions, out proof, out core))
+            switch (this.slvr.Check())
             {
-                case LBool.False:
+                case Status.UNSATISFIABLE:
                     if (debug)
                     {
                         Console.WriteLine("unsat");
                     }
                     ret = false;
+                    core = slvr.UnsatCore;
                     break;
-                case LBool.Undef:
+                case Status.UNKNOWN:
                     if (debug)
                     {
                         Console.WriteLine("unknown");
                     }
                     ret = true; // may occur semantics
                     break;
-                case LBool.True:
+                case Status.SATISFIABLE:
                     if (debug)
                     {
                         Console.WriteLine("sat");
-                        model.Display(Console.Out);
+                        Console.WriteLine(slvr.Model.ToString());
                     }
                     ret = true;
+                    model = slvr.Model;
                     break;
-            }
-            if (model != null)
-            {
-                //model.Dispose(); // todo: add a smarter way to handle this, currently done elsewhere after printing
             }
 
             if (debug)
             {
-                this.DisplayStatistics(Console.Out);
+                Console.WriteLine(this.slvr.Statistics.ToString());
             }
             //statistics = this.StatisticsToString();
 
-            this.Pop(1);
+            this.slvr.Pop(1);
 
             return ret;
         }
@@ -774,8 +919,10 @@ namespace passel.controller.smt.z3
         /**
          * Prove a term (negation is unsat)
          */
-        public Boolean proveTerm(Term t, out Model model, out Term[] core, out String statistics, params Boolean[] options)
+        public Boolean proveTerm(Expr t, out Model model, out Expr[] core, out String statistics, params Boolean[] options)
         {
+            model = null;
+            core = null;
             Boolean debug = false;
             try
             {
@@ -791,29 +938,28 @@ namespace passel.controller.smt.z3
                 Console.WriteLine("Term:\n\r" + t.ToString());
             }
 
-            /* save the current state of the context */
-            this.Push();
+            //this.slvr = this.MkSolver(); // WAY slower
+            //this.slvr.Assert(this.Assumptions.ToArray());
 
-            this.AssertCnstr( !t); // proved if negation is unsat
-            Term[] assumptions = null;
-            //Term[] assumptions = new Term[] { !t };
+            // save the current state of the context
+            this.slvr.Push();
+
+            this.slvr.Assert( this.MkNot((BoolExpr)t)); // proved if negation is unsat
             
-            this.Push();
-            Console.WriteLine("\n\r\n\rAttempting to prove the following: \n\r" + this.GetAssignments().ToString() + "\n\r\n\r");
-            this.Pop(1);
+            Console.WriteLine("\n\r\n\rAttempting to prove the following: \n\r" + this.ExprArrayToString(this.slvr.Assertions) + "\n\r\n\r");
 
-            Term proof = null;
-            //switch (this.CheckAndGetModel(out model))
-            switch (this.CheckAssumptions(out model, assumptions, out proof, out core))
+            //switch (this.slvr.Check( this.MkNot((BoolExpr)t) ))
+            switch (this.slvr.Check())
             {
-                case LBool.False:
+                case Status.UNSATISFIABLE:
                     if (debug)
                     {
                         Console.WriteLine("unsat: proved claim");
                     }
+                    core = slvr.UnsatCore;
                     ret = true; // proved if negation is unsat
                     break;
-                case LBool.Undef:
+                case Status.UNKNOWN:
                     if (debug)
                     {
                         Console.WriteLine("unknown: quantifier elimination failure");
@@ -821,48 +967,64 @@ namespace passel.controller.smt.z3
                     ret = false; // may occur semantics
                     // todo: add breakpoint back and check when this gets hit
                     break;
-                case LBool.True:
+                case Status.SATISFIABLE:
+                    model = slvr.Model;
                     if (debug)
                     {
                         Console.WriteLine("sat: disproved claim");
-                        model.Display(Console.Out);
+                        Console.WriteLine(model.ToString());
                     }
                     ret = false;
                     break;
             }
-            if (model != null)
-            {
-                //model.Dispose(); // todo: add a smarter way to handle this: current printing model elsewhere
-            }
 
             if (debug)
             {
-                this.DisplayStatistics(Console.Out);
+                Console.WriteLine(this.slvr.Statistics.ToString());
             }
-            statistics = this.StatisticsToString();
+            statistics = this.slvr.Statistics.ToString();
 
-            /* restore context */
-            this.Pop(1);
+            // restore context
+            this.slvr.Pop(1);
 
             return ret;
+        }
+
+        public String ExprArrayToString(Expr[] inp)
+        {
+            String o = "";
+            if (inp != null)
+            {
+                foreach (var v in inp)
+                {
+                    o += v.ToString() + "\n";
+                }
+            }
+            return o;
         }
 
         /**
          * Print a term as a latex string
          */
-        public String ToStringLatex(Term t)
+        
+        public String ToStringFormatted(Expr t, PrintFormatMode o)
         {
-            String s = "";
-            TermKind k = t.GetKind();
+            if (t == null)
+            {
+                return "";
+            }
 
+            String s = "";
+            Z3_ast_kind k = t.ASTKind;
+            String tmp = "";
 
             switch (k)
             {
-                case TermKind.Quantifier:
+                case Z3_ast_kind.Z3_QUANTIFIER_AST:
                     {
-                        Quantifier q = t.GetQuantifier();
+                        Quantifier q = (Quantifier)t;
 
-                        if (q.IsForall)
+                        if (q.IsUniversal)
                         {
                             s += "\\forall ";
                         }
@@ -872,83 +1034,109 @@ namespace passel.controller.smt.z3
                         }
 
                         int i = 0;
-                        int j = q.Names.Length - 1;
-                        foreach (Symbol y in q.Names)
+                        uint j = q.NumBound - 1;
+                        Expr b = null;
+                        foreach (Symbol y in q.BoundVariableNames)
                         {
                             s += y.ToString();// +"\\in ";
-                            if (i < q.Names.Length - 1)
+                            if (i < q.NumBound - 1)
                             {
                                 s += ", ";
                             }
-                            if (q.Sorts[i].ToString() == "Int")
+                            if (q.BoundVariableSorts[i].ToString() == "Int")
                             {
                                 //s += "\\mathbb{Z}";
                                 //s += "\\ID";
                             }
-                            else if (q.Sorts[i].ToString() == "Real")
+                            else if (q.BoundVariableSorts[i].ToString() == "Real")
                             {
                                 //s += "\\mathbb{R}";
                             }
                             else{
                                 //s += q.Sorts[i].ToString();
                             }
-                            this.replaceTerm(ref q.Body, q.Body, Controller.Instance.Z3.MkConst("#" + j.ToString(), q.Sorts[i]), Controller.Instance.Z3.MkConst(y, q.Sorts[i]), true);
+                            b = (Expr)q.Body;
+                            b = b.Substitute(Controller.Instance.Z3.MkConst("#" + j.ToString(), q.BoundVariableSorts[i]), Controller.Instance.Z3.MkConst(y, q.BoundVariableSorts[i])); // TODO: REWRITE FOR Z3 4.0
                             i++;
                             j--;
                         }
 
                         // todo: term replace in q.Body
-                        s += " : " + this.ToStringLatex(q.Body.GetAppArgs()[1]); // hack to avoid printing the indexing assumption
+                        //s += " : " + this.ToStringFormatted(q.Body.GetAppArgs()[1], o); // hack to avoid printing the indexing assumption
+                        if (b.Args.Length >= 2)
+                        {
+                            s += " : " + this.ToStringFormatted(b.Args[1], o);
+                        }
                         break;
                     }
-                case TermKind.Numeral:
+                case Z3_ast_kind.Z3_NUMERAL_AST:
                     {
                         s += t.ToString();
                         break;
                     }
-                case TermKind.Var:
+                case Z3_ast_kind.Z3_VAR_AST:
                     {
                         s += t.ToString();
                         break;
                     }
-                case TermKind.App:
+                case Z3_ast_kind.Z3_APP_AST:
                     {
-                        Term[] args = t.GetAppArgs();
+                        Expr[] args = t.Args;
 
                         if (args != null)
                         {
-                            DeclKind dk = t.GetAppDecl().GetKind();
+                            Z3_decl_kind dk = t.FuncDecl.DeclKind;
                             if (args.Length == 0) // nullary (constants, etc.)
                             {
-                                s += t.ToString();
+                                s += t.FuncDecl.Name.ToString();
                             }
                             else if (args.Length == 1) // unary (but have to avoid some weird types)
                             {
                                 //s += this.DeclKindToStringLatex(dk);
                                 switch (dk)
                                 {
-                                    case DeclKind.Uninterpreted:
+                                    case Z3_decl_kind.Z3_OP_UNINTERPRETED:
                                         {
-                                            s += t.GetAppDecl().GetDeclName();
-                                            s += "[" + this.ToStringLatex(args[0]) + "]";
+                                            tmp = t.FuncDecl.Name.ToString();
+                                            tmp += "[" + this.ToStringFormatted(args[0], o) + "]"; // we do a string replace using brackets for phaver output
+                                            // todo: check generality
+                                            if (tmp.Contains(Controller.PRIME_SUFFIX))
+                                            {
+                                                tmp = tmp.Replace(Controller.PRIME_SUFFIX, "");
+                                                tmp += Controller.PRIME_SUFFIX;
+                                            }
+                                            s += tmp;
                                             break;
                                         }
-                                    case DeclKind.Not:
-                                    case DeclKind.BNeg:
+                                    case Z3_decl_kind.Z3_OP_NOT:
+                                    case Z3_decl_kind.Z3_OP_BNEG:
                                         {
-                                            s += " \\neg " + this.ToStringLatex(args[0]);
+                                            switch (o)
+                                            {
+                                                case PrintFormatMode.phaver:
+                                                    {
+                                                        s += " ! (" + this.ToStringFormatted(args[0], o) + ")";
+                                                        break;
+                                                    }
+                                                case PrintFormatMode.latex: // pass through
+                                                default:
+                                                    {
+                                                        s += " \\neg " + this.ToStringFormatted(args[0], o);
+                                                        break;
+                                                    }
+                                            }
                                             break;
                                         }
-                                    case DeclKind.Difference:
-                                    case DeclKind.Uminus:
-                                    case DeclKind.Sub:
+                                    case Z3_decl_kind.Z3_OP_SET_DIFFERENCE:
+                                    case Z3_decl_kind.Z3_OP_UMINUS:
+                                    case Z3_decl_kind.Z3_OP_SUB:
                                         {
-                                            s += " - " + this.ToStringLatex(args[0]);
+                                            s += " - " + this.ToStringFormatted(args[0], o);
                                             break;
                                         }
                                     default:
                                         {
-                                            s += this.ToStringLatex(args[0]);
+                                            s += this.ToStringFormatted(args[0], o);
                                             break;
                                         }
                                 }
@@ -967,12 +1155,12 @@ namespace passel.controller.smt.z3
                                     }
                                     else
                                     {
-                                        s += this.ToStringLatex(args[i]);
+                                        s += this.ToStringFormatted(args[i], o);
                                     }
 
                                     if (i < args.Length - 1)
                                     {
-                                        s += this.DeclKindToStringLatex(dk);
+                                        s += this.DeclKindToString(dk, o);
                                     }
                                     i++;
                                 }
@@ -984,87 +1172,314 @@ namespace passel.controller.smt.z3
             return s;
         }
 
-        public String DeclKindToStringLatex(DeclKind dk)
+        /**
+         * Convert a declaration kind to string
+         */
+        public String DeclKindToString(Z3_decl_kind dk, PrintFormatMode o)
         {
             String s = "";
             switch (dk)
             {
-
-                case DeclKind.Add:
-                    s += " + ";
+                case Z3_decl_kind.Z3_OP_ADD:
+                    switch (o)
+                    {
+                        case PrintFormatMode.phaver:
+                            {
+                                s += " + ";
+                                break;
+                            }
+                        case PrintFormatMode.latex: // pass through
+                        default:
+                            {
+                                s += " + ";
+                                break;
+                            }
+                    }
                     break;
-                case DeclKind.And:
-                    s += " \\wedge ";
+                case Z3_decl_kind.Z3_OP_AND:
+                    switch (o)
+                    {
+                        case PrintFormatMode.phaver:
+                            {
+                                s += " & ";
+                                break;
+                            }
+                        case PrintFormatMode.latex: // pass through
+                        default:
+                            {
+                                s += " \\wedge ";
+                                break;
+                            }
+                    }
                     break;
-                case DeclKind.Complement:
-                    s += " \\not ";
+                case Z3_decl_kind.Z3_OP_RA_COMPLEMENT: // TODO: check
+                    switch (o)
+                    {
+                        case PrintFormatMode.phaver:
+                            {
+                                s += " ! ";
+                                break;
+                            }
+                        case PrintFormatMode.latex: // pass through
+                        default:
+                            {
+                                s += " \\not ";
+                                break;
+                            }
+                    }
+                    
                     break;
-                case DeclKind.Difference:
-                    s += " \\setminus ";
+                case Z3_decl_kind.Z3_OP_SET_DIFFERENCE:
+                    switch (o)
+                    {
+                        case PrintFormatMode.phaver:
+                            {
+                                s += " - "; // TODO: no equivalent
+                                break;
+                            }
+                        case PrintFormatMode.latex: // pass through
+                        default:
+                            {
+                                s += " \\setminus ";
+                                break;
+                            }
+                    }
                     break;
-                case DeclKind.Distinct:
+                case Z3_decl_kind.Z3_OP_DISTINCT:
                     break;
-                case DeclKind.Div:
-                    s += " / ";
+                case Z3_decl_kind.Z3_OP_DIV:
+                    switch (o)
+                    {
+                        case PrintFormatMode.phaver:
+                            {
+                                s += " / ";
+                                break;
+                            }
+                        case PrintFormatMode.latex: // pass through
+                        default:
+                            {
+                                s += " / ";
+                                break;
+                            }
+                    }
                     break;
-                case DeclKind.Eq:
-                    s += " = ";
+                case Z3_decl_kind.Z3_OP_EQ:
+                    switch (o)
+                    {
+                        case PrintFormatMode.phaver:
+                            {
+                                s += " == ";
+                                break;
+                            }
+                        case PrintFormatMode.latex: // pass through
+                        default:
+                            {
+                                s += " = ";
+                                break;
+                            }
+                    }
                     break;
-                case DeclKind.False:
-                    s += " \\false ";
+                case Z3_decl_kind.Z3_OP_BNEG:
+                    switch (o)
+                    {
+                        case PrintFormatMode.phaver:
+                            {
+                                s += " != ";
+                                break;
+                            }
+                        case PrintFormatMode.latex: // pass through
+                        default:
+                            {
+                                s += " \neq ";
+                                break;
+                            }
+                    }
                     break;
-                case DeclKind.Ge:
-                    s += " \\geq ";
+                case Z3_decl_kind.Z3_OP_FALSE:
+                    switch (o)
+                    {
+                        case PrintFormatMode.phaver:
+                            {
+                                s += " false ";
+                                break;
+                            }
+                        case PrintFormatMode.latex: // pass through
+                        default:
+                            {
+                                s += " \\false ";
+                                break;
+                            }
+                    }
                     break;
-                case DeclKind.Gt:
-                    s += " > ";
+                case Z3_decl_kind.Z3_OP_GE:
+                    switch (o)
+                    {
+                        case PrintFormatMode.phaver:
+                            {
+                                s += " >= ";
+                                break;
+                            }
+                        case PrintFormatMode.latex: // pass through
+                        default:
+                            {
+                                s += " \\geq ";
+                                break;
+                            }
+                    }
                     break;
-                case DeclKind.Iff:
+                case Z3_decl_kind.Z3_OP_GT:
+                    switch (o)
+                    {
+                        case PrintFormatMode.phaver:
+                            {
+                                s += " > ";
+                                break;
+                            }
+                        case PrintFormatMode.latex: // pass through
+                        default:
+                            {
+                                s += " > ";
+                                break;
+                            }
+                    }
+                    break;
+                case Z3_decl_kind.Z3_OP_IFF:
                     s += " \\Leftrightarrow ";
                     break;
-                case DeclKind.Implies:
+                case Z3_decl_kind.Z3_OP_IMPLIES:
                     s += " \\Rightarrow ";
                     break;
-                case DeclKind.Intersect:
+                case Z3_decl_kind.Z3_OP_SET_INTERSECT:
                     s += " \\cap ";
                     break;
-                case DeclKind.Ite:
+                case Z3_decl_kind.Z3_OP_ITE:
                     s += " ite ";
                     break;
-                case DeclKind.Le:
-                    s += " \\leq ";
+                case Z3_decl_kind.Z3_OP_LE:
+                    switch (o)
+                    {
+                        case PrintFormatMode.phaver:
+                            {
+                                s += " <= ";
+                                break;
+                            }
+                        case PrintFormatMode.latex: // pass through
+                        default:
+                            {
+                                s += " \\leq ";
+                                break;
+                            }
+                    }
                     break;
-                case DeclKind.Lt:
-                    s += " < ";
+                case Z3_decl_kind.Z3_OP_LT:
+                    switch (o)
+                    {
+                        case PrintFormatMode.phaver:
+                            {
+                                s += " < ";
+                                break;
+                            }
+                        case PrintFormatMode.latex: // pass through
+                        default:
+                            {
+                                s += " < ";
+                                break;
+                            }
+                    }
                     break;
-                case DeclKind.Mod:
-                case DeclKind.Mul:
-                    s += " * ";
+                case Z3_decl_kind.Z3_OP_MOD:
+                case Z3_decl_kind.Z3_OP_MUL:
+                    switch (o)
+                    {
+                        case PrintFormatMode.phaver:
+                            {
+                                s += " * ";
+                                break;
+                            }
+                        case PrintFormatMode.latex: // pass through
+                        default:
+                            {
+                                s += " * ";
+                                break;
+                            }
+                    }
                     break;
-                case DeclKind.Not:
-                    s += " \\neg ";
+                case Z3_decl_kind.Z3_OP_NOT:
+                    switch (o)
+                    {
+                        case PrintFormatMode.phaver:
+                            {
+                                s += " ! ";
+                                break;
+                            }
+                        case PrintFormatMode.latex: // pass through
+                        default:
+                            {
+                                s += " \\neg ";
+                                break;
+                            }
+                    }
                     break;
-                case DeclKind.Or:
-                    s += " \\vee ";
+                case Z3_decl_kind.Z3_OP_OR:
+                    switch (o)
+                    {
+                        case PrintFormatMode.phaver:
+                            {
+                                s += " | ";
+                                break;
+                            }
+                        case PrintFormatMode.latex: // pass through
+                        default:
+                            {
+                                s += " \\vee ";
+                                break;
+                            }
+                    }
                     break;
-                case DeclKind.Rem:
+                case Z3_decl_kind.Z3_OP_REM:
                     break;
-                case DeclKind.Sub:
-                    s += " - ";
+                case Z3_decl_kind.Z3_OP_SUB:
+                    switch (o)
+                    {
+                        case PrintFormatMode.phaver:
+                            {
+                                s += " - ";
+                                break;
+                            }
+                        case PrintFormatMode.latex: // pass through
+                        default:
+                            {
+                                s += " - ";
+                                break;
+                            }
+                    }
                     break;
-                case DeclKind.Subset:
+                case Z3_decl_kind.Z3_OP_SET_SUBSET:
                     s += " \\subset ";
                     break;
-                case DeclKind.True:
-                    s += " \\true ";
+                case Z3_decl_kind.Z3_OP_TRUE:
+                    switch (o)
+                    {
+                        case PrintFormatMode.phaver:
+                            {
+                                s += " true ";
+                                break;
+                            }
+                        case PrintFormatMode.latex: // pass through
+                        default:
+                            {
+                                s += " \\true ";
+                                break;
+                            }
+                    }
                     break;
-                case DeclKind.Uminus:
+                case Z3_decl_kind.Z3_OP_UMINUS:
                     s += " - ";
                     break;
-                case DeclKind.Union:
+                case Z3_decl_kind.Z3_OP_SET_UNION:
                     s += " \\cup ";
                     break;
-                case DeclKind.Xor:
+                case Z3_decl_kind.Z3_OP_XOR:
                     break;
                 default:
                     break;
@@ -1075,7 +1490,8 @@ namespace passel.controller.smt.z3
         /**
          * Check an array of terms
          */
-        public Boolean checkTerms(Term[] t)
+        /*
+        public Boolean checkTerms(Expr[] t)
         {
             Boolean debug = false;
             Boolean ret = false;
@@ -1086,18 +1502,17 @@ namespace passel.controller.smt.z3
                 Console.WriteLine("Term:\n\r" + t[1].ToString());
             }
 
-            /* save the current state of the context */
-            this.Push();
+            this.slvr.Push();
 
-            this.AssertCnstr(t[0]);
-            this.AssertCnstr(t[1]);
+            this.slvr.Assert(t[0]);
+            this.slvr.Assert(t[1]);
             //this._z3.AssertCnstr(this._z3.MkNot(t));
 
             //Term not_f = this._z3.MkNot(guard);
             //this._z3.AssertCnstr(not_f);
 
             Model model = null;
-            switch (this.CheckAndGetModel(out model))
+            switch (this.slvr.Check(out model))
             {
                 case LBool.False:
                     if (debug)
@@ -1132,10 +1547,10 @@ namespace passel.controller.smt.z3
                 this.DisplayStatistics(Console.Out);
             }
 
-            /* restore context */
             this.Pop(1);
 
             return ret;
         }
+*/
     }
 }

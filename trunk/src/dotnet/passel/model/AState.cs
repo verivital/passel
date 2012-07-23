@@ -19,8 +19,8 @@ namespace passel.model
          */
         protected UInt32 _value;
 
-        public Term ValueTerm;
-        private Term _statePredicate;
+        public Expr ValueTerm;
+        private Expr _statePredicate;
 
         /**
          * Name for the state
@@ -47,7 +47,11 @@ namespace passel.model
             this._value = value;
             this._initial = initial;
 
-            this.ValueTerm = Controller.Instance.Z3.MkIntNumeral(value);
+            //this.ValueTerm = Controller.Instance.Z3.MkInt(value); // TODO: location type... Instance.LocType
+            this.ValueTerm = Controller.Instance.Z3.MkConst(label, Controller.Instance.LocType);
+
+            //Controller.Instance.Z3.Assumptions.Add(Controller.Instance.Z3.MkEq(this.ValueTerm, Controller.Instance.Z3.MkInt(value)));
+
             this._statePredicate = Controller.Instance.Z3.MkEq(Controller.Instance.Q["i"], this.ValueTerm);
 
             // add label to value map
@@ -79,7 +83,7 @@ namespace passel.model
             return this._label;
         }
 
-        public Term StatePredicate
+        public Expr StatePredicate
         {
             get { return this._statePredicate; }
             set { this._statePredicate = value; }
@@ -140,8 +144,10 @@ namespace passel.model
             {
                 this._transitions = new List<Transition>();
             }
-            
-            if (!this._transitions.Contains(t) && !this.containsTransitionToNext(t.NextStates))
+
+            // todo: removed this in next: might want to add back (but not from parsing, maybe in an automatic abstraction):   && !this.containsTransitionToNext(t.NextStates)
+            if (!this._transitions.Contains(t))
+            //if (!this._transitions.Contains(t) && !this.containsTransitionToNext(t.NextStates))
             {
                 this._transitions.Add(t);
             }

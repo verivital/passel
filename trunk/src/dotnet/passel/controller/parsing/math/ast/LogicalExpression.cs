@@ -15,10 +15,12 @@ namespace passel.controller.parsing.math.ast
 {
     public abstract class LogicalExpression
     {
+        private static Context z3 = Controller.Instance.Z3;
+
         /**
          * Convert an untype AST to a tree of Microsoft Z3 terms
          */
-        public static Microsoft.Z3.Term CreateTerm(CommonTree ast)
+        public static Microsoft.Z3.Expr CreateTerm(CommonTree ast)
         {
             if (ast == null)
             {
@@ -28,9 +30,9 @@ namespace passel.controller.parsing.math.ast
             switch (ast.Type)
             {
                 // common functions to add:
-                //Controller.Instance.Z3.MkRem
-                //Controller.Instance.Z3.MkUnaryMinus
-                //Controller.Instance.Z3.MkDistinct
+                //z3.MkRem
+                //z3.MkUnaryMinus
+                //z3.MkDistinct
 
                 case guardLexer.VARIABLE:
                     // todo: look up variable in an existing table instead of this (to get appropriate type, and to ensure proper scope)
@@ -55,36 +57,36 @@ namespace passel.controller.parsing.math.ast
                     }
                     else
                     {
-                        //return Controller.Instance.Z3.MkConst(ast.GetChild(0).Text, Controller.Instance.Z3.MkRealSort());
+                        //return z3.MkConst(ast.GetChild(0).Text, z3.MkRealSort());
                         throw new Exception("Parsing error: undefined variable: " + ast.GetChild(0).Text + ".");
                     }
 
                 case guardLexer.QUANTIFIER_EXISTS:
                     {
                         // pull out list of bound variables
-                        List<Term> bound = new List<Term>();
+                        List<Expr> bound = new List<Expr>();
 
                         int i = 0;
-                        List<Term> indexConstraints = new List<Term>();
+                        List<Expr> indexConstraints = new List<Expr>();
                         while (ast.GetChild(i).Type == guardLexer.VARIABLE)
                         {
                             String name = ast.GetChild(i).GetChild(0).Text;
-                            Term t;
+                            Expr t;
                             if (Controller.Instance.Indices.ContainsKey(name))
                             {
                                 t = Controller.Instance.Indices[name];
                             }
                             else
                             {
-                                t = Controller.Instance.Z3.MkConst(name, Controller.Instance.IntType);
+                                t = z3.MkIntConst(name); // todo: vs Controller.Instance.IndexType
                                 Controller.Instance.Indices.Add(name, t);
                             }
 
                             if (Controller.Instance.IndexOption == Controller.IndexOptionType.naturalOneToN)
                             {
                                 // enforce index constraints
-                                indexConstraints.Add(t >= Controller.Instance.IndexOne);
-                                indexConstraints.Add(t <= Controller.Instance.Params["N"]);
+                                indexConstraints.Add(z3.MkGe((ArithExpr)t, (ArithExpr)Controller.Instance.IndexOne));
+                                indexConstraints.Add(z3.MkLe((ArithExpr)t, (ArithExpr)Controller.Instance.Params["N"]));
                             }
                             bound.Add(t);
                             i++;
@@ -98,21 +100,21 @@ namespace passel.controller.parsing.math.ast
                                     case Controller.ExistsOptionType.and:
                                         if (bound.Count > 1)
                                         {
-                                            return Controller.Instance.Z3.MkExists(0, bound.ToArray(), null, Controller.Instance.Z3.MkAnd(Controller.Instance.Z3.MkDistinct(bound.ToArray()), CreateTerm((CommonTree)ast.GetChild(i))));
+                                            return z3.MkExists(bound.ToArray(), z3.MkAnd((BoolExpr)z3.MkDistinct(bound.ToArray()), (BoolExpr)CreateTerm((CommonTree)ast.GetChild(i))));
                                         }
                                         else
                                         {
-                                            return Controller.Instance.Z3.MkExists(0, bound.ToArray(), null, CreateTerm((CommonTree)ast.GetChild(i)));
+                                            return z3.MkExists(bound.ToArray(), CreateTerm((CommonTree)ast.GetChild(i)));
                                         }
                                     case Controller.ExistsOptionType.implies:
                                     default:
                                         if (bound.Count > 1)
                                         {
-                                            return Controller.Instance.Z3.MkExists(0, bound.ToArray(), null, Controller.Instance.Z3.MkImplies(Controller.Instance.Z3.MkDistinct(bound.ToArray()), CreateTerm((CommonTree)ast.GetChild(i))));
+                                            return z3.MkExists(bound.ToArray(), z3.MkImplies((BoolExpr)z3.MkDistinct(bound.ToArray()), (BoolExpr)CreateTerm((CommonTree)ast.GetChild(i))));
                                         }
                                         else
                                         {
-                                            return Controller.Instance.Z3.MkExists(0, bound.ToArray(), null, CreateTerm((CommonTree)ast.GetChild(i)));
+                                            return z3.MkExists(bound.ToArray(), CreateTerm((CommonTree)ast.GetChild(i)));
                                         }
                                 }
 
@@ -122,21 +124,21 @@ namespace passel.controller.parsing.math.ast
                                     case Controller.ExistsOptionType.and:
                                         if (bound.Count > 1)
                                         {
-                                            return Controller.Instance.Z3.MkExists(0, bound.ToArray(), null, Controller.Instance.Z3.MkAnd(Controller.Instance.Z3.MkDistinct(bound.ToArray()), CreateTerm((CommonTree)ast.GetChild(i))));
+                                            return z3.MkExists(bound.ToArray(), z3.MkAnd((BoolExpr)z3.MkDistinct(bound.ToArray()), (BoolExpr)CreateTerm((CommonTree)ast.GetChild(i))));
                                         }
                                         else
                                         {
-                                            return Controller.Instance.Z3.MkExists(0, bound.ToArray(), null, CreateTerm((CommonTree)ast.GetChild(i)));
+                                            return z3.MkExists(bound.ToArray(), CreateTerm((CommonTree)ast.GetChild(i)));
                                         }
                                     case Controller.ExistsOptionType.implies:
                                     default:
                                         if (bound.Count > 1)
                                         {
-                                            return Controller.Instance.Z3.MkExists(0, bound.ToArray(), null, Controller.Instance.Z3.MkImplies(Controller.Instance.Z3.MkDistinct(bound.ToArray()), CreateTerm((CommonTree)ast.GetChild(i))));
+                                            return z3.MkExists(bound.ToArray(), z3.MkImplies((BoolExpr)z3.MkDistinct(bound.ToArray()), (BoolExpr)CreateTerm((CommonTree)ast.GetChild(i))));
                                         }
                                         else
                                         {
-                                            return Controller.Instance.Z3.MkExists(0, bound.ToArray(), null, CreateTerm((CommonTree)ast.GetChild(i)));
+                                            return z3.MkExists(bound.ToArray(), CreateTerm((CommonTree)ast.GetChild(i)));
                                         }
                                 }
 
@@ -147,24 +149,28 @@ namespace passel.controller.parsing.math.ast
                                     case Controller.ExistsOptionType.and:
                                         if (bound.Count > 1)
                                         {
-                                            return Controller.Instance.Z3.MkExists(0, bound.ToArray(), null, Controller.Instance.Z3.MkAnd(Controller.Instance.Z3.MkAnd(indexConstraints.ToArray()) & Controller.Instance.Z3.MkDistinct(bound.ToArray()), CreateTerm((CommonTree)ast.GetChild(i))));
+                                            indexConstraints.Add(z3.MkDistinct(bound.ToArray()));
+                                            indexConstraints.Add(CreateTerm((CommonTree)ast.GetChild(i))); // recursion
+                                            return z3.MkExists(bound.ToArray(), z3.MkAnd((BoolExpr[])indexConstraints.ToArray()));
                                         }
                                         else
                                         {
-                                            return Controller.Instance.Z3.MkExists(0, bound.ToArray(), null, Controller.Instance.Z3.MkAnd(Controller.Instance.Z3.MkAnd(indexConstraints.ToArray()), CreateTerm((CommonTree)ast.GetChild(i))));
+                                            indexConstraints.Add(CreateTerm((CommonTree)ast.GetChild(i))); // recursion
+                                            return z3.MkExists(bound.ToArray(), z3.MkAnd((BoolExpr[])indexConstraints.ToArray()));
                                         }
                                     case Controller.ExistsOptionType.implies:
                                     default:
                                         if (bound.Count > 1)
                                         {
-                                            return Controller.Instance.Z3.MkExists(0, bound.ToArray(), null, Controller.Instance.Z3.MkImplies(Controller.Instance.Z3.MkAnd(indexConstraints.ToArray()) & Controller.Instance.Z3.MkDistinct(bound.ToArray()), CreateTerm((CommonTree)ast.GetChild(i))));
+                                            indexConstraints.Add(z3.MkDistinct(bound.ToArray()));
+                                            return z3.MkExists(bound.ToArray(), z3.MkImplies((BoolExpr)z3.MkAnd((BoolExpr[])indexConstraints.ToArray()), (BoolExpr)CreateTerm((CommonTree)ast.GetChild(i))));
                                         }
                                         else
                                         {
-                                            return Controller.Instance.Z3.MkExists(0, bound.ToArray(), null, Controller.Instance.Z3.MkImplies(Controller.Instance.Z3.MkAnd(indexConstraints.ToArray()), CreateTerm((CommonTree)ast.GetChild(i))));
+                                            return z3.MkExists(bound.ToArray(), z3.MkImplies((BoolExpr)z3.MkAnd((BoolExpr[])indexConstraints.ToArray()), (BoolExpr)CreateTerm((CommonTree)ast.GetChild(i))));
                                         }
                                 }
-                                //return Controller.Instance.Z3.MkExists(0, bound.ToArray(), null, Controller.Instance.Z3.MkAnd(Controller.Instance.Z3.MkAnd(indexConstraints.ToArray()), CreateTerm((CommonTree)ast.GetChild(i))));
+                                //return z3.MkExists(0, bound.ToArray(), null, z3.MkAnd(z3.MkAnd(indexConstraints.ToArray()), CreateTerm((CommonTree)ast.GetChild(i))));
                         }
                     }
 
@@ -172,29 +178,29 @@ namespace passel.controller.parsing.math.ast
                 case guardLexer.QUANTIFIER_FORALL:
                     {
                         // pull out list of bound variables
-                        List<Term> bound = new List<Term>();
+                        List<Expr> bound = new List<Expr>();
 
                         int i = 0;
-                        List<Term> indexConstraints = new List<Term>();
+                        List<BoolExpr> indexConstraints = new List<BoolExpr>();
                         while (ast.GetChild(i).Type == guardLexer.VARIABLE)
                         {
                             String name = ast.GetChild(i).GetChild(0).Text;
-                            Term t;
+                            Expr t;
                             if (Controller.Instance.Indices.ContainsKey(name))
                             {
                                 t = Controller.Instance.Indices[name];
                             }
                             else
                             {
-                                t = Controller.Instance.Z3.MkConst(name, Controller.Instance.IndexType);
+                                t = z3.MkIntConst(name); // todo: vs Controller.Instance.IndexType
                                 Controller.Instance.Indices.Add(name, t);
                             }
 
                             if (Controller.Instance.IndexOption == Controller.IndexOptionType.naturalOneToN)
                             {
                                 // enforce index constraints
-                                indexConstraints.Add(t >= Controller.Instance.IndexOne);
-                                indexConstraints.Add(t <= Controller.Instance.Params["N"]);
+                                indexConstraints.Add(z3.MkGe((ArithExpr)t, (ArithExpr)Controller.Instance.IndexOne));
+                                indexConstraints.Add(z3.MkLe((ArithExpr)t, (ArithExpr)Controller.Instance.Params["N"]));
                             }
 
                             bound.Add(t);
@@ -206,36 +212,41 @@ namespace passel.controller.parsing.math.ast
                             case Controller.IndexOptionType.enumeration:
                                 if (bound.Count > 1)
                                 {
-                                    return Controller.Instance.Z3.MkForall(0, bound.ToArray(), null, Controller.Instance.Z3.MkImplies(Controller.Instance.Z3.MkDistinct(bound.ToArray()), CreateTerm((CommonTree)ast.GetChild(i))));
+                                    return z3.MkForall(bound.ToArray(), z3.MkImplies((BoolExpr)z3.MkDistinct(bound.ToArray()), (BoolExpr)CreateTerm((CommonTree)ast.GetChild(i))));
                                 }
                                 else
                                 {
-                                    return Controller.Instance.Z3.MkForall(0, bound.ToArray(), null, CreateTerm((CommonTree)ast.GetChild(i)));
+                                    return z3.MkForall(bound.ToArray(), CreateTerm((CommonTree)ast.GetChild(i)));
                                 }
                             case Controller.IndexOptionType.integer:
                                 if (bound.Count > 1)
                                 {
-                                    return Controller.Instance.Z3.MkForall(0, bound.ToArray(), null, CreateTerm((CommonTree)ast.GetChild(i)));
-                                    //return Controller.Instance.Z3.MkForall(0, bound.ToArray(), null, Controller.Instance.Z3.MkImplies(Controller.Instance.Z3.MkAnd(indexConstraints.ToArray()), CreateTerm((CommonTree)ast.GetChild(i))));
+                                    return z3.MkForall(bound.ToArray(), CreateTerm((CommonTree)ast.GetChild(i)));
+                                    //return z3.MkForall(bound.ToArray(), z3.MkImplies(z3.MkAnd(indexConstraints.ToArray()), CreateTerm((CommonTree)ast.GetChild(i))));
                                 }
                                 else
                                 {
-                                    return Controller.Instance.Z3.MkForall(0, bound.ToArray(), null, CreateTerm((CommonTree)ast.GetChild(i)));
+                                    return z3.MkForall(bound.ToArray(), CreateTerm((CommonTree)ast.GetChild(i)));
                                 }
-                            case Controller.IndexOptionType.naturalOneToN:
+                            case Controller.IndexOptionType.naturalOneToN: // pass through
                             default:
                                 if (bound.Count > 1)
                                 {
                                     // no distinct
-                                    return Controller.Instance.Z3.MkForall(0, bound.ToArray(), null, Controller.Instance.Z3.MkImplies(Controller.Instance.Z3.MkAnd(indexConstraints.ToArray()), CreateTerm((CommonTree)ast.GetChild(i))));
+                                    return z3.MkForall(bound.ToArray(), z3.MkImplies(z3.MkAnd(indexConstraints.ToArray()), (BoolExpr)CreateTerm((CommonTree)ast.GetChild(i))));
 
                                     // with distinct
-                                    //return Controller.Instance.Z3.MkForall(0, bound.ToArray(), null, Controller.Instance.Z3.MkImplies(Controller.Instance.Z3.MkAnd(indexConstraints.ToArray()) & Controller.Instance.Z3.MkDistinct(bound.ToArray()), CreateTerm((CommonTree)ast.GetChild(i))));
-                                    //return Controller.Instance.Z3.MkForall(0, bound.ToArray(), null, Controller.Instance.Z3.MkImplies(Controller.Instance.Z3.MkAnd(indexConstraints.ToArray()), CreateTerm((CommonTree)ast.GetChild(i))));
+                                    /*
+                                    List<BoolExpr> andList = new List<BoolExpr>();
+                                    andList.AddRange(indexConstraints.ToArray());
+                                    andList.Add(z3.MkDistinct(bound.ToArray()));
+
+                                    return z3.MkForall(bound.ToArray(), z3.MkImplies(z3.MkAnd(andList.ToArray()), (BoolExpr)CreateTerm((CommonTree)ast.GetChild(i))));
+                                     */
                                 }
                                 else
                                 {
-                                    return Controller.Instance.Z3.MkForall(0, bound.ToArray(), null, Controller.Instance.Z3.MkImplies(Controller.Instance.Z3.MkAnd(indexConstraints.ToArray()), CreateTerm((CommonTree)ast.GetChild(i))));
+                                    return z3.MkForall(bound.ToArray(), z3.MkImplies(z3.MkAnd(indexConstraints.ToArray()), (BoolExpr)CreateTerm((CommonTree)ast.GetChild(i))));
                                 }
                                 
                         }
@@ -255,7 +266,9 @@ namespace passel.controller.parsing.math.ast
                             // create the index if it hasn't been used before
                             if (!Controller.Instance.Indices.ContainsKey(ast.GetChild(1).Text))
                             {
-                                Controller.Instance.Indices.Add(ast.GetChild(1).Text, Controller.Instance.Z3.MkConst(ast.GetChild(1).Text, Controller.Instance.IndexType)); // create the index
+                                //Controller.Instance.Indices.Add(ast.GetChild(1).Text, z3.MkConst(ast.GetChild(1).Text, Controller.Instance.IndexType)); // create the index
+                                // TODO: switch based on index type: want integers to be interpreted if we are not using an enumerated index set (i.e., make as integer if possible, else make as uninterpreted)
+                                Controller.Instance.Indices.Add(ast.GetChild(1).Text, z3.MkInt(ast.GetChild(1).Text)); // create the index
                             }
 
                             switch (Controller.Instance.DataOption)
@@ -265,8 +278,8 @@ namespace passel.controller.parsing.math.ast
                                         if (!Controller.Instance.Q.ContainsKey(ast.GetChild(1).Text))
                                         {
                                             // todo next: probably don't want this as a store, may need to create this as a store, select, etc., then depending upon usage, pick the correct one, i.e., have several lists Q and QPrimed, such as QStore, QSelect, etc.
-                                            Controller.Instance.Q.Add(ast.GetChild(1).Text, Controller.Instance.Z3.MkArraySelect(Controller.Instance.DataA.IndexedVariableDecl[ast.GetChild(0).Text], Controller.Instance.Indices[ast.GetChild(1).Text])); // create the indexed variable (i.e., function application with the just created index)
-                                            Controller.Instance.QPrimed.Add(ast.GetChild(1).Text, Controller.Instance.Z3.MkArraySelect(Controller.Instance.DataA.IndexedVariableDeclPrimed[ast.GetChild(0).Text], Controller.Instance.Indices[ast.GetChild(1).Text]));
+                                            Controller.Instance.Q.Add(ast.GetChild(1).Text, z3.MkSelect(Controller.Instance.DataA.IndexedVariableDecl[ast.GetChild(0).Text], Controller.Instance.Indices[ast.GetChild(1).Text])); // create the indexed variable (i.e., function application with the just created index)
+                                            Controller.Instance.QPrimed.Add(ast.GetChild(1).Text, z3.MkSelect(Controller.Instance.DataA.IndexedVariableDeclPrimed[ast.GetChild(0).Text], Controller.Instance.Indices[ast.GetChild(1).Text]));
                                         }
                                         break;
                                     }
@@ -275,8 +288,8 @@ namespace passel.controller.parsing.math.ast
                                     {
                                         if (!Controller.Instance.Q.ContainsKey(ast.GetChild(1).Text))
                                         {
-                                            Controller.Instance.Q.Add(ast.GetChild(1).Text, Controller.Instance.Z3.MkApp(Controller.Instance.DataU.IndexedVariableDecl[ast.GetChild(0).Text], Controller.Instance.Indices[ast.GetChild(1).Text])); // create the indexed variable (i.e., function application with the just created index)
-                                            Controller.Instance.QPrimed.Add(ast.GetChild(1).Text, Controller.Instance.Z3.MkApp(Controller.Instance.DataU.IndexedVariableDeclPrimed[ast.GetChild(0).Text], Controller.Instance.Indices[ast.GetChild(1).Text]));
+                                            Controller.Instance.Q.Add(ast.GetChild(1).Text, z3.MkApp(Controller.Instance.DataU.IndexedVariableDecl[ast.GetChild(0).Text], Controller.Instance.Indices[ast.GetChild(1).Text])); // create the indexed variable (i.e., function application with the just created index)
+                                            Controller.Instance.QPrimed.Add(ast.GetChild(1).Text, z3.MkApp(Controller.Instance.DataU.IndexedVariableDeclPrimed[ast.GetChild(0).Text], Controller.Instance.Indices[ast.GetChild(1).Text]));
                                         }
                                         break;
                                     }
@@ -292,12 +305,12 @@ namespace passel.controller.parsing.math.ast
                         {
                             case Controller.DataOptionType.array:
                                 {
-                                    return Controller.Instance.Z3.MkArraySelect(Controller.Instance.DataA.IndexedVariableDecl[ast.GetChild(0).Text], getIndexedVariable(ast.GetChild(1).GetChild(0).Text, ast.GetChild(1).GetChild(1).Text));
+                                    return z3.MkSelect(Controller.Instance.DataA.IndexedVariableDecl[ast.GetChild(0).Text], getIndexedVariable(ast.GetChild(1).GetChild(0).Text, ast.GetChild(1).GetChild(1).Text));
                                 }
                             case Controller.DataOptionType.uninterpreted_function:
                             default:
                                 {
-                                    return Controller.Instance.Z3.MkApp(Controller.Instance.DataU.IndexedVariableDecl[ast.GetChild(0).Text], getIndexedVariable(ast.GetChild(1).GetChild(0).Text, ast.GetChild(1).GetChild(1).Text));
+                                    return z3.MkApp(Controller.Instance.DataU.IndexedVariableDecl[ast.GetChild(0).Text], getIndexedVariable(ast.GetChild(1).GetChild(0).Text, ast.GetChild(1).GetChild(1).Text));
                                 }
                         }
                     }
@@ -305,7 +318,8 @@ namespace passel.controller.parsing.math.ast
                     {
                         if (!Controller.Instance.Indices.ContainsKey(ast.GetChild(1).Text))
                         {
-                            Controller.Instance.Indices.Add(ast.GetChild(1).Text, Controller.Instance.Z3.MkConst(ast.GetChild(1).Text, Controller.Instance.IndexType)); // create the index
+                            //Controller.Instance.Indices.Add(ast.GetChild(1).Text, z3.MkConst(ast.GetChild(1).Text, Controller.Instance.IndexType)); // create the index
+                            Controller.Instance.Indices.Add(ast.GetChild(1).Text, z3.MkIntConst(ast.GetChild(1).Text)); // create the index
                         }
                         if (!Controller.Instance.IndexedVariables.ContainsKey(new KeyValuePair<string,string>(ast.GetChild(0).Text, ast.GetChild(1).Text)))
                         {
@@ -313,15 +327,15 @@ namespace passel.controller.parsing.math.ast
                             {
                                 case Controller.DataOptionType.array:
                                     {
-                                        Controller.Instance.IndexedVariables.Add(new KeyValuePair<string, string>(ast.GetChild(0).Text, ast.GetChild(1).Text), Controller.Instance.Z3.MkArraySelect(Controller.Instance.DataA.IndexedVariableDecl[ast.GetChild(0).Text], Controller.Instance.Indices[ast.GetChild(1).Text])); // create the indexed variable (i.e., function application with the just created index)
-                                        Controller.Instance.IndexedVariablesPrimed.Add(new KeyValuePair<string, string>(ast.GetChild(0).Text, ast.GetChild(1).Text), Controller.Instance.Z3.MkArraySelect(Controller.Instance.DataA.IndexedVariableDeclPrimed[ast.GetChild(0).Text], Controller.Instance.Indices[ast.GetChild(1).Text]));
+                                        Controller.Instance.IndexedVariables.Add(new KeyValuePair<string, string>(ast.GetChild(0).Text, ast.GetChild(1).Text), z3.MkSelect(Controller.Instance.DataA.IndexedVariableDecl[ast.GetChild(0).Text], Controller.Instance.Indices[ast.GetChild(1).Text])); // create the indexed variable (i.e., function application with the just created index)
+                                        Controller.Instance.IndexedVariablesPrimed.Add(new KeyValuePair<string, string>(ast.GetChild(0).Text, ast.GetChild(1).Text), z3.MkSelect(Controller.Instance.DataA.IndexedVariableDeclPrimed[ast.GetChild(0).Text], Controller.Instance.Indices[ast.GetChild(1).Text]));
                                         break;
                                     }
                                 case Controller.DataOptionType.uninterpreted_function:
                                 default:
                                     {
-                                        Controller.Instance.IndexedVariables.Add(new KeyValuePair<string, string>(ast.GetChild(0).Text, ast.GetChild(1).Text), Controller.Instance.Z3.MkApp(Controller.Instance.DataU.IndexedVariableDecl[ast.GetChild(0).Text], Controller.Instance.Indices[ast.GetChild(1).Text])); // create the indexed variable (i.e., function application with the just created index)
-                                        Controller.Instance.IndexedVariablesPrimed.Add(new KeyValuePair<string, string>(ast.GetChild(0).Text, ast.GetChild(1).Text), Controller.Instance.Z3.MkApp(Controller.Instance.DataU.IndexedVariableDeclPrimed[ast.GetChild(0).Text], Controller.Instance.Indices[ast.GetChild(1).Text]));
+                                        Controller.Instance.IndexedVariables.Add(new KeyValuePair<string, string>(ast.GetChild(0).Text, ast.GetChild(1).Text), z3.MkApp(Controller.Instance.DataU.IndexedVariableDecl[ast.GetChild(0).Text], Controller.Instance.Indices[ast.GetChild(1).Text])); // create the indexed variable (i.e., function application with the just created index)
+                                        Controller.Instance.IndexedVariablesPrimed.Add(new KeyValuePair<string, string>(ast.GetChild(0).Text, ast.GetChild(1).Text), z3.MkApp(Controller.Instance.DataU.IndexedVariableDeclPrimed[ast.GetChild(0).Text], Controller.Instance.Indices[ast.GetChild(1).Text]));
                                         break;
                                     }
                             }
@@ -331,10 +345,10 @@ namespace passel.controller.parsing.math.ast
                     }
 
                 case guardLexer.RESET_VARIABLE:
-                    //return Controller.Instance.Z3.MkConst(CreateTerm((CommonTree)ast.GetChild(0)) + "'", Controller.Instance.Z3.MkRealSort());
+                    //return z3.MkConst(CreateTerm((CommonTree)ast.GetChild(0)) + "'", z3.MkRealSort());
                     //return CreateTerm((CommonTree)ast.GetChild(0));
                     //todo next:
-                    //return Controller.Instance.Z3.MkConst(ast.GetChild(0).Text + '[' + ast.GetChild(1).Text + ']', Controller.Instance.Z3.MkRealSort());
+                    //return z3.MkConst(ast.GetChild(0).Text + '[' + ast.GetChild(1).Text + ']', z3.MkRealSort());
 
                     // todo next: grab primed variable from global dictionary: so create primed terms for all global variables
 
@@ -345,7 +359,7 @@ namespace passel.controller.parsing.math.ast
                     else
                     {
                         throw new Exception("Problem parsing global variable reset.");
-                        //return Controller.Instance.Z3.MkConst(ast.GetChild(0).GetChild(0).Text, Controller.Instance.IntType);
+                        //return z3.MkConst(ast.GetChild(0).GetChild(0).Text, Controller.Instance.IntType);
                     }
 
                 case guardLexer.RESET_INDEXED_VARIABLE:
@@ -356,7 +370,7 @@ namespace passel.controller.parsing.math.ast
                     {
                         return Controller.Instance.IndexedVariablesPrimed[new KeyValuePair<String, String>(varNamePrime, index)];
                     }
-                    else if (ast.GetChild(0).Text.Equals("q") && Controller.Instance.QPrimed.ContainsKey(index)) // todo: add a way to discuss different discrete locations
+                    else if (ast.GetChild(0).GetChild(0).Text.Equals("q") && Controller.Instance.QPrimed.ContainsKey(index)) // todo: add a way to discuss different discrete locations
                     {
                         return Controller.Instance.QPrimed[index];
                     }
@@ -368,7 +382,7 @@ namespace passel.controller.parsing.math.ast
 
                 case guardLexer.DYNAMICS_VARIABLE:
                     // todo: add the prime for derivative?
-                    //return Controller.Instance.Z3.MkConst(CreateTerm((CommonTree)ast.GetChild(0)) + "'", Controller.Instance.Z3.MkRealSort());
+                    //return z3.MkConst(CreateTerm((CommonTree)ast.GetChild(0)) + "'", z3.MkRealSort());
                     return CreateTerm((CommonTree)ast.GetChild(0));
 
                 case guardLexer.DYNAMICS_INDEXED_VARIABLE:
@@ -381,11 +395,11 @@ namespace passel.controller.parsing.math.ast
                     // todo: z3 gives an error if we use integers here... probably saying a real is related to an integer is problematic due to different sorts?
                     try
                     {
-                        return Controller.Instance.Z3.MkIntNumeral(ast.Text);
+                        return z3.MkInt(ast.Text);
                     }
                     catch
                     {
-                        return Controller.Instance.Z3.MkRealNumeral(ast.Text);
+                        return z3.MkReal(ast.Text);
                     }
 
                 case guardLexer.BOOLEAN:
@@ -393,109 +407,149 @@ namespace passel.controller.parsing.math.ast
                     {
                         case true:
                             {
-                                return Controller.Instance.Z3.MkTrue();
+                                return z3.MkTrue();
                             }
                         default:
                             {
-                                return Controller.Instance.Z3.MkFalse();
+                                return z3.MkFalse();
                             }
                     }
 
                 case guardLexer.FLOAT:
-                    return Controller.Instance.Z3.MkRealNumeral((int)float.Parse(ast.Text)); // todo: check if this is okay
+                    return z3.MkReal((int)float.Parse(ast.Text)); // todo: check if this is okay
 
                 case guardLexer.NOT:
-                    return !CreateTerm((CommonTree)ast.GetChild(0));
+                    return z3.MkNot((BoolExpr)CreateTerm((CommonTree)ast.GetChild(0)));
 
                 case guardLexer.UNARY_MINUS:
-                    return Controller.Instance.Z3.MkUnaryMinus(CreateTerm((CommonTree)ast.GetChild(0)));
+                    return z3.MkUnaryMinus((ArithExpr)CreateTerm((CommonTree)ast.GetChild(0)));
 
                 case guardLexer.TOREAL:
-                    return Controller.Instance.Z3.MkToReal(CreateTerm((CommonTree)ast.GetChild(0)));
+                    return z3.MkInt2Real((IntExpr)CreateTerm((CommonTree)ast.GetChild(0)));
 
                 case guardLexer.TOINT:
-                    return Controller.Instance.Z3.MkToInt(CreateTerm((CommonTree)ast.GetChild(0)));
+                    return z3.MkReal2Int((RealExpr)CreateTerm((CommonTree)ast.GetChild(0)));
 
                 case guardLexer.MULT:
-                    return CreateTerm((CommonTree)ast.GetChild(0)) * CreateTerm((CommonTree)ast.GetChild(1));
+                    try
+                    {
+                        return z3.MkMul((ArithExpr)CreateTerm((CommonTree)ast.GetChild(0)), (ArithExpr)CreateTerm((CommonTree)ast.GetChild(1)));
+                    }
+                    catch
+                    {
+                        try
+                        {
+                            return z3.MkMul(z3.MkInt2Real((IntExpr)CreateTerm((CommonTree)ast.GetChild(0))), (ArithExpr)CreateTerm((CommonTree)ast.GetChild(1)));
+                        }
+                        catch
+                        {
+                            try
+                            {
+                                return z3.MkMul((ArithExpr)CreateTerm((CommonTree)ast.GetChild(0)), z3.MkInt2Real((IntExpr)CreateTerm((CommonTree)ast.GetChild(1))));
+                            }
+                            catch
+                            {
+                                return z3.MkMul(z3.MkInt2Real((IntExpr)CreateTerm((CommonTree)ast.GetChild(0))), z3.MkInt2Real((IntExpr)CreateTerm((CommonTree)ast.GetChild(1))));
+                            }
+                        }
+                    }
 
-                //case guardLexer.POW:
+                case guardLexer.POW:
                     // todo: assume power raising to is an integer for now as z3 doesn't have exponentiation support
                     // this will be needed for representing nonlinear dynamics
-                    //return Controller.Instance.Z3.ex(CreateTerm((CommonTree)ast.GetChild(0)), CreateTerm((CommonTree)ast.GetChild(1)));
+                    //return z3.ex(CreateTerm((CommonTree)ast.GetChild(0)), CreateTerm((CommonTree)ast.GetChild(1)));
                     //return new BinaryExpresssion(BinaryExpressionType.Pow, Create((CommonTree)ast.GetChild(0)), Create((CommonTree)ast.GetChild(1)));
+                    return z3.MkPower((ArithExpr)CreateTerm((CommonTree)ast.GetChild(0)), (ArithExpr)CreateTerm((CommonTree)ast.GetChild(1)));
 
                 case guardLexer.DIV:
-                    return CreateTerm((CommonTree)ast.GetChild(0)) / CreateTerm((CommonTree)ast.GetChild(1));
+                    return z3.MkDiv((ArithExpr)CreateTerm((CommonTree)ast.GetChild(0)), (ArithExpr)CreateTerm((CommonTree)ast.GetChild(1)));
 
                 case guardLexer.MOD:
-                    return Controller.Instance.Z3.MkMod(CreateTerm((CommonTree)ast.GetChild(0)), CreateTerm((CommonTree)ast.GetChild(1)));
+                    return z3.MkMod((IntExpr)CreateTerm((CommonTree)ast.GetChild(0)), (IntExpr)CreateTerm((CommonTree)ast.GetChild(1)));
 
                 case guardLexer.PLUS:
-                    return CreateTerm((CommonTree)ast.GetChild(0)) + CreateTerm((CommonTree)ast.GetChild(1));
+                    return z3.MkAdd((ArithExpr)CreateTerm((CommonTree)ast.GetChild(0)), (ArithExpr)CreateTerm((CommonTree)ast.GetChild(1)));
 
                 case guardLexer.MINUS:
-                    return CreateTerm((CommonTree)ast.GetChild(0)) - CreateTerm((CommonTree)ast.GetChild(1));
+                    return z3.MkSub((ArithExpr)CreateTerm((CommonTree)ast.GetChild(0)), (ArithExpr)CreateTerm((CommonTree)ast.GetChild(1)));
 
                 case guardLexer.LT:
-                    return CreateTerm((CommonTree)ast.GetChild(0)) < CreateTerm((CommonTree)ast.GetChild(1));
+                    return z3.MkLt((ArithExpr)CreateTerm((CommonTree)ast.GetChild(0)), (ArithExpr)CreateTerm((CommonTree)ast.GetChild(1)));
 
                 case guardLexer.LTEQ:
-                    return CreateTerm((CommonTree)ast.GetChild(0)) <= CreateTerm((CommonTree)ast.GetChild(1));
+                    return z3.MkLe((ArithExpr)CreateTerm((CommonTree)ast.GetChild(0)), (ArithExpr)CreateTerm((CommonTree)ast.GetChild(1)));
 
                 case guardLexer.GT:
-                    return CreateTerm((CommonTree)ast.GetChild(0)) > CreateTerm((CommonTree)ast.GetChild(1));
+                    return z3.MkGt((ArithExpr)CreateTerm((CommonTree)ast.GetChild(0)), (ArithExpr)CreateTerm((CommonTree)ast.GetChild(1)));
 
                 case guardLexer.GTEQ:
-                    return CreateTerm((CommonTree)ast.GetChild(0)) >= CreateTerm((CommonTree)ast.GetChild(1));
+                    try
+                    {
+                        return z3.MkGe((ArithExpr)CreateTerm((CommonTree)ast.GetChild(0)), (ArithExpr)CreateTerm((CommonTree)ast.GetChild(1)));
+                    }
+                    catch
+                    {
+                        return z3.MkGe((ArithExpr)CreateTerm((CommonTree)ast.GetChild(0)), (ArithExpr)z3.MkInt2Real((IntExpr)CreateTerm((CommonTree)ast.GetChild(1))));
+                    }
 
                 case guardLexer.EQUALS:
                     try
                     {
-                        return Controller.Instance.Z3.MkEq(CreateTerm((CommonTree)ast.GetChild(0)), CreateTerm((CommonTree)ast.GetChild(1)));
+                        return z3.MkEq(CreateTerm((CommonTree)ast.GetChild(0)), CreateTerm((CommonTree)ast.GetChild(1)));
                     }
                     catch
                     {
-                        throw new Exception("Parse Error: real values must come in as floats, and integers must come in without decimals.");
+                        return z3.MkEq(CreateTerm((CommonTree)ast.GetChild(0)), z3.MkInt2Real((IntExpr)CreateTerm((CommonTree)ast.GetChild(1))));
                     }
 
                 case guardLexer.NEQUALS:
-                    return !Controller.Instance.Z3.MkEq(CreateTerm((CommonTree)ast.GetChild(0)), CreateTerm((CommonTree)ast.GetChild(1)));
+                    return z3.MkNot(z3.MkEq(CreateTerm((CommonTree)ast.GetChild(0)), CreateTerm((CommonTree)ast.GetChild(1))));
 
                 case guardLexer.AND:
-                    return CreateTerm((CommonTree)ast.GetChild(0)) & CreateTerm((CommonTree)ast.GetChild(1));
+                    return z3.MkAnd((BoolExpr)CreateTerm((CommonTree)ast.GetChild(0)), (BoolExpr)CreateTerm((CommonTree)ast.GetChild(1)));
 
                 case guardLexer.OR:
-                    return CreateTerm((CommonTree)ast.GetChild(0)) | CreateTerm((CommonTree)ast.GetChild(1));
+                    return z3.MkOr((BoolExpr)CreateTerm((CommonTree)ast.GetChild(0)), (BoolExpr)CreateTerm((CommonTree)ast.GetChild(1)));
 
                 case guardLexer.IMPLY:
-                    return Controller.Instance.Z3.MkImplies(CreateTerm((CommonTree)ast.GetChild(0)), CreateTerm((CommonTree)ast.GetChild(1)));
+                    return z3.MkImplies((BoolExpr)CreateTerm((CommonTree)ast.GetChild(0)), (BoolExpr)CreateTerm((CommonTree)ast.GetChild(1)));
                     //return !CreateTerm((CommonTree)ast.GetChild(0)) | (CreateTerm((CommonTree)ast.GetChild(0)) & CreateTerm((CommonTree)ast.GetChild(1)));
 
                 case guardLexer.IFF:
-                    return Controller.Instance.Z3.MkIff(CreateTerm((CommonTree)ast.GetChild(0)), CreateTerm((CommonTree)ast.GetChild(1)));
+                    return z3.MkIff((BoolExpr)CreateTerm((CommonTree)ast.GetChild(0)), (BoolExpr)CreateTerm((CommonTree)ast.GetChild(1)));
 
                 case guardLexer.XOR:
-                    return Controller.Instance.Z3.MkXor(CreateTerm((CommonTree)ast.GetChild(0)), CreateTerm((CommonTree)ast.GetChild(1)));
+                    return z3.MkXor((BoolExpr)CreateTerm((CommonTree)ast.GetChild(0)), (BoolExpr)CreateTerm((CommonTree)ast.GetChild(1)));
 
                 case guardLexer.ITE: // if then else
-                    return Controller.Instance.Z3.MkIte(CreateTerm((CommonTree)ast.GetChild(0)), CreateTerm((CommonTree)ast.GetChild(1)), CreateTerm((CommonTree)ast.GetChild(2)));
+                    return z3.MkITE((BoolExpr)CreateTerm((CommonTree)ast.GetChild(0)), (BoolExpr)CreateTerm((CommonTree)ast.GetChild(1)), (BoolExpr)CreateTerm((CommonTree)ast.GetChild(2)));
 
                 case guardLexer.ID:
-                    Term[] expressions = new Term[ast.ChildCount];
+                    Expr[] expressions = new Expr[ast.ChildCount];
 
                     for (int i = 0; i < ast.ChildCount; i++)
                     {
-                        expressions[i] = CreateTerm((CommonTree)ast.GetChild(i));
+                        expressions[i] = z3.MkInt2Real((IntExpr)CreateTerm((CommonTree)ast.GetChild(i)));
                     }
 
-                    // todo: get a reference to the function, which we will assume has already been declared (e.g., sin(x) would locate a reference called sin in a table...?)
-                    //return Controller.Instance.Z3.MkApp(d, expressions);
-                    return null;
+                    FuncDecl f;
+                    if (Controller.Instance.Functions.ContainsKey(ast.Text))
+                    {
+                        f = Controller.Instance.Functions[ast.Text];
+                    }
+                    else
+                    {
+                        f = z3.MkFuncDecl(ast.Text, Controller.Instance.RealType, Controller.Instance.RealType);
+                        Controller.Instance.Functions.Add(ast.Text, f); // TODO: add "function" declarations, like the variable declarations including domain/range types, like we do for globals and index variables
+                    }
 
+                    // TODO: double check: get a reference to the function, which we will assume has already been declared (e.g., sin(x) would locate a reference called sin in a table...?)
+                    return z3.MkApp(f, expressions);
 
                 default:
-                    return null;
+                    {
+                        return z3.MkTrue(); // TODO: throw error, should be unreachable
+                    }
             }
         }
 
@@ -706,7 +760,7 @@ namespace passel.controller.parsing.math.ast
             }
         }
 
-        private static Term getIndexedVariable(String varname, String index)
+        private static Expr getIndexedVariable(String varname, String index)
         {
             // todo: find appropriate function for application and apply the index variable to it
             if (Controller.Instance.IndexedVariables.ContainsKey(new KeyValuePair<String, String>(varname, index)))

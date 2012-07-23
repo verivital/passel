@@ -44,7 +44,7 @@
 		</transition>
 
 		<transition source='test' destination='test'>
-			<guard equn='g != 0' />
+			<guard equn='g > 0' />
 		</transition>
 
 		<transition source='test' destination='set'>
@@ -57,9 +57,14 @@
 		</transition>
 		
 		<transition source='check' destination='test'>
-			<guard equn='g != i and now &gt;= first[i]' />
+			<guard equn='g &gt; i and now &gt;= first[i]' />
 			<action equn='first[i]&apos; = 0.0'/>
 		</transition>
+		
+		<transition source='check' destination='test'>
+			<guard equn='g &lt; i and now &gt;= first[i]' />
+			<action equn='first[i]&apos; = 0.0'/>
+		</transition>	
 		
 		<transition source='check' destination='crit'>
 			<guard equn='g == i and now &gt;= first[i]' />

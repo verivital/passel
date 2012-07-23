@@ -79,6 +79,7 @@
 			<guard equn='x[i] &gt;= LB and next[i] == 0'/>
 			<uguard equn='if (next[j] = i) then (next[j]&apos; = 0) else (next[j]&apos; = next[j])' />
 			<action equn='x[i]&apos; = 0.0 and (if (last != i) then (next[i]&apos; = last) else (next[i]&apos; = 0)) and last&apos; = i'/>
+			<!-- todo: previous guard: if last is i, then we set next[i] = 0, is this correct? should it be last? no, i think not, it looks okay, because if i is last, then we also know next[i] = \bot, since i is making a move: we could just say next[i]' = next[i] -->
 		</transition>
 		
 	

@@ -10,9 +10,9 @@ namespace passel.model
     public class TreeReach
     {
         List<TreeReach> _children;
-        Term _formula;
+        Expr _formula;
 
-        public TreeReach(Term formula, List<Term> childTerms)
+        public TreeReach(Expr formula, List<Expr> childTerms)
         {
             this._formula = formula;
 
@@ -39,13 +39,13 @@ namespace passel.model
             set { this._children = value; }
         }
 
-        public Term Formula
+        public Expr Formula
         {
             get { return this._formula; }
             set { this._formula = value; }
         }
 
-        public void addChild(Term formula)
+        public void addChild(Expr formula)
         {
             if (this._children == null)
             {

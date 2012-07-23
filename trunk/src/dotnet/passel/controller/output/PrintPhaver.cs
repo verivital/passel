@@ -15,7 +15,7 @@ namespace passel.controller.output
         /**
          * Print the transition system to appropriate output format specified by m
          */
-        public static void writeAbstractSystem(AbstractHybridAutomaton aha, String filename, OutputMode m)
+       /* public static void writeAbstractSystem(AbstractHybridAutomaton aha, String filename, OutputMode m)
         {
             String path = System.IO.Directory.GetCurrentDirectory() + System.IO.Path.DirectorySeparatorChar.ToString();
 
@@ -101,6 +101,6 @@ namespace passel.controller.output
             }
 
             sw.Close();
-        }
+        }*/
     }
 }

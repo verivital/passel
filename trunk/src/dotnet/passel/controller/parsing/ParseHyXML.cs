@@ -13,6 +13,8 @@ using Antlr.Runtime.Misc;
 
 using Microsoft.Z3;
 
+using passel.controller.smt.z3;
+
 using passel.model;
 using passel.controller;
 using passel.controller.parsing;
@@ -70,6 +72,8 @@ namespace passel.controller.parsing
         comment,
         equn,
         type,
+        post,
+        template,   // for synthesis
     };
 
     public enum AssumptionTypes
@@ -161,6 +165,140 @@ namespace passel.controller.parsing
 
     static public class ParseHyXML
     {
+        private static Z3Wrapper z3 = Controller.Instance.Z3;
+
+        /*
+        public static Antlr.Runtime.Tree.CommonTree allIntsToReals(Antlr.Runtime.Tree.CommonTree t)
+        {
+            if (t != null)
+            {
+                switch (t.Type)
+                {
+                    case guardLexer.INTEGER:
+                        {
+                            t.Type = guardLexer.FLOAT; // can't modify, doesnt work
+                            break;
+                        }
+                    default:
+                        {
+                            if (t.ChildCount > 0)
+                            {
+                                for (int i = 0; i < t.ChildCount; i++)
+                                {
+                                    t.Children[i] = allIntsToReals((Antlr.Runtime.Tree.CommonTree)t.Children[i]);
+                                }
+                            }
+                            break;
+                        }
+                }
+            }
+            return t;
+        }
+         */
+
+        public static List<Expr> ParseReach(String path)
+        {
+            List<Expr> reach = new List<Expr>();
+
+            StreamReader reader = new StreamReader(path);
+            
+            String reachset = reader.ReadToEnd();
+
+            reachset = reachset.Substring(reachset.IndexOf("{"));
+
+            String reachstate = "";
+            do
+            {
+                int start = reachset.IndexOf("&");
+                int end = reachset.IndexOf(",");
+                if (end < 0)
+                {
+                    end = reachset.IndexOf("}");
+                    if (end < 0)
+                    {
+                        break;
+                    }
+                }
+                reachstate = reachset.Substring(start + 2, end - (start + 2));
+                reachstate = reachstate.Replace("\n", "");
+                reachstate = reachstate.Replace("\r", "");
+                reachstate = reachstate.Replace("&", "&&");
+                reachstate = reachstate.Replace("|", "||");
+                reachstate = reachstate.Trim();
+                reachstate = reachstate.Substring(1, reachstate.Length - 2); // remove parentheses
+
+                String[] reachsplit = reachstate.Split(' ');
+
+                for (int i = 0; i < reachsplit.Length; i++)
+                {
+                    String s = reachsplit[i];
+                    double o; // unused
+                    if (double.TryParse(s, out o))
+                    {
+                        if (!s.Contains("."))
+                        {
+                            reachsplit[i] = s + ".0"; // make double
+                        }
+                    }
+                    else if (s.Contains("*"))
+                    {
+                        String[] factors = s.Split('*');
+                        reachsplit[i] = "";
+
+                        for (int j = 0; j < factors.Length; j++)
+                        {
+                            String f = factors[j];
+                            if (double.TryParse(f, out o))
+                            {
+                                if (!s.Contains("."))
+                                {
+                                    f += ".0";
+                                }
+                            }
+                            reachsplit[i] += f;
+                            if (j < factors.Length - 1)
+                            {
+                                reachsplit[i] += "*";
+                            }
+                        }
+                    }
+
+                    //if
+                }
+
+                // recreate string
+                String reachstatereal = "";
+                foreach (String s in reachsplit)
+                {
+                    reachstatereal += s + " ";
+                }
+                reachstate = reachstatereal;
+
+                for (uint i = 0; i <= Controller.Instance.IndexNValue; i++)
+                {
+                    // TODO: add function to convert index integer to index symbol (e.g., wrap-around after hitting z, or some other value, and start making indices like ii, ij, ik, ..., iii, iij, etc.)
+                    uint idx = 'i' + i;
+                    reachstate = reachstate.Replace("_" + (i + 1), "[" + (char)idx + "]"); // add integer to char to get next index (temporary)
+                    //reachstate = reachstate.Replace("_2", "[j]");
+                    //reachstate = reachstate.Replace("_3", "[k]");
+                }
+
+                String loc = reachset.Substring(0, start - 1);
+                // assume 1st state is for global automaton
+
+                Antlr.Runtime.Tree.CommonTree tmptree = math.Expression.Parse(reachstate);
+
+                Expr rs = LogicalExpression.CreateTerm(tmptree);
+
+                reach.Add(rs);
+
+                reachset = reachset.Substring(end+1); // cut off from reachset
+            } while (reachset.Length > 0 || reachset.Contains(","));
+            
+
+            return reach;
+        }
+
         /**
          * Parse a HyXML formatted file
          * 
@@ -196,20 +334,20 @@ namespace passel.controller.parsing
                                         String type = reader.GetAttribute(ParameterAttributes.type.ToString());
                                         String comment = reader.GetAttribute(ParameterAttributes.comment.ToString());
 
-                                        Term param = null;
-                                        Term paramPrime = null;
+                                        Expr param = null;
+                                        Expr paramPrime = null;
 
                                         switch ((ParameterTypes)Enum.Parse(typeof(ParameterTypes), type, true))
                                         {
                                             case ParameterTypes.index:
-                                                param = Controller.Instance.Z3.MkConst(name, Controller.Instance.IndexType);
+                                                param = Controller.Instance.Z3.MkIntConst(name); // todo: vs Controller.Instance.IndexType
                                                 break;
 
                                             case ParameterTypes.integer:
-                                                param = Controller.Instance.Z3.MkConst(name, Controller.Instance.IntType);
+                                                param = Controller.Instance.Z3.MkIntConst(name);
                                                 break;
                                             case ParameterTypes.real:
-                                                param = Controller.Instance.Z3.MkConst(name, Controller.Instance.RealType);
+                                                param = Controller.Instance.Z3.MkRealConst(name);
                                                 break;
                                         }
 
@@ -240,30 +378,21 @@ namespace passel.controller.parsing
 
                                         String pstr = reader.GetAttribute(PropertyAttributes.equn.ToString());
                                         String type = reader.GetAttribute(PropertyAttributes.type.ToString());
+                                        String template = reader.GetAttribute(PropertyAttributes.template.ToString());
+                                        String post = reader.GetAttribute(PropertyAttributes.post.ToString());
 
-                                        String post = reader.GetAttribute("post");
+                                        Property.PropertyType pt;
 
-                                        if ((pstr == "forall i ((q[i] == cs or q[i] == trying) implies (g == i and (forall idxj (q[idxj] != waiting))))")  || (pstr == "forall i ((q[i] == cs or q[i] == trying) implies (g == i and (forall j (q[j] != waiting))))")) // todo: remove, bug checking
+                                        // todo: make parsing consistent: either handle it all here, or handle it all in the object (makes more sense)
+                                        if (Enum.TryParse<Property.PropertyType>(type, true, out pt))
                                         {
-                                            Boolean br = true;
+                                            Property p = new Property(pstr, pt, post, template);
+                                            sys.Properties.Add(p);
                                         }
-
-                                        Property p = new Property(pstr, (Property.PropertyType)Enum.Parse(typeof(Property.PropertyType), type, true), post);
-
-                                        sys.Properties.Add(p);
-
-
-                                        //Property pneg = new Property("! ( " + pstr + ")", (Property.PropertyType)Enum.Parse(typeof(Property.PropertyType), type, true));
-                                        //sys.Properties.Add(pneg);
-
-
-                                        //Property pneginside = p;
-                                        //p.Formula
-                                        //String pstr_repl = pstr;
-                                        //System.Text.RegularExpressions.Regex.Replace(pstr_repl, "forall [a-z]+\b",  
-                                        //Property pneginside = new Property(, (Property.PropertyType)Enum.Parse(typeof(Property.PropertyType), type, true));
-                                        //sys.Properties.Add(pneginside);
-
+                                        else
+                                        {
+                                            throw new System.Exception("Error parsing property: property type not recognized.");
+                                        }
                                         break;
                                     }
                                 case ElementNames.assumption:
@@ -285,7 +414,7 @@ namespace passel.controller.parsing
                                         if (assump.Length > 0)
                                         {
                                             Antlr.Runtime.Tree.CommonTree tmptree = math.Expression.Parse(assump);
-                                            Term assumpTerm = LogicalExpression.CreateTerm(tmptree);
+                                            Expr assumpTerm = LogicalExpression.CreateTerm(tmptree);
 
                                             switch (atype)
                                             {
@@ -293,13 +422,13 @@ namespace passel.controller.parsing
                                                 case AssumptionTypes.inductive_invariant:
                                                     {
                                                         // assert the assumption
-                                                        Term assumpTermPrime = assumpTerm;
+                                                        Expr assumpTermPrime = assumpTerm;
                                                         Controller.Instance.Z3.primeAllVariables(ref assumpTermPrime);
 
-                                                        Term assumpTermImplies = Controller.Instance.Z3.MkImplies(assumpTerm, assumpTermPrime); // inductive part
+                                                        Expr assumpTermImplies = Controller.Instance.Z3.MkImplies((BoolExpr)assumpTerm, (BoolExpr)assumpTermPrime); // inductive part
 
-                                                        Controller.Instance.Z3.AssertCnstr(assumpTerm); // invariant part
-                                                        Controller.Instance.Z3.AssertCnstr(assumpTermPrime);
+                                                        Controller.Instance.Z3.Assumptions.Add((BoolExpr)assumpTerm); // invariant part
+                                                        Controller.Instance.Z3.Assumptions.Add((BoolExpr)assumpTermPrime);
                                                         //Controller.Instance.Z3.AssertCnstr(assumpTerm & assumpTermPrime);
 
                                                         //Controller.Instance.Z3.AssertCnstr(assumpTermImplies);
@@ -311,7 +440,7 @@ namespace passel.controller.parsing
                                                 default:
                                                     {
                                                         // assert the assumption
-                                                        Controller.Instance.Z3.AssertCnstr(assumpTerm);
+                                                        Controller.Instance.Z3.Assumptions.Add((BoolExpr)assumpTerm);
                                                         break;
                                                     }
                                             }
@@ -361,9 +490,9 @@ namespace passel.controller.parsing
                                             List<String> vars = LogicalExpression.findContinuousVars(tmptree);
                                             List<String> pvars = LogicalExpression.findParams(tmptree);
                                             List<String> constants = LogicalExpression.findAllRealConstants(tmptree);
-                                            Term expr = LogicalExpression.CreateTerm(tmptree);
-                                            List<Term> flows = new List<Term>();
-                                            Term t1 = Controller.Instance.Z3.MkConst("t_1", Controller.Instance.RealType);
+                                            Expr expr = LogicalExpression.CreateTerm(tmptree);
+                                            List<Expr> flows = new List<Expr>();
+                                            Expr t1 = Controller.Instance.Z3.MkRealConst("t_1");
 
                                             Flow f = new Flow();
 
@@ -373,12 +502,14 @@ namespace passel.controller.parsing
                                                 String[] vns = variable.Split('[');
                                                 String variableName = vns[0]; // todo: error handling
 
+                                                f.Variable = h.GetVariableByName(variableName); // todo: error handling
+
                                                 // prime all variables
                                                 switch (Controller.Instance.DataOption)
                                                 {
                                                     case Controller.DataOptionType.array:
                                                         {
-                                                            Controller.Instance.Z3.replaceTerm(ref expr, expr, Controller.Instance.DataA.IndexedVariableDecl[variableName], Controller.Instance.DataA.IndexedVariableDeclPrimed[variableName], false);
+                                                            expr = expr.Substitute(Controller.Instance.DataA.IndexedVariableDecl[variableName], Controller.Instance.DataA.IndexedVariableDeclPrimed[variableName]);
                                                             break;
                                                         }
                                                     case Controller.DataOptionType.uninterpreted_function:
@@ -408,8 +539,8 @@ namespace passel.controller.parsing
                                                     foreach (var y in pvars)
                                                     {
                                                         // todo: generalize, this is pretty nasty, and currently only supports dynamics of the form: v[i] R y, where R is an order/equivalence relation (e.g., >, <, >=, <=, =, etc.)
-                                                        Term addDeltaMin = Controller.Instance.IndexedVariables[new KeyValuePair<string, string>(variableName, "i")] + (Controller.Instance.Params[y] * t1);
-                                                        Controller.Instance.Z3.replaceTerm(ref expr, expr, Controller.Instance.Params[y], addDeltaMin, false);
+                                                        Expr addDeltaMin = z3.MkAdd((ArithExpr)Controller.Instance.IndexedVariables[new KeyValuePair<string, string>(variableName, "i")], z3.MkMul((ArithExpr)Controller.Instance.Params[y], (ArithExpr)t1));
+                                                        expr = expr.Substitute(Controller.Instance.Params[y], addDeltaMin);
                                                     }
                                                 }
                                                 else if (constants.Count > 0)
@@ -421,27 +552,27 @@ namespace passel.controller.parsing
 
                                                         if (cint == 1)
                                                         {
-                                                            Term c = Controller.Instance.Z3.MkRealNumeral(cstr);
-                                                            Term addDeltaMin = Controller.Instance.IndexedVariables[new KeyValuePair<string, string>(variableName, "i")] + t1;
-                                                            Controller.Instance.Z3.replaceTerm(ref expr, expr, c, addDeltaMin, false);
+                                                            Expr c = Controller.Instance.Z3.MkReal(cstr);
+                                                            Expr addDeltaMin = z3.MkAdd((ArithExpr)Controller.Instance.IndexedVariables[new KeyValuePair<string, string>(variableName, "i")], (ArithExpr)t1);
+                                                            expr = expr.Substitute(c, addDeltaMin);
                                                         }
                                                         else if (cint == -1) // todo: constants will never be negative currently due to the way findRealConstants function works (- is a unary term, so the constants are always positive with another unary minus outside)
                                                         {
-                                                            Term c = Controller.Instance.Z3.MkRealNumeral(cstr);
-                                                            Term addDeltaMin = Controller.Instance.IndexedVariables[new KeyValuePair<string, string>(variableName, "i")] - t1;
-                                                            Controller.Instance.Z3.replaceTerm(ref expr, expr, c, addDeltaMin, false);
+                                                            Expr c = Controller.Instance.Z3.MkReal(cstr);
+                                                            Expr addDeltaMin = z3.MkSub((ArithExpr)Controller.Instance.IndexedVariables[new KeyValuePair<string, string>(variableName, "i")], (ArithExpr)t1);
+                                                            expr = expr.Substitute(c, addDeltaMin);
                                                         }
                                                         else if (cint < 0)
                                                         {
-                                                            Term c = Controller.Instance.Z3.MkRealNumeral(cstr);
-                                                            Term addDeltaMin = Controller.Instance.IndexedVariables[new KeyValuePair<string, string>(variableName, "i")] - (c * t1);
-                                                            Controller.Instance.Z3.replaceTerm(ref expr, expr, c, addDeltaMin, false);
+                                                            Expr c = Controller.Instance.Z3.MkReal(cstr);
+                                                            Expr addDeltaMin = z3.MkSub((ArithExpr)Controller.Instance.IndexedVariables[new KeyValuePair<string, string>(variableName, "i")], z3.MkMul((ArithExpr)c, (ArithExpr)t1));
+                                                            expr = expr.Substitute(c, addDeltaMin);
                                                         }
                                                         else
                                                         {
-                                                            Term c = Controller.Instance.Z3.MkRealNumeral(cstr);
-                                                            Term addDeltaMin = Controller.Instance.IndexedVariables[new KeyValuePair<string, string>(variableName, "i")] + (c * t1);
-                                                            Controller.Instance.Z3.replaceTerm(ref expr, expr, c, addDeltaMin, false);
+                                                            Expr c = Controller.Instance.Z3.MkReal(cstr);
+                                                            Expr addDeltaMin = z3.MkAdd((ArithExpr)Controller.Instance.IndexedVariables[new KeyValuePair<string, string>(variableName, "i")], z3.MkMul((ArithExpr)c, (ArithExpr)t1));
+                                                            expr = expr.Substitute(c, addDeltaMin);
                                                         }
                                                     }
                                                 }
@@ -449,17 +580,18 @@ namespace passel.controller.parsing
                                             else // global variables
                                             {
                                                 String variableName = variable;
+                                                f.Variable = sys.GetVariableByName(variableName);
 
                                                 // prime the continuous variable occurrences
-                                                Controller.Instance.Z3.replaceTerm(ref expr, expr, Controller.Instance.GlobalVariables[variableName], Controller.Instance.GlobalVariablesPrimed[variableName], false);
+                                                expr = expr.Substitute(Controller.Instance.GlobalVariables[variableName], Controller.Instance.GlobalVariablesPrimed[variableName]);
 
                                                 if (pvars.Count > 0)
                                                 {
                                                     foreach (var y in pvars)
                                                     {
                                                         // todo: generalize, this is pretty nasty, and currently only supports dynamics of the form: v[i] R y, where R is an order/equivalence relation (e.g., >, <, >=, <=, =, etc.)
-                                                        Term addDeltaMin = Controller.Instance.Params[variableName] + (Controller.Instance.Params[y] * t1);
-                                                        Controller.Instance.Z3.replaceTerm(ref expr, expr, Controller.Instance.Params[y], addDeltaMin, false);
+                                                        Expr addDeltaMin = z3.MkAdd((ArithExpr)Controller.Instance.Params[variableName], z3.MkMul((ArithExpr)Controller.Instance.Params[y], (ArithExpr)t1));
+                                                        expr = expr.Substitute(Controller.Instance.Params[y], addDeltaMin);
                                                     }
                                                 }
                                                 else if (constants.Count > 0)
@@ -471,27 +603,27 @@ namespace passel.controller.parsing
 
                                                         if (cint == 1)
                                                         {
-                                                            Term c = Controller.Instance.Z3.MkRealNumeral(cstr);
-                                                            Term addDeltaMin = Controller.Instance.GlobalVariables[variableName] + t1;
-                                                            Controller.Instance.Z3.replaceTerm(ref expr, expr, c, addDeltaMin, false);
+                                                            Expr c = Controller.Instance.Z3.MkReal(cstr);
+                                                            Expr addDeltaMin = z3.MkAdd((ArithExpr)Controller.Instance.GlobalVariables[variableName], (ArithExpr)t1);
+                                                            expr = expr.Substitute(c, addDeltaMin);
                                                         }
                                                         else if (cint == -1)
                                                         {
-                                                            Term c = Controller.Instance.Z3.MkRealNumeral(cstr);
-                                                            Term addDeltaMin = Controller.Instance.GlobalVariables[variableName] - t1;
-                                                            Controller.Instance.Z3.replaceTerm(ref expr, expr, c, addDeltaMin, false);
+                                                            Expr c = Controller.Instance.Z3.MkReal(cstr);
+                                                            Expr addDeltaMin = z3.MkSub((ArithExpr)Controller.Instance.GlobalVariables[variableName], (ArithExpr)t1);
+                                                            expr = expr.Substitute(c, addDeltaMin);
                                                         }
                                                         else if (cint < 0)
                                                         {
-                                                            Term c = Controller.Instance.Z3.MkRealNumeral(cstr);
-                                                            Term addDeltaMin = Controller.Instance.GlobalVariables[variableName] - (c * t1);
-                                                            Controller.Instance.Z3.replaceTerm(ref expr, expr, c, addDeltaMin, false);
+                                                            Expr c = Controller.Instance.Z3.MkReal(cstr);
+                                                            Expr addDeltaMin = z3.MkSub((ArithExpr)Controller.Instance.GlobalVariables[variableName], z3.MkMul((ArithExpr)c, (ArithExpr)t1));
+                                                            expr = expr.Substitute(c, addDeltaMin);
                                                         }
                                                         else
                                                         {
-                                                            Term c = Controller.Instance.Z3.MkRealNumeral(cstr);
-                                                            Term addDeltaMin = Controller.Instance.GlobalVariables[variableName] + (c * t1);
-                                                            Controller.Instance.Z3.replaceTerm(ref expr, expr, c, addDeltaMin, false);
+                                                            Expr c = Controller.Instance.Z3.MkReal(cstr);
+                                                            Expr addDeltaMin = z3.MkAdd((ArithExpr)Controller.Instance.GlobalVariables[variableName], z3.MkMul((ArithExpr)c, (ArithExpr)t1));
+                                                            expr = expr.Substitute(c, addDeltaMin);
                                                         }
                                                     }
                                                 }
@@ -694,8 +826,8 @@ namespace passel.controller.parsing
                                             }
                                             else if (sys != null) // global variable
                                             {
-                                                Term globalVariable = null;
-                                                Term globalVariablePrime = null;
+                                                Expr globalVariable = null;
+                                                Expr globalVariablePrime = null;
 
                                                 Variable v = new Variable();
                                                 v.Name = name;
@@ -705,28 +837,33 @@ namespace passel.controller.parsing
                                                 // todo: next blockcan likely be converted (for the most part) into a function call instead of switch (e.g., lots of repition)
                                                 switch ((Variable.VarType)Enum.Parse(typeof(Variable.VarType), type, true))
                                                 {
+                                                    case Variable.VarType.boolean:
+                                                        globalVariable = Controller.Instance.Z3.MkBoolConst(name);
+                                                        v.Type = Variable.VarType.boolean;
+                                                        globalVariablePrime = Controller.Instance.Z3.MkBoolConst(name + Controller.PRIME_SUFFIX);
+                                                        break;
                                                     case Variable.VarType.index:
-                                                        globalVariable = Controller.Instance.Z3.MkConst(name, Controller.Instance.IndexType);
+                                                        globalVariable = Controller.Instance.Z3.MkIntConst(name); // todo: vs Controller.Instance.IndexType
                                                         v.Type = Variable.VarType.index;
-                                                        globalVariablePrime = Controller.Instance.Z3.MkConst(name + "'", Controller.Instance.IndexType);
+                                                        globalVariablePrime = Controller.Instance.Z3.MkIntConst(name + Controller.PRIME_SUFFIX); // todo: vs Controller.Instance.IndexType
                                                         break;
                                                     case Variable.VarType.integer:
-                                                        globalVariable = Controller.Instance.Z3.MkConst(name, Controller.Instance.IntType);
+                                                        globalVariable = Controller.Instance.Z3.MkIntConst(name);
                                                         v.Type = Variable.VarType.integer;
                                                         v.UpdateType = (Variable.VarUpdateType)Enum.Parse(typeof(Variable.VarUpdateType), update_type, true);
-                                                        globalVariablePrime = Controller.Instance.Z3.MkConst(name + "'", Controller.Instance.IntType);
+                                                        globalVariablePrime = Controller.Instance.Z3.MkIntConst(name + Controller.PRIME_SUFFIX);
                                                         break;
                                                     case Variable.VarType.real:
-                                                        globalVariable = Controller.Instance.Z3.MkConst(name, Controller.Instance.RealType);
+                                                        globalVariable = Controller.Instance.Z3.MkRealConst(name);
                                                         v.Type = Variable.VarType.real;
                                                         v.UpdateType = (Variable.VarUpdateType)Enum.Parse(typeof(Variable.VarUpdateType), update_type, true);
-                                                        globalVariablePrime = Controller.Instance.Z3.MkConst(name + "'", Controller.Instance.RealType);
+                                                        globalVariablePrime = Controller.Instance.Z3.MkRealConst(name + Controller.PRIME_SUFFIX);
                                                         break;
                                                     case Variable.VarType.nnreal:
-                                                        globalVariable = Controller.Instance.Z3.MkConst(name, Controller.Instance.RealType);
+                                                        globalVariable = Controller.Instance.Z3.MkRealConst(name);
                                                         v.Type = Variable.VarType.nnreal;
                                                         v.UpdateType = (Variable.VarUpdateType)Enum.Parse(typeof(Variable.VarUpdateType), update_type, true);
-                                                        globalVariablePrime = Controller.Instance.Z3.MkConst(name + "'", Controller.Instance.RealType);
+                                                        globalVariablePrime = Controller.Instance.Z3.MkRealConst(name + Controller.PRIME_SUFFIX);
                                                         break;
                                                 }
 
@@ -779,8 +916,8 @@ namespace passel.controller.parsing
                                         {
                                             if (v.UpdateType == Variable.VarUpdateType.discrete && v.Type == Variable.VarType.index)
                                             {
-                                                Controller.Instance.Z3.AssertCnstr(Controller.Instance.IntZero <= Controller.Instance.GlobalVariables[v.Name] & Controller.Instance.GlobalVariables[v.Name] <= Controller.Instance.Params["N"]);
-                                                Controller.Instance.Z3.AssertCnstr(Controller.Instance.IntZero <= Controller.Instance.GlobalVariablesPrimed[v.Name] & Controller.Instance.GlobalVariablesPrimed[v.Name] <= Controller.Instance.Params["N"]);
+                                                z3.Assumptions.Add(z3.MkAnd(z3.MkLe((ArithExpr)Controller.Instance.IntZero, (ArithExpr)Controller.Instance.GlobalVariables[v.Name]), z3.MkLe((ArithExpr)Controller.Instance.GlobalVariables[v.Name], (ArithExpr)Controller.Instance.Params["N"])));
+                                                z3.Assumptions.Add(z3.MkAnd(z3.MkLe((ArithExpr)Controller.Instance.IntZero, (ArithExpr)Controller.Instance.GlobalVariablesPrimed[v.Name]), z3.MkLe((ArithExpr)Controller.Instance.GlobalVariablesPrimed[v.Name], (ArithExpr)Controller.Instance.Params["N"])));
                                             }
                                         }
 

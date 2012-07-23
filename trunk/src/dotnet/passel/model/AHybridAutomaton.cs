@@ -5,6 +5,8 @@ using System.Text;
 
 using Microsoft.Z3;
 
+using passel.controller.smt.z3;
+
 using passel.controller;
 using passel.controller.parsing;
 using passel.controller.parsing.math;
@@ -16,6 +18,8 @@ namespace passel.model
      */
     public abstract class AHybridAutomaton
     {
+        public static Z3Wrapper z3 = Controller.Instance.Z3;
+
         /**
          * Parent system (with global variables, assumptions, etc.)
          */
@@ -42,7 +46,7 @@ namespace passel.model
         /**
          * Term representing initial condition
          */
-        protected Term _initial;
+        protected Expr _initial;
         public String InitialString;
 
         /**
@@ -119,7 +123,7 @@ namespace passel.model
         /**
          * Accessor for initial term
          */
-        public Term Initial
+        public Expr Initial
         {
             get { return this._initial; }
             set { this._initial = value; }
@@ -133,8 +137,8 @@ namespace passel.model
                 case Controller.DataOptionType.array:
                     {
                         // todo: pull these common parts out for all "real" types (then only enforce the nnreal or posreal part)
-                        v.ValueA = Controller.Instance.Z3.MkConst(v.Name, Controller.Instance.Z3.MkArraySort(Controller.Instance.IndexType, Controller.Instance.RealType));
-                        v.ValuePrimedA = Controller.Instance.Z3.MkConst(v.Name + "'", Controller.Instance.Z3.MkArraySort(Controller.Instance.IndexType, Controller.Instance.RealType));
+                        v.ValueA = (ArrayExpr)z3.MkConst(v.Name, z3.MkArraySort(Controller.Instance.IndexType, Controller.Instance.RealType));
+                        v.ValuePrimedA = (ArrayExpr)z3.MkConst(v.Name + Controller.PRIME_SUFFIX, z3.MkArraySort(Controller.Instance.IndexType, Controller.Instance.RealType));
 
                         if (!Controller.Instance.DataA.IndexedVariableDecl.ContainsValue(v.ValueA))
                         {
@@ -142,11 +146,11 @@ namespace passel.model
                             Controller.Instance.DataA.IndexedVariableDeclPrimed.Add(v.Name, v.ValuePrimedA);
                         }
 
-                        v.ValueRateA = Controller.Instance.Z3.MkConst(v.Name + "_dot", Controller.Instance.Z3.MkArraySort(Controller.Instance.IndexType, Controller.Instance.RealType)); // todo: only do this if continuous update_type
+                        v.ValueRateA = (ArrayExpr)z3.MkConst(v.Name + Controller.DOT_SUFFIX, z3.MkArraySort(Controller.Instance.IndexType, Controller.Instance.RealType)); // todo: only do this if continuous update_type
                         foreach (var pair in Controller.Instance.Indices)
                         {
-                            Controller.Instance.IndexedVariables.Add(new KeyValuePair<String, String>(v.Name, pair.Key), Controller.Instance.Z3.MkArraySelect(v.ValueA, pair.Value));
-                            Controller.Instance.IndexedVariablesPrimed.Add(new KeyValuePair<String, String>(v.Name + "'", pair.Key), Controller.Instance.Z3.MkArraySelect(v.ValuePrimedA, pair.Value));
+                            Controller.Instance.IndexedVariables.Add(new KeyValuePair<String, String>(v.Name, pair.Key), z3.MkSelect(v.ValueA, pair.Value));
+                            Controller.Instance.IndexedVariablesPrimed.Add(new KeyValuePair<String, String>(v.Name + Controller.PRIME_SUFFIX, pair.Key), z3.MkSelect(v.ValuePrimedA, pair.Value));
                         }
                     }
                     break;
@@ -154,8 +158,8 @@ namespace passel.model
                 default:
                     {
                         // todo: pull these common parts out for all "real" types (then only enforce the nnreal or posreal part)
-                        v.Value = Controller.Instance.Z3.MkFuncDecl(v.Name, Controller.Instance.IndexType, Controller.Instance.RealType);
-                        v.ValuePrimed = Controller.Instance.Z3.MkFuncDecl(v.Name + "'", Controller.Instance.IndexType, Controller.Instance.RealType);
+                        v.Value = z3.MkFuncDecl(v.Name, Controller.Instance.IndexType, Controller.Instance.RealType);
+                        v.ValuePrimed = z3.MkFuncDecl(v.Name + Controller.PRIME_SUFFIX, Controller.Instance.IndexType, Controller.Instance.RealType);
 
                         if (!Controller.Instance.DataU.IndexedVariableDecl.ContainsValue(v.Value))
                         {
@@ -163,11 +167,11 @@ namespace passel.model
                             Controller.Instance.DataU.IndexedVariableDeclPrimed.Add(v.Name, v.ValuePrimed);
                         }
 
-                        v.ValueRate = Controller.Instance.Z3.MkFuncDecl(v.Name + "_dot", Controller.Instance.IndexType, Controller.Instance.RealType); // todo: only do this if continuous update_type
+                        v.ValueRate = z3.MkFuncDecl(v.Name + Controller.DOT_SUFFIX, Controller.Instance.IndexType, Controller.Instance.RealType); // todo: only do this if continuous update_type
                         foreach (var pair in Controller.Instance.Indices)
                         {
-                            Controller.Instance.IndexedVariables.Add(new KeyValuePair<String, String>(v.Name, pair.Key), Controller.Instance.Z3.MkApp(v.Value, pair.Value));
-                            Controller.Instance.IndexedVariablesPrimed.Add(new KeyValuePair<String, String>(v.Name + "'", pair.Key), Controller.Instance.Z3.MkApp(v.ValuePrimed, pair.Value));
+                            Controller.Instance.IndexedVariables.Add(new KeyValuePair<String, String>(v.Name, pair.Key), z3.MkApp(v.Value, pair.Value));
+                            Controller.Instance.IndexedVariablesPrimed.Add(new KeyValuePair<String, String>(v.Name + Controller.PRIME_SUFFIX, pair.Key), z3.MkApp(v.ValuePrimed, pair.Value));
                         }
                         break;
                     }
@@ -188,8 +192,113 @@ namespace passel.model
             Variable v = new Variable(name, "", type);
             v.UpdateType = update_type;
 
+            Expr h = z3.MkIntConst("h"); // todo: vs Controller.Instance.IndexType
+            BoolExpr idxConstraint = z3.MkAnd(z3.MkLe((ArithExpr)Controller.Instance.IndexOne, (ArithExpr)h), z3.MkLe((ArithExpr)h, (ArithExpr)Controller.Instance.IndexN));
+
             switch (v.Type)
             {
+                case Variable.VarType.boolean:
+                    {
+                        switch (Controller.Instance.DataOption)
+                        {
+                            case Controller.DataOptionType.array:
+                                {
+                                    // todo: pull these common parts out for all "real" types (then only enforce the nnreal or posreal part)
+                                    v.ValueA = (ArrayExpr)z3.MkConst(v.Name, z3.MkArraySort(Controller.Instance.IndexType, z3.MkBoolSort()));
+                                    v.ValuePrimedA = (ArrayExpr)z3.MkConst(v.Name + Controller.PRIME_SUFFIX, z3.MkArraySort(Controller.Instance.IndexType, z3.MkBoolSort()));
+
+                                    // add function declaration to global function declarations
+                                    if (!Controller.Instance.DataA.IndexedVariableDecl.ContainsValue(v.ValueA))
+                                    {
+                                        Controller.Instance.DataA.IndexedVariableDecl.Add(v.Name, v.ValueA);
+                                        Controller.Instance.DataA.IndexedVariableDeclPrimed.Add(v.Name, v.ValuePrimedA);
+                                    }
+
+                                    //v.ValueRate = z3.MkFuncDecl(v.Name + Controller.DOT_SUFFIX, Controller.Instance.IntType, Controller.Instance.IntType); // todo: only do this if continuous update_type
+                                    foreach (var pair in Controller.Instance.Indices)
+                                    {
+                                        Controller.Instance.IndexedVariables.Add(new KeyValuePair<String, String>(v.Name, pair.Key), z3.MkApp(v.Value, pair.Value));
+                                        Controller.Instance.IndexedVariablesPrimed.Add(new KeyValuePair<String, String>(v.Name + Controller.PRIME_SUFFIX, pair.Key), z3.MkApp(v.ValuePrimed, pair.Value));
+                                    }
+                                    break;
+                                }
+
+                            case Controller.DataOptionType.uninterpreted_function:
+                            default:
+                                {
+                                    // todo: pull these common parts out for all "real" types (then only enforce the nnreal or posreal part)
+                                    v.Value = z3.MkFuncDecl(v.Name, Controller.Instance.IndexType, z3.MkBoolSort());
+                                    v.ValuePrimed = z3.MkFuncDecl(v.Name + Controller.PRIME_SUFFIX, Controller.Instance.IndexType, z3.MkBoolSort());
+
+                                    // add function declaration to global function declarations
+                                    if (!Controller.Instance.DataU.IndexedVariableDecl.ContainsValue(v.Value))
+                                    {
+                                        Controller.Instance.DataU.IndexedVariableDecl.Add(v.Name, v.Value);
+                                        Controller.Instance.DataU.IndexedVariableDeclPrimed.Add(v.Name, v.ValuePrimed);
+                                    }
+
+                                    //v.ValueRate = z3.MkFuncDecl(v.Name + Controller.DOT_SUFFIX, Controller.Instance.IntType, Controller.Instance.IntType); // todo: only do this if continuous update_type
+                                    foreach (var pair in Controller.Instance.Indices)
+                                    {
+                                        Controller.Instance.IndexedVariables.Add(new KeyValuePair<String, String>(v.Name, pair.Key), z3.MkApp(v.Value, pair.Value));
+                                        Controller.Instance.IndexedVariablesPrimed.Add(new KeyValuePair<String, String>(v.Name + Controller.PRIME_SUFFIX, pair.Key), z3.MkApp(v.ValuePrimed, pair.Value));
+                                    }
+                                    break;
+                                }
+                        }
+                        break;
+                    }
+                case Variable.VarType.integer:
+                    {
+                        switch (Controller.Instance.DataOption)
+                        {
+                            case Controller.DataOptionType.array:
+                                {
+                                    // todo: pull these common parts out for all "real" types (then only enforce the nnreal or posreal part)
+                                    v.ValueA = (ArrayExpr)z3.MkConst(v.Name, z3.MkArraySort(Controller.Instance.IndexType, Controller.Instance.IntType));
+                                    v.ValuePrimedA = (ArrayExpr)z3.MkConst(v.Name + Controller.PRIME_SUFFIX, z3.MkArraySort(Controller.Instance.IndexType, Controller.Instance.IntType));
+
+                                    // add function declaration to global function declarations
+                                    if (!Controller.Instance.DataA.IndexedVariableDecl.ContainsValue(v.ValueA))
+                                    {
+                                        Controller.Instance.DataA.IndexedVariableDecl.Add(v.Name, v.ValueA);
+                                        Controller.Instance.DataA.IndexedVariableDeclPrimed.Add(v.Name, v.ValuePrimedA);
+                                    }
+
+                                    //v.ValueRate = z3.MkFuncDecl(v.Name + Controller.DOT_SUFFIX, Controller.Instance.IntType, Controller.Instance.IntType); // todo: only do this if continuous update_type
+                                    foreach (var pair in Controller.Instance.Indices)
+                                    {
+                                        Controller.Instance.IndexedVariables.Add(new KeyValuePair<String, String>(v.Name, pair.Key), z3.MkApp(v.Value, pair.Value));
+                                        Controller.Instance.IndexedVariablesPrimed.Add(new KeyValuePair<String, String>(v.Name + Controller.PRIME_SUFFIX, pair.Key), z3.MkApp(v.ValuePrimed, pair.Value));
+                                    }
+                                    break;
+                                }
+
+                            case Controller.DataOptionType.uninterpreted_function:
+                            default:
+                                {
+                                    // todo: pull these common parts out for all "real" types (then only enforce the nnreal or posreal part)
+                                    v.Value = z3.MkFuncDecl(v.Name, Controller.Instance.IndexType, Controller.Instance.IntType);
+                                    v.ValuePrimed = z3.MkFuncDecl(v.Name + Controller.PRIME_SUFFIX, Controller.Instance.IndexType, Controller.Instance.IntType);
+
+                                    // add function declaration to global function declarations
+                                    if (!Controller.Instance.DataU.IndexedVariableDecl.ContainsValue(v.Value))
+                                    {
+                                        Controller.Instance.DataU.IndexedVariableDecl.Add(v.Name, v.Value);
+                                        Controller.Instance.DataU.IndexedVariableDeclPrimed.Add(v.Name, v.ValuePrimed);
+                                    }
+
+                                    //v.ValueRate = z3.MkFuncDecl(v.Name + Controller.DOT_SUFFIX, Controller.Instance.IntType, Controller.Instance.IntType); // todo: only do this if continuous update_type
+                                    foreach (var pair in Controller.Instance.Indices)
+                                    {
+                                        Controller.Instance.IndexedVariables.Add(new KeyValuePair<String, String>(v.Name, pair.Key), z3.MkApp(v.Value, pair.Value));
+                                        Controller.Instance.IndexedVariablesPrimed.Add(new KeyValuePair<String, String>(v.Name + Controller.PRIME_SUFFIX, pair.Key), z3.MkApp(v.ValuePrimed, pair.Value));
+                                    }
+                                    break;
+                                }
+                        }
+                        break;
+                    }
                 case Variable.VarType.real:
                     {
                         v = this.makeRealContinuousVar(v); // couldn't do a fall-through for some reason, so using a simple function
@@ -202,29 +311,31 @@ namespace passel.model
 
                         // assume non-negative
                         // x
-                        Term h = Controller.Instance.Z3.MkConst("h", Controller.Instance.IndexType);
-
                         switch (Controller.Instance.DataOption)
                         {
                             case Controller.DataOptionType.array:
                                 {
-                                    Term cnstr = Controller.Instance.Z3.MkArraySelect(Controller.Instance.DataA.IndexedVariableDecl[v.Name], h) >= Controller.Instance.RealZero;
-                                    Controller.Instance.Z3.AssertCnstr(Controller.Instance.Z3.MkForall(0, new Term[] { h }, null, Controller.Instance.Z3.MkImplies(Controller.Instance.IndexOne <= h & h <= Controller.Instance.IndexN, cnstr)));
+                                    Expr cnstr = z3.MkGe((ArithExpr)z3.MkSelect(Controller.Instance.DataA.IndexedVariableDecl[v.Name], h), (ArithExpr)Controller.Instance.RealZero);
+                                    z3.Assumptions.Add(z3.MkForall(new Expr[] { h }, z3.MkImplies(idxConstraint, (BoolExpr)cnstr)));
+                                    //z3.Assumptions.Add(z3.MkForall(new Expr[] { h }, (BoolExpr)cnstr));
 
                                     // x'
-                                    cnstr = Controller.Instance.Z3.MkArraySelect(Controller.Instance.DataA.IndexedVariableDeclPrimed[v.Name], h) >= Controller.Instance.RealZero;
-                                    Controller.Instance.Z3.AssertCnstr(Controller.Instance.Z3.MkForall(0, new Term[] { h }, null, Controller.Instance.Z3.MkImplies(Controller.Instance.IndexOne <= h & h <= Controller.Instance.IndexN, cnstr)));
+                                    cnstr = z3.MkGe((ArithExpr)z3.MkSelect(Controller.Instance.DataA.IndexedVariableDeclPrimed[v.Name], h), Controller.Instance.RealZero);
+                                    z3.Assumptions.Add(z3.MkForall(new Expr[] { h }, z3.MkImplies(idxConstraint, (BoolExpr)cnstr)));
+                                    //z3.Assumptions.Add(z3.MkForall(new Expr[] { h }, (BoolExpr)cnstr));
                                     break;
                                 }
                             case Controller.DataOptionType.uninterpreted_function:
                             default:
                                 {
-                                    Term cnstr = Controller.Instance.Z3.MkApp(Controller.Instance.DataU.IndexedVariableDecl[v.Name], h) >= Controller.Instance.RealZero;
-                                    Controller.Instance.Z3.AssertCnstr(Controller.Instance.Z3.MkForall(0, new Term[] { h }, null, Controller.Instance.Z3.MkImplies(Controller.Instance.IndexOne <= h & h <= Controller.Instance.IndexN, cnstr)));
+                                    Expr cnstr = z3.MkGe((ArithExpr)z3.MkApp(Controller.Instance.DataU.IndexedVariableDecl[v.Name], h), Controller.Instance.RealZero);
+                                    z3.Assumptions.Add(z3.MkForall(new Expr[] { h }, z3.MkImplies(idxConstraint, (BoolExpr)cnstr)));
+                                    //z3.Assumptions.Add(z3.MkForall(new Expr[] { h }, (BoolExpr)cnstr));
 
                                     // x'
-                                    cnstr = Controller.Instance.Z3.MkApp(Controller.Instance.DataU.IndexedVariableDeclPrimed[v.Name], h) >= Controller.Instance.RealZero;
-                                    Controller.Instance.Z3.AssertCnstr(Controller.Instance.Z3.MkForall(0, new Term[] { h }, null, Controller.Instance.Z3.MkImplies(Controller.Instance.IndexOne <= h & h <= Controller.Instance.IndexN, cnstr)));
+                                    cnstr = z3.MkGe((ArithExpr)z3.MkApp(Controller.Instance.DataU.IndexedVariableDeclPrimed[v.Name], h), Controller.Instance.RealZero);
+                                    z3.Assumptions.Add(z3.MkForall(new Expr[] { h }, z3.MkImplies(idxConstraint, (BoolExpr)cnstr)));
+                                    //z3.Assumptions.Add(z3.MkForall(new Expr[] { h }, (BoolExpr)cnstr));
                                     break;
                                 }
                         }
@@ -238,8 +349,8 @@ namespace passel.model
                             case Controller.DataOptionType.array:
                                 {
                                     // todo: pull these common parts out for all "real" types (then only enforce the nnreal or posreal part)
-                                    v.ValueA = Controller.Instance.Z3.MkConst(v.Name, Controller.Instance.Z3.MkArraySort(Controller.Instance.IntType, Controller.Instance.IntType));
-                                    v.ValuePrimedA = Controller.Instance.Z3.MkConst(v.Name + "'", Controller.Instance.Z3.MkArraySort(Controller.Instance.IntType, Controller.Instance.IntType));
+                                    v.ValueA = (ArrayExpr)z3.MkConst(v.Name, z3.MkArraySort(Controller.Instance.IndexType, Controller.Instance.IndexType));
+                                    v.ValuePrimedA = (ArrayExpr)z3.MkConst(v.Name + Controller.PRIME_SUFFIX, z3.MkArraySort(Controller.Instance.IndexType, Controller.Instance.IndexType));
 
                                     // add function declaration to global function declarations
                                     if (!Controller.Instance.DataA.IndexedVariableDecl.ContainsValue(v.ValueA))
@@ -248,24 +359,25 @@ namespace passel.model
                                         Controller.Instance.DataA.IndexedVariableDeclPrimed.Add(v.Name, v.ValuePrimedA);
                                     }
 
-                                    v.ValueRate = Controller.Instance.Z3.MkFuncDecl(v.Name + "_dot", Controller.Instance.IntType, Controller.Instance.IntType); // todo: only do this if continuous update_type
+                                    //why doing this for index type?
+                                    //v.ValueRate = z3.MkFuncDecl(v.Name + Controller.DOT_SUFFIX, Controller.Instance.IntType, Controller.Instance.IntType); // todo: only do this if continuous update_type
                                     foreach (var pair in Controller.Instance.Indices)
                                     {
-                                        Controller.Instance.IndexedVariables.Add(new KeyValuePair<String, String>(v.Name, pair.Key), Controller.Instance.Z3.MkApp(v.Value, pair.Value));
-                                        Controller.Instance.IndexedVariablesPrimed.Add(new KeyValuePair<String, String>(v.Name + "'", pair.Key), Controller.Instance.Z3.MkApp(v.ValuePrimed, pair.Value));
+                                        Controller.Instance.IndexedVariables.Add(new KeyValuePair<String, String>(v.Name, pair.Key), z3.MkApp(v.Value, pair.Value));
+                                        Controller.Instance.IndexedVariablesPrimed.Add(new KeyValuePair<String, String>(v.Name + Controller.PRIME_SUFFIX, pair.Key), z3.MkApp(v.ValuePrimed, pair.Value));
                                     }
 
                                     // p and p' constraints
                                     // pointer variables take values in the set of indices (i.e., 1 <= p[i] <= N, or p[i] = 0 = \bot)
                                     // p
-                                    Term h = Controller.Instance.Z3.MkConst("h", Controller.Instance.IndexType);
-                                    Term cnstr = Controller.Instance.Z3.MkArraySelect(Controller.Instance.DataA.IndexedVariableDecl[v.Name], h) >= Controller.Instance.IntZero & Controller.Instance.Z3.MkArraySelect(Controller.Instance.DataA.IndexedVariableDecl[v.Name], h) <= Controller.Instance.Params["N"];
-                                    Controller.Instance.Z3.AssertCnstr(Controller.Instance.Z3.MkForall(0, new Term[] { h }, null, Controller.Instance.Z3.MkImplies(Controller.Instance.IndexOne <= h & h <= Controller.Instance.IndexN, cnstr)));
+                                    Expr cnstr = z3.MkAnd(z3.MkGe((ArithExpr)z3.MkSelect(Controller.Instance.DataA.IndexedVariableDecl[v.Name], h), (ArithExpr)Controller.Instance.IndexNone), z3.MkLe((ArithExpr)z3.MkSelect(Controller.Instance.DataA.IndexedVariableDecl[v.Name], h), (ArithExpr)Controller.Instance.IndexN));
+                                    z3.Assumptions.Add(z3.MkForall(new Expr[] { h }, z3.MkImplies(idxConstraint, (BoolExpr)cnstr)));
+                                    //z3.Assumptions.Add(z3.MkForall(new Expr[] { h }, (BoolExpr)cnstr));
 
                                     // p'
-                                    h = Controller.Instance.Z3.MkConst("h", Controller.Instance.IndexType); // get fresh just in case
-                                    cnstr = Controller.Instance.Z3.MkArraySelect(Controller.Instance.DataA.IndexedVariableDeclPrimed[v.Name], h) >= Controller.Instance.IntZero & Controller.Instance.Z3.MkArraySelect(Controller.Instance.DataA.IndexedVariableDeclPrimed[v.Name], h) <= Controller.Instance.Params["N"];
-                                    Controller.Instance.Z3.AssertCnstr(Controller.Instance.Z3.MkForall(0, new Term[] { h }, null, Controller.Instance.Z3.MkImplies(Controller.Instance.IndexOne <= h & h <= Controller.Instance.IndexN, cnstr)));
+                                    cnstr = z3.MkAnd(z3.MkGe((ArithExpr)z3.MkSelect(Controller.Instance.DataA.IndexedVariableDeclPrimed[v.Name], h), (ArithExpr)Controller.Instance.IndexNone), z3.MkLe((ArithExpr)z3.MkSelect(Controller.Instance.DataA.IndexedVariableDeclPrimed[v.Name], h), (ArithExpr)Controller.Instance.IndexN));
+                                    z3.Assumptions.Add(z3.MkForall(new Expr[] { h }, z3.MkImplies(idxConstraint, (BoolExpr)cnstr)));
+                                    //z3.Assumptions.Add(z3.MkForall(new Expr[] { h }, (BoolExpr)cnstr));
                                     break;
                                 }
 
@@ -273,8 +385,8 @@ namespace passel.model
                             default:
                                 {
                                     // todo: pull these common parts out for all "real" types (then only enforce the nnreal or posreal part)
-                                    v.Value = Controller.Instance.Z3.MkFuncDecl(v.Name, Controller.Instance.IntType, Controller.Instance.IntType);
-                                    v.ValuePrimed = Controller.Instance.Z3.MkFuncDecl(v.Name + "'", Controller.Instance.IntType, Controller.Instance.IntType);
+                                    v.Value = z3.MkFuncDecl(v.Name, Controller.Instance.IndexType, Controller.Instance.IndexType);
+                                    v.ValuePrimed = z3.MkFuncDecl(v.Name + Controller.PRIME_SUFFIX, Controller.Instance.IndexType, Controller.Instance.IndexType);
 
                                     // add function declaration to global function declarations
                                     if (!Controller.Instance.DataU.IndexedVariableDecl.ContainsValue(v.Value))
@@ -283,24 +395,25 @@ namespace passel.model
                                         Controller.Instance.DataU.IndexedVariableDeclPrimed.Add(v.Name, v.ValuePrimed);
                                     }
 
-                                    v.ValueRate = Controller.Instance.Z3.MkFuncDecl(v.Name + "_dot", Controller.Instance.IntType, Controller.Instance.IntType); // todo: only do this if continuous update_type
+                                    // why doing this for index type?...
+                                    //v.ValueRate = z3.MkFuncDecl(v.Name + Controller.DOT_SUFFIX, Controller.Instance.IntType, Controller.Instance.IntType); // todo: only do this if continuous update_type
                                     foreach (var pair in Controller.Instance.Indices)
                                     {
-                                        Controller.Instance.IndexedVariables.Add(new KeyValuePair<String, String>(v.Name, pair.Key), Controller.Instance.Z3.MkApp(v.Value, pair.Value));
-                                        Controller.Instance.IndexedVariablesPrimed.Add(new KeyValuePair<String, String>(v.Name + "'", pair.Key), Controller.Instance.Z3.MkApp(v.ValuePrimed, pair.Value));
+                                        Controller.Instance.IndexedVariables.Add(new KeyValuePair<String, String>(v.Name, pair.Key), z3.MkApp(v.Value, pair.Value));
+                                        Controller.Instance.IndexedVariablesPrimed.Add(new KeyValuePair<String, String>(v.Name + Controller.PRIME_SUFFIX, pair.Key), z3.MkApp(v.ValuePrimed, pair.Value));
                                     }
 
                                     // p and p' constraints
                                     // pointer variables take values in the set of indices (i.e., 1 <= p[i] <= N, or p[i] = 0 = \bot)
                                     // p
-                                    Term h = Controller.Instance.Z3.MkConst("h", Controller.Instance.IndexType);
-                                    Term cnstr = Controller.Instance.Z3.MkApp(Controller.Instance.DataU.IndexedVariableDecl[v.Name], h) >= Controller.Instance.IntZero & Controller.Instance.Z3.MkApp(Controller.Instance.DataU.IndexedVariableDecl[v.Name], h) <= Controller.Instance.Params["N"];
-                                    Controller.Instance.Z3.AssertCnstr(Controller.Instance.Z3.MkForall(0, new Term[] { h }, null, Controller.Instance.Z3.MkImplies(Controller.Instance.IndexOne <= h & h <= Controller.Instance.IndexN, cnstr)));
+                                    Expr cnstr = z3.MkAnd(z3.MkGe((ArithExpr)z3.MkApp(Controller.Instance.DataU.IndexedVariableDecl[v.Name], h), (ArithExpr)Controller.Instance.IndexNone), z3.MkLe((ArithExpr)z3.MkApp(Controller.Instance.DataU.IndexedVariableDecl[v.Name], h), (ArithExpr)Controller.Instance.IndexN));
+                                    z3.Assumptions.Add(z3.MkForall(new Expr[] { h }, z3.MkImplies(idxConstraint, (BoolExpr)cnstr)));
+                                    //z3.Assumptions.Add(z3.MkForall(new Expr[] { h }, (BoolExpr)cnstr));
 
                                     // p'
-                                    h = Controller.Instance.Z3.MkConst("h", Controller.Instance.IndexType); // get fresh just in case
-                                    cnstr = Controller.Instance.Z3.MkApp(Controller.Instance.DataU.IndexedVariableDeclPrimed[v.Name], h) >= Controller.Instance.IntZero & Controller.Instance.Z3.MkApp(Controller.Instance.DataU.IndexedVariableDeclPrimed[v.Name], h) <= Controller.Instance.Params["N"];
-                                    Controller.Instance.Z3.AssertCnstr(Controller.Instance.Z3.MkForall(0, new Term[] { h }, null, Controller.Instance.Z3.MkImplies(Controller.Instance.IndexOne <= h & h <= Controller.Instance.IndexN, cnstr)));
+                                    cnstr = z3.MkAnd(z3.MkGe((ArithExpr)z3.MkApp(Controller.Instance.DataU.IndexedVariableDeclPrimed[v.Name], h), (ArithExpr)Controller.Instance.IndexNone), z3.MkLe((ArithExpr)z3.MkApp(Controller.Instance.DataU.IndexedVariableDeclPrimed[v.Name], h), (ArithExpr)Controller.Instance.IndexN));
+                                    z3.Assumptions.Add(z3.MkForall(new Expr[] { h }, z3.MkImplies(idxConstraint, (BoolExpr)cnstr)));
+                                    //z3.Assumptions.Add(z3.MkForall(new Expr[] { h }, (BoolExpr)cnstr));
                                     break;
                                 }
                         }
@@ -325,7 +438,7 @@ namespace passel.model
         public void finishConstruction()
         {
             UInt32 max = 0;
-            List<Term> initialStates = new List<Term>();
+            List<Expr> initialStates = new List<Expr>();
             foreach (ConcreteLocation acl in this.Locations)
             {
                 max = Math.Max(max, acl.Value);
@@ -333,57 +446,86 @@ namespace passel.model
                 // disjunction of all states specified as initial
                 if (acl.Initial)
                 {
-                    initialStates.Add(Controller.Instance.Z3.MkEq(Controller.Instance.Q["i"], acl.ValueTerm));
+                    initialStates.Add(z3.MkEq(Controller.Instance.Q["i"], acl.ValueTerm));
                 }
             }
+
+            Expr indexConstrainti = z3.MkAnd(z3.MkGe((ArithExpr)Controller.Instance.Indices["i"], (ArithExpr)Controller.Instance.IndexOne), z3.MkLe((ArithExpr)Controller.Instance.Indices["i"], (ArithExpr)Controller.Instance.IndexN));
 
             // parse initial condition string
             if (this.InitialString != null)
             {
                 Antlr.Runtime.Tree.CommonTree tmptree = passel.controller.parsing.math.Expression.Parse(this.InitialString);
                 this._initial = passel.controller.parsing.math.ast.LogicalExpression.CreateTerm(tmptree);
-                this._initial = this._initial & Controller.Instance.Z3.MkForall(0, new Term[] { Controller.Instance.Indices["i"] }, null, Controller.Instance.Z3.MkOr(initialStates.ToArray())); // note the or, this is correct, non-deterministic start state
+
+                if (initialStates.Count > 1)
+                {
+                    this._initial = z3.MkAnd((BoolExpr)this._initial, z3.MkForall(new Expr[] { Controller.Instance.Indices["i"] }, z3.MkImplies((BoolExpr)indexConstrainti, z3.MkOr((BoolExpr[])initialStates.ToArray())))); // note the or, this is correct, non-deterministic start state
+                }
+                else if (initialStates.Count == 1)
+                {
+                    this._initial = z3.MkAnd((BoolExpr)this._initial, z3.MkForall(new Expr[] { Controller.Instance.Indices["i"] }, z3.MkImplies((BoolExpr)indexConstrainti, (BoolExpr)initialStates[0]))); // note the or, this is correct, non-deterministic start state
+                }
+                else
+                {
+                    // todo: possibly error
+                }
             }
             else
             {
-                this._initial = Controller.Instance.Z3.MkForall(0, new Term[] { Controller.Instance.Indices["i"] }, null, Controller.Instance.Z3.MkOr(initialStates.ToArray())); // note the or, this is correct, non-deterministic start state
+                if (initialStates.Count > 1)
+                {
+                    this._initial = z3.MkForall(new Expr[] { Controller.Instance.Indices["i"] }, z3.MkImplies((BoolExpr)indexConstrainti, z3.MkOr((BoolExpr[])initialStates.ToArray()))); // note the or, this is correct, non-deterministic start state
+                }
+                else if (initialStates.Count == 1)
+                {
+                    this._initial = z3.MkForall(new Expr[] { Controller.Instance.Indices["i"] }, z3.MkImplies((BoolExpr)indexConstrainti, (BoolExpr)initialStates[0])); // note the or, this is correct, non-deterministic start state
+                }
+                else
+                {
+                    // todo: definitely error (no i.c.)
+                }
             }
 
-            //Controller.Instance.Z3.AssertCnstr(this._initial); // assert the initial constraint; actually, don't want to assert this for inductive invariant checking
+            //z3.AssertCnstr(this._initial); // assert the initial constraint; actually, don't want to assert this for inductive invariant checking
 
-            Term int_maxState = Controller.Instance.Z3.MkIntNumeral(max);
+            Expr int_maxState = z3.MkInt(max);
 
             // bound domain of control locations
             // q
-            Term h = Controller.Instance.Z3.MkConst("h", Controller.Instance.IndexType);
+            Expr h = Controller.Instance.Indices["i"];
+            Expr indexConstrainth = z3.MkAnd(z3.MkGe((ArithExpr)h, (ArithExpr)Controller.Instance.IndexOne), z3.MkLe((ArithExpr)h, (ArithExpr)Controller.Instance.IndexN));
+            //Expr indexConstrainth = z3.MkTrue();
 
             switch (Controller.Instance.DataOption)
             {
                 case Controller.DataOptionType.array:
                     {
-                        Term cnstr = Controller.Instance.Z3.MkArraySelect(Controller.Instance.DataA.IndexedVariableDecl["q"], h) >= Controller.Instance.IntZero & Controller.Instance.Z3.MkArraySelect(Controller.Instance.DataA.IndexedVariableDecl["q"], h) <= int_maxState;
-                        Term fc = Controller.Instance.Z3.MkForall(0, new Term[] { h }, null, cnstr); // forall indices h, enforce location bounds on q
-                        Controller.Instance.Z3.AssertCnstr(fc);
+                        Expr cnstr = z3.MkAnd(z3.MkGe((ArithExpr)z3.MkSelect(Controller.Instance.DataA.IndexedVariableDecl["q"], h), (ArithExpr)Controller.Instance.IntZero), z3.MkLe((ArithExpr)z3.MkSelect(Controller.Instance.DataA.IndexedVariableDecl["q"], h), (ArithExpr)int_maxState));
+                        Expr fc = z3.MkForall(new Expr[] { h }, cnstr); // forall indices h, enforce location bounds on q
+                        z3.Assumptions.Add((BoolExpr)fc);
 
                         // q'
                         //Controller.Instance.IntOne <= h & h <= Controller.Instance.Params["N"] &
-                        cnstr = Controller.Instance.Z3.MkArraySelect(Controller.Instance.DataA.IndexedVariableDeclPrimed["q"], h) >= Controller.Instance.IntZero & Controller.Instance.Z3.MkArraySelect(Controller.Instance.DataA.IndexedVariableDeclPrimed["q"], h) <= int_maxState;
-                        fc = Controller.Instance.Z3.MkForall(0, new Term[] { h }, null, cnstr);
-                        Controller.Instance.Z3.AssertCnstr(fc);
+                        cnstr = z3.MkAnd(z3.MkGe((ArithExpr)z3.MkSelect(Controller.Instance.DataA.IndexedVariableDeclPrimed["q"], h), (ArithExpr)Controller.Instance.IntZero), z3.MkLe((ArithExpr)z3.MkSelect(Controller.Instance.DataA.IndexedVariableDeclPrimed["q"], h), (ArithExpr)int_maxState));
+                        fc = z3.MkForall(new Expr[] { h }, cnstr);
+                        z3.Assumptions.Add((BoolExpr)fc);
                         break;
                     }
                 case Controller.DataOptionType.uninterpreted_function:
                 default:
                     {
-                        Term cnstr = Controller.Instance.Z3.MkApp(Controller.Instance.DataU.IndexedVariableDecl["q"], h) >= Controller.Instance.IntZero & Controller.Instance.Z3.MkApp(Controller.Instance.DataU.IndexedVariableDecl["q"], h) <= int_maxState;
-                        Term fc = Controller.Instance.Z3.MkForall(0, new Term[] { h }, null, cnstr); // forall indices h, enforce location bounds on q
-                        Controller.Instance.Z3.AssertCnstr(fc);
+                        Expr cnstr = z3.MkAnd(z3.MkGe((ArithExpr)z3.MkApp(Controller.Instance.DataU.IndexedVariableDecl["q"], h), (ArithExpr)Controller.Instance.IntZero), z3.MkLe((ArithExpr)z3.MkApp(Controller.Instance.DataU.IndexedVariableDecl["q"], h), (ArithExpr)int_maxState));
+                        Expr fc = z3.MkForall(new Expr[] { h }, z3.MkImplies((BoolExpr)indexConstrainth, (BoolExpr)cnstr)); // forall indices h, enforce location bounds on q
+                        //Expr fc = z3.MkForall(new Expr[] { h }, (BoolExpr)cnstr); // forall indices h, enforce location bounds on q
+                        z3.Assumptions.Add((BoolExpr)fc);
 
                         // q'
                         //Controller.Instance.IntOne <= h & h <= Controller.Instance.Params["N"] &
-                        cnstr = Controller.Instance.Z3.MkApp(Controller.Instance.DataU.IndexedVariableDeclPrimed["q"], h) >= Controller.Instance.IntZero & Controller.Instance.Z3.MkApp(Controller.Instance.DataU.IndexedVariableDeclPrimed["q"], h) <= int_maxState;
-                        fc = Controller.Instance.Z3.MkForall(0, new Term[] { h }, null, cnstr);
-                        Controller.Instance.Z3.AssertCnstr(fc);
+                        cnstr = z3.MkAnd(z3.MkGe((ArithExpr)z3.MkApp(Controller.Instance.DataU.IndexedVariableDeclPrimed["q"], h), (ArithExpr)Controller.Instance.IntZero), z3.MkGe((ArithExpr)z3.MkApp(Controller.Instance.DataU.IndexedVariableDeclPrimed["q"], h), (ArithExpr)int_maxState));
+                        fc = z3.MkForall(new Expr[] { h }, z3.MkImplies((BoolExpr)indexConstrainth, (BoolExpr)cnstr));
+                        //fc = z3.MkForall(new Expr[] { h }, (BoolExpr)cnstr);
+                        z3.Assumptions.Add((BoolExpr)fc);
                         break;
                     }
             }

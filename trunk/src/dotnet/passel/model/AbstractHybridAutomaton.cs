@@ -49,9 +49,9 @@ namespace passel.model
          */
         private ConcreteHybridAutomaton _cha;
 
-        private ISet<Term> _predicates;
+        private ISet<Expr> _predicates;
 
-        public ISet<Term> Predicates
+        public ISet<Expr> Predicates
         {
             get { return this._predicates; }
             set { this._predicates = value; }
@@ -117,12 +117,12 @@ namespace passel.model
         {
             // find initial states
             // process: for the conretization of each abstract state ainv(phi), determine if initial => ainv(phi) is proved, so that initial is a subset of ainv(phi)
-            List<Term> initialConcrete = new List<Term>();
+            List<Expr> initialConcrete = new List<Expr>();
             foreach (AbstractState qa in this._valuations)
             {
                 foreach (EnvironmentState ea in qa.EnvironmentStates)
                 {
-                    Term[] core;
+                    Expr[] core;
                     Model m = null;
                     String nstr;
                     if (Controller.Instance.Z3.proveTerm(Controller.Instance.Z3.MkImplies(this._cha.Initial, ea.EnvironmentPredicate), out m, out core, out nstr))
@@ -140,23 +140,23 @@ namespace passel.model
             }
             else
             {
-                this.Initial = Controller.Instance.Z3.MkOr(initialConcrete.ToArray());
+                this.Initial = Controller.Instance.Z3.MkOr((BoolExpr[])initialConcrete.ToArray());
             }
         }
 
         /**
          * Determine if the set of states described by the formula bad can be reached from the set of states described by initial
          */
-        public Boolean modelCheckInvariant(Term initial, Term bad)
+        public Boolean modelCheckInvariant(Expr initial, Expr bad)
         {
             //Term reached = Controller.Instance.Z3.MkFalse(); // none of the state space
-            Term reached = initial;
+            Expr reached = initial;
             UInt32 iteration = 0;
             Boolean debug = true;
             TreeReach reachset = new TreeReach(initial, null);
             TreeReach reachset_root = reachset; // reference to root of the tree
             HashSet<TreeReach> toProcess = new HashSet<TreeReach>();
-            Term[] core;
+            Expr[] core;
             toProcess.Add(reachset);
 
             while (toProcess.Count > 0)
@@ -171,8 +171,8 @@ namespace passel.model
                 Console.WriteLine();
                 Console.WriteLine();
 
-                List<Term> newlyReached = this.symbolicSuccessors(reached);
-                List<Term> newlyReachedFeasible = new List<Term>();
+                List<Expr> newlyReached = this.symbolicSuccessors(reached);
+                List<Expr> newlyReachedFeasible = new List<Expr>();
 
                 foreach (var t in newlyReached)
                 {
@@ -187,13 +187,13 @@ namespace passel.model
                     }
                 }
 
-                Term newlyReachedDisjunction = Controller.Instance.Z3.MkOr(newlyReachedFeasible.ToArray());
+                Expr newlyReachedDisjunction = Controller.Instance.Z3.MkOr((BoolExpr[])newlyReachedFeasible.ToArray());
 
                 // fixed point check (prove that the k^th iteration contains the k+1^st iteration)
                 // unsat of: not (reach_{k+1} => reach_k) to prove reach_{k+1} \subseteq reach_k
                 Console.WriteLine("Fixpoint check for iteration " + iteration.ToString());
                 String nstr;
-                if (Controller.Instance.Z3.proveTerm(Controller.Instance.Z3.MkImplies(newlyReachedDisjunction, reached), out m, out core, out nstr, debug))
+                if (Controller.Instance.Z3.proveTerm(Controller.Instance.Z3.MkImplies((BoolExpr)newlyReachedDisjunction, (BoolExpr)reached), out m, out core, out nstr, debug))
                 //if (!Controller.Instance.Z3.checkTerm(Controller.Instance.Z3.MkNot(Controller.Instance.Z3.MkImplies(newlyReachedDisjunction, reached)), debug))
                 {
                     // safe
@@ -203,7 +203,7 @@ namespace passel.model
                 Console.WriteLine();
 
                 // todo: convert to list / tree version
-                reached = Controller.Instance.Z3.MkOr(reached, newlyReachedDisjunction);
+                reached = Controller.Instance.Z3.MkOr((BoolExpr)reached, (BoolExpr)newlyReachedDisjunction);
                 //reached = Controller.Instance.Z3.Simplify(reached);
 
                 toProcess.Remove(reachset); // remove the last processed value
@@ -219,9 +219,9 @@ namespace passel.model
          * 
          * From formula \phi(q) : Post(\phi(q)) = \exists q . T(q, q') and \phi(q)
          */
-        public List<Term> symbolicSuccessors(Term prestate)
+        public List<Expr> symbolicSuccessors(Expr prestate)
         {
-            List<Term> succs = new List<Term>();
+            List<Expr> succs = new List<Expr>();
 
             foreach (Location la in this._cha.Locations)
             {
@@ -231,27 +231,27 @@ namespace passel.model
 
                     // todo: make sure we add the successor states due to discrete location changes to the terms...
 
-                    Term ts;
-                    List<Term> rel = new List<Term>();
+                    Expr ts;
+                    List<Expr> rel = new List<Expr>();
                     rel.Add(prestate);
 
                     // add the control location prestate from this location
-                    rel.Add(Controller.Instance.Z3.MkEq(Controller.Instance.Q["i"], Controller.Instance.Z3.MkIntNumeral(la.Value)));
+                    rel.Add(Controller.Instance.Z3.MkEq(Controller.Instance.Q["i"], Controller.Instance.Z3.MkInt(la.Value)));
                     rel.Add(t.ToTerm()); // add the control location post-state due to this transition
 
                     if (t.Guard != null)
                     {
-                        List<Term> allj = new List<Term>();
+                        List<Expr> allj = new List<Expr>();
                         allj.Add(Controller.Instance.Indices["j"]);
-                        Term g = Controller.Instance.Z3.MkAnd(Controller.Instance.Z3.MkNot(Controller.Instance.Z3.MkEq(Controller.Instance.Indices["i"], Controller.Instance.Indices["j"])), t.Guard);
-                        g = Controller.Instance.Z3.MkForall(0, allj.ToArray(), null, g);
+                        Expr g = Controller.Instance.Z3.MkAnd(Controller.Instance.Z3.MkNot(Controller.Instance.Z3.MkEq(Controller.Instance.Indices["i"], Controller.Instance.Indices["j"])), t.Guard);
+                        g = Controller.Instance.Z3.MkForall(allj.ToArray(), g);
                         rel.Add(g);
                     }
                     if (t.Reset != null)
                     {
                         rel.Add(t.Reset);
                     }
-                    ts = Controller.Instance.Z3.MkAnd(rel.ToArray());
+                    ts = Controller.Instance.Z3.MkAnd((BoolExpr[])rel.ToArray());
                     //ts = Controller.Instance.Z3.Simplify(ts);
 
                     //Pattern[] pats = new Pattern[] { Controller.Instance.Z3.MkPattern(new Term[] { Controller.Instance.Indices["j"] }) };
@@ -266,12 +266,13 @@ namespace passel.model
                         //bound.Add(pair.Value);
                         //names.Add(pair.Key);
                         names.Add("q");
-                        FuncDecl d = pair.Value.GetAppDecl();
-                        String dn = d.GetDeclName();
-                        DeclKind dk = d.GetKind();
+                        FuncDecl d = pair.Value.FuncDecl;
+                        Symbol dn = d.Name;
+                        Z3_decl_kind dk = d.DeclKind;
                         //sorts.Add(pair.Value.GetSort());
-                        Sort s = Controller.Instance.Z3.MkSort("(Int) " + pair.Value.GetSort().ToString()); // function sort: maps process indices to location type
-                        sorts.Add(s);
+                        //TODO: Sort s = Controller.Instance.Z3.MkSort("(Int) " + pair.Value.GetSort().ToString()); // function sort: maps process indices to location type
+                        //sorts.Add(s);
+
                         //sorts.Add(Controller.Instance.Z3.MkArraySort(Controller.Instance.IntType, Controller.Instance.RealType));
                         break;
                     }
@@ -281,21 +282,21 @@ namespace passel.model
                         //names.Add(pair.Key);
                         names.Add(pair.Key.Key);
                         //sorts.Add(pair.Value.GetSort());
-                        Sort s = Controller.Instance.Z3.MkSort("(Int) " + pair.Value.GetSort().ToString()); // function sort: maps process indices to variable type
+                        //TODO: Sort s = Controller.Instance.Z3.MkSort("(Int) " + pair.Value.GetSort().ToString()); // function sort: maps process indices to variable type
                         // todo: add hash table to look up variable types
-                        sorts.Add(s);
+                        //sorts.Add(s);
                         break;
                     }
-                    ts = Controller.Instance.Z3.MkExists(0, null, sorts.ToArray(), names.ToArray(), ts);
+                    //TODO: ts = Controller.Instance.Z3.MkExists(sorts.ToArray(), names.ToArray(), ts);
 
-                    List<Term> bound = new List<Term>();
+                    List<Expr> bound = new List<Expr>();
                     foreach (var pair in Controller.Instance.Indices)
                     {
                         //pats.Add(Controller.Instance.Z3.MkPattern(new Term[] { pair.Value }));
                         bound.Add(pair.Value);
                     }
-                    ts = Controller.Instance.Z3.MkExists(0, bound.ToArray(), null, ts);
-                    ts = Controller.Instance.Z3.Simplify(ts);
+                    ts = Controller.Instance.Z3.MkExists(bound.ToArray(), ts);
+                    //TODO: ts = Controller.Instance.Z3.Simplify(ts);
 
                     // unprime all variables
                     foreach (var pair in Controller.Instance.QPrimed)
@@ -319,7 +320,7 @@ namespace passel.model
          */
         private void makePredicates()
         {
-            this.Predicates = new HashSet<Term>();
+            this.Predicates = new HashSet<Expr>();
 
             // add a predicate for each property specified and its negation
             foreach (Property p in this._cha.Parent.Properties)
@@ -327,7 +328,7 @@ namespace passel.model
                 if (p.Formula != null && !this.Predicates.Contains(p.Formula))
                 {
                     // heuristic: only add new predicates (search by string, not by object)
-                    foreach (Term t in this.Predicates)
+                    foreach (Expr t in this.Predicates)
                     {
                         if (t.ToString() == p.Formula.ToString())
                         {
@@ -351,7 +352,7 @@ namespace passel.model
                     if (t.Guard != null && !this.Predicates.Contains(t.Guard))
                     {
                         // heuristic: only add new predicates (search by string, not by object)
-                        foreach (Term p in this.Predicates)
+                        foreach (Expr p in this.Predicates)
                         {
                             if (p.ToString() == t.Guard.ToString())
                             {
@@ -392,7 +393,7 @@ namespace passel.model
                 List<EnvironmentState> es = new List<EnvironmentState>();
                 foreach (Location lenv in query)
                 {
-                    foreach (Term p in this.Predicates)
+                    foreach (Expr p in this.Predicates)
                     {
                         EnvironmentState q = new EnvironmentState(lenv.Label, lenv.Value, 0, p);
                         q.VariableRates = lenv.VariableRates; // copy variable rates (for timed transitions)
@@ -416,7 +417,7 @@ namespace passel.model
             {
                 for (UInt64 i = 0; i < Math.Pow(4, a.EnvironmentStates.Count); i++) // todo: change 4 to: cardinality of {None, All, AllButOne, One, \ldots, Cutoff}
                 {
-                    Term p = Controller.Instance.Z3.MkTrue();
+                    Expr p = Controller.Instance.Z3.MkTrue();
                     AbstractState ac = ((AbstractState)a.Clone());
 
                     for (int j = 0; j < a.EnvironmentStates.Count; j++)
@@ -458,7 +459,7 @@ namespace passel.model
                     //       note that this prevents the environment process from being in two locations simultaneously---is this okay? seems like we might allow this
                     //       if this is okay, then just use the intra-predicate predicate (.predicate) and not the environment predicate (.envpred) (doing this for now for testing)
                     Model m = null;
-                    Term[] core;
+                    Expr[] core;
                     if (Controller.Instance.Z3.checkTerm(p, out m, out core) && !ac.Concretization().ToString().Equals("false"))
                     {
                         this._valuations.Add(ac);
@@ -478,9 +479,9 @@ namespace passel.model
          * From formula \phi(q) : Pre(\phi(q)) = \exists q' . T(q, q') and \phi(q')
          * Replace all q terms in \phi by q'
          */
-        public List<Term> symbolicPredecessors(Term phi)
+        public List<Expr> symbolicPredecessors(Expr phi)
         {
-            List<Term> pred = new List<Term>();
+            List<Expr> pred = new List<Expr>();
             // todo
             return pred;
         }
@@ -505,9 +506,9 @@ namespace passel.model
                             if (t.Guard != null && t.Reset == null)
                             {
                                 // reference process block set (use predicate, not environmentpredicate which also has control location information)
-                                Term ts = Controller.Instance.Z3.MkImplies(ea.Predicate, Controller.Instance.Z3.MkNot(t.Guard));
+                                Expr ts = Controller.Instance.Z3.MkImplies(ea.Predicate, Controller.Instance.Z3.MkNot(t.Guard));
                                 Model m = null;
-                                Term[] core;
+                                Expr[] core;
                                 if (Controller.Instance.Z3.checkTerm(ts, out m, out core))
                                 {
                                     t.addBlockingRef(ea.Predicate);
@@ -549,16 +550,16 @@ namespace passel.model
                             // reference process data variable change
                             else if (t.Guard != null && t.Reset != null)
                             {
-                                Term tt = Controller.Instance.Z3.MkAnd(t.Guard, t.Reset);
+                                Expr tt = Controller.Instance.Z3.MkAnd((BoolExpr)t.Guard, (BoolExpr)t.Reset);
                                 //Term tf = Controller.Instance.Z3.MkAnd( Controller.Instance.Z3.MkNot(t.Guard), t.Reset);
-                                Term tf = Controller.Instance.Z3.MkNot(t.Guard);
+                                Expr tf = Controller.Instance.Z3.MkNot((BoolExpr)t.Guard);
 
-                                Term tu = Controller.Instance.Z3.MkOr(tt, tf);
+                                Expr tu = Controller.Instance.Z3.MkOr((BoolExpr)tt, (BoolExpr)tf);
 
-                                Term tg = Controller.Instance.Z3.MkAnd(tu, ea.EnvironmentPredicate);
+                                Expr tg = Controller.Instance.Z3.MkAnd((BoolExpr)tu, (BoolExpr)ea.EnvironmentPredicate);
 
                                 Model m = null;
-                                Term[] core;
+                                Expr[] core;
                                 if (Controller.Instance.Z3.checkTerm(tg, out m, out core))
                                 {
                                     Console.WriteLine("Satisfiable: " + tg.ToString());
@@ -580,29 +581,29 @@ namespace passel.model
                         {
                             foreach (Transition t in sa.ReferenceState.Transitions)
                             {
-                                List<Term> rel = new List<Term>();
+                                List<Expr> rel = new List<Expr>();
                                 rel.Add(sa.Concretization());
                                 rel.Add(sb.ConcretizationPrimed());
                                 if (t.Guard != null)
                                 {
-                                    List<Term> allj = new List<Term>();
+                                    List<Expr> allj = new List<Expr>();
                                     allj.Add(Controller.Instance.Indices["j"]);
-                                    Term g = Controller.Instance.Z3.MkAnd(Controller.Instance.Z3.MkNot(Controller.Instance.Z3.MkEq(Controller.Instance.Indices["i"], Controller.Instance.Indices["j"])), t.Guard);
+                                    Expr g = Controller.Instance.Z3.MkAnd(Controller.Instance.Z3.MkNot(Controller.Instance.Z3.MkEq(Controller.Instance.Indices["i"], Controller.Instance.Indices["j"])), t.Guard);
                                     //Term g = t.Guard;
-                                    g = Controller.Instance.Z3.MkForall(0, allj.ToArray(), null, g);
+                                    g = Controller.Instance.Z3.MkForall(allj.ToArray(), g);
                                     rel.Add(g);
                                 }
                                 if (t.Reset != null)
                                 {
                                     rel.Add(t.Reset);
                                 }
-                                Term ts = Controller.Instance.Z3.MkAnd(rel.ToArray());
+                                Expr ts = Controller.Instance.Z3.MkAnd((BoolExpr[])rel.ToArray());
                                 //ts = Controller.Instance.Z3.Simplify(ts);
 
 
                                 //Pattern[] pats = new Pattern[] { Controller.Instance.Z3.MkPattern(new Term[] { Controller.Instance.Indices["j"] }) };
                                 List<Pattern> pats = new List<Pattern>();
-                                List<Term> bound = new List<Term>();
+                                List<Expr> bound = new List<Expr>();
                                 foreach (var pair in Controller.Instance.Indices)
                                 {
                                     //pats.Add(Controller.Instance.Z3.MkPattern(new Term[] { pair.Value }));
@@ -622,7 +623,7 @@ namespace passel.model
                                 //ts = Controller.Instance.Z3.Simplify(ts);
 
                                 Model m = null;
-                                Term[] core;
+                                Expr[] core;
                                 if (Controller.Instance.Z3.checkTerm(ts, out m, out core))
                                 {
                                     sa.addTransition(new Transition(sb, Transition.AbstractTransitionType.ref_ctrl));

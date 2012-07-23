@@ -10,7 +10,7 @@ namespace passel.model
     public class Counterexample
     {
         public Model Model;
-        public Term Claim;
+        public Expr Claim;
         public Transition Transition;
 
         public Counterexample(Model m)
@@ -18,13 +18,13 @@ namespace passel.model
             this.Model = m;
         }
 
-        public Counterexample(Model m, Term c)
+        public Counterexample(Model m, Expr c)
         {
             this.Model = m;
             this.Claim = c;
         }
 
-        public Counterexample(Model m, Term c, Transition t)
+        public Counterexample(Model m, Expr c, Transition t)
         {
             this.Model = m;
             this.Claim = c;

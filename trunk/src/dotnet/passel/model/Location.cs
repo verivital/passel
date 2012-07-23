@@ -12,12 +12,12 @@ namespace passel.model
      */
     public class Location : AState
     {
-        Term _invariant;
-        Term _stop;
+        Expr _invariant;
+        Expr _stop;
         List<Flow> _flows = new List<Flow>();
 
         // todo: use this later, for now let's just have a single flow term
-        IDictionary<Variable, Term> _varRates;
+        IDictionary<Variable, Expr> _varRates;
 
         public Location()
             : base()
@@ -36,13 +36,13 @@ namespace passel.model
 
         }
 
-        public Term Invariant
+        public Expr Invariant
         {
             get { return this._invariant; }
             set { this._invariant = value; }
         }
 
-        public Term Stop
+        public Expr Stop
         {
             get { return this._stop; }
             set { this._stop = value; }
@@ -54,17 +54,17 @@ namespace passel.model
             set { this._flows = value; }
         }
 
-        public IDictionary<Variable, Term> VariableRates
+        public IDictionary<Variable, Expr> VariableRates
         {
             get { return this._varRates; }
             set { this._varRates = value; }
         }
 
-        public void setRateEqualForVar(Variable var, Term rate)
+        public void setRateEqualForVar(Variable var, Expr rate)
         {
             if (this._varRates == null)
             {
-                this._varRates = new Dictionary<Variable, Term>();
+                this._varRates = new Dictionary<Variable, Expr>();
             }
 
             // remove existing rate if already there

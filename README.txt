@@ -1,0 +1,1 @@
+Note: to compile x86 on 64-bit, must include option: /platform:x86

@@ -3,7 +3,7 @@
 <holism>
 	<parameter name='N' type='integer' comment='' />
 
-	<assumption equn='N == 4' comment='' />
+	<assumption equn='N == 0' comment='' />
 
 	<automaton name='default_automaton'>
 		<mode id='0' name='a' initial='True'>
