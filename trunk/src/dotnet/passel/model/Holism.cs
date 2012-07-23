@@ -132,9 +132,28 @@ namespace passel.model
 
             //z3.Assumptions.RemoveAll(a => a.IsQuantifier);
 
-            this.z3.Assumptions.Add(z3.MkDistinct(Controller.Instance.Locations.Values.ToArray()));
+            this.z3.Assumptions.Add(z3.MkDistinct(Controller.Instance.Locations.Values.ToArray())); // assert all control locations are different locations
+
+            List<BoolExpr> controlRangeList = new List<BoolExpr>();
+            Expr iidx = Controller.Instance.Indices["i"];
+            foreach (var v in Controller.Instance.Locations.Values.ToArray())
+            {
+                controlRangeList.Add(z3.MkEq(z3.MkApp(Controller.Instance.DataU.IndexedVariableDecl["q"], iidx), v));
+            }
+            BoolExpr controlRange;
+            if (controlRangeList.Count > 1)
+            {
+                controlRange = z3.MkForall(new Expr[] { iidx }, z3.MkOr(controlRangeList.ToArray()));
+            }
+            else
+            {
+                controlRange = z3.MkForall(new Expr[] { iidx }, controlRangeList[0]); // todo: error handling...what if 0?
+            }
+
+            this.z3.Assumptions.Add(controlRange); // assert all processes must stay inside control range bounds
 
             this.z3.slvr.Assert(this.z3.Assumptions.ToArray()); // assert all the data-type assumptions
+            
 
             System.Console.WriteLine("Attempting to prove the following properties as inductive invariants: >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n\r");
             foreach (Property pi in this.Properties)

@@ -8,7 +8,7 @@
 	<variable name='g' type='index' update_type='Discrete' comment='lock' />
 	
 	<assumption equn='A &gt; 0.0 and B &gt; 0.0 and A &gt;= B' comment='A *stictly less than* B for mutual exclusion' />
-	<assumption equn='N &gt;= 2 and N &lt;= 4' comment='' />
+	<assumption equn='N &gt;= 2 and N &lt;= 100' comment='' />
 
 	<automaton name='default_automaton'>
 		<variable name='x[i]' type='nnreal' update_type='Continuous' />
@@ -70,7 +70,11 @@
 	</automaton>
 
 
+	<property equn='forall i j ((((q[i] == rem) or (q[i] == test) or (q[i] == set) or (q[i] == check) or (q[i] == crit)) and ((q[j] == rem) or (q[j] == test) or (q[j] == set) or (q[j] == check) or (q[j] == crit))) implies x[i] == x[j])' type='safety' />
+
 	<property equn='forall i j (x[i] == x[j])' type='safety' />
+	
+	
 	
 	<property equn='forall i j (x[i] != x[j])' type='safety' />
 	<!--

@@ -263,8 +263,13 @@ namespace passel.controller.parsing.math.ast
                     {
                         if (!Controller.Instance.Q.ContainsKey(ast.GetChild(1).Text))
                         {
+                            // global variable index, e.g., q[ last ] where last is an id
+                            if (ast.GetChild(1).Type == guardLexer.ID)
+                            {
+                                return z3.MkApp(Controller.Instance.DataU.IndexedVariableDecl["q"], CreateTerm((CommonTree)ast.GetChild(1)));
+                            }
                             // create the index if it hasn't been used before
-                            if (!Controller.Instance.Indices.ContainsKey(ast.GetChild(1).Text))
+                            else if (!Controller.Instance.Indices.ContainsKey(ast.GetChild(1).Text))
                             {
                                 //Controller.Instance.Indices.Add(ast.GetChild(1).Text, z3.MkConst(ast.GetChild(1).Text, Controller.Instance.IndexType)); // create the index
                                 // TODO: switch based on index type: want integers to be interpreted if we are not using an enumerated index set (i.e., make as integer if possible, else make as uninterpreted)
@@ -532,19 +537,26 @@ namespace passel.controller.parsing.math.ast
                         expressions[i] = z3.MkInt2Real((IntExpr)CreateTerm((CommonTree)ast.GetChild(i)));
                     }
 
-                    FuncDecl f;
-                    if (Controller.Instance.Functions.ContainsKey(ast.Text))
+                    if (Controller.Instance.GlobalVariables.ContainsKey(ast.Text))
                     {
-                        f = Controller.Instance.Functions[ast.Text];
+                        return Controller.Instance.GlobalVariables[ast.Text];
                     }
-                    else
+                    else // function delcaration like sin(x)
                     {
-                        f = z3.MkFuncDecl(ast.Text, Controller.Instance.RealType, Controller.Instance.RealType);
-                        Controller.Instance.Functions.Add(ast.Text, f); // TODO: add "function" declarations, like the variable declarations including domain/range types, like we do for globals and index variables
-                    }
+                        FuncDecl f;
+                        if (Controller.Instance.Functions.ContainsKey(ast.Text))
+                        {
+                            f = Controller.Instance.Functions[ast.Text];
+                        }
+                        else
+                        {
+                            f = z3.MkFuncDecl(ast.Text, Controller.Instance.RealType, Controller.Instance.RealType);
+                            Controller.Instance.Functions.Add(ast.Text, f); // TODO: add "function" declarations, like the variable declarations including domain/range types, like we do for globals and index variables
+                        }
 
-                    // TODO: double check: get a reference to the function, which we will assume has already been declared (e.g., sin(x) would locate a reference called sin in a table...?)
-                    return z3.MkApp(f, expressions);
+                        // TODO: double check: get a reference to the function, which we will assume has already been declared (e.g., sin(x) would locate a reference called sin in a table...?)
+                        return z3.MkApp(f, expressions);
+                    }
 
                 default:
                     {

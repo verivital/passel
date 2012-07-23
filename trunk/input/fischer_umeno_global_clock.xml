@@ -10,7 +10,7 @@
 	<variable name='now' type='nnreal' update_type='continuous' />
 	
 	<assumption equn='A &gt; 0.0 and B &gt; 0.0 and A &lt; B' comment='A *stictly less than* B for mutual exclusion' />
-	<assumption equn='N &gt;= 2 and N &lt;= 9' comment='' />
+	<assumption equn='N &gt;= 2 and N &lt;= 100' comment='' />
 
 	<automaton name='default_automaton'>
 		<variable name='last[i]' type='nnreal' update_type='Discrete' comment='' />
@@ -44,7 +44,7 @@
 		</transition>
 
 		<transition source='test' destination='test'>
-			<guard equn='g > 0' />
+			<guard equn='g != 0' />
 		</transition>
 
 		<transition source='test' destination='set'>
@@ -57,14 +57,9 @@
 		</transition>
 		
 		<transition source='check' destination='test'>
-			<guard equn='g &gt; i and now &gt;= first[i]' />
+			<guard equn='g != i and now &gt;= first[i]' />
 			<action equn='first[i]&apos; = 0.0'/>
 		</transition>
-		
-		<transition source='check' destination='test'>
-			<guard equn='g &lt; i and now &gt;= first[i]' />
-			<action equn='first[i]&apos; = 0.0'/>
-		</transition>	
 		
 		<transition source='check' destination='crit'>
 			<guard equn='g == i and now &gt;= first[i]' />
