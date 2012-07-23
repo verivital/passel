@@ -15,7 +15,7 @@ namespace passel.model
        /**
          * Variable data types
          */
-        public enum VarType { real, nnreal, posreal, nat, nnnat, posnat, integer, index };
+        public enum VarType { real, nnreal, posreal, nat, nnnat, posnat, integer, index, boolean };
 
         /**
          * Variable update types: continuuos flow with time, while discrete are only updated by actions
@@ -37,9 +37,9 @@ namespace passel.model
         /**
          * todo: refactor to remove value and valueA, quick hack to add array theory
          */
-        private Term _valueA;
-        private Term _valuePrimedA;
-        private Term _valueRateA;
+        private ArrayExpr _valueA;
+        private ArrayExpr _valuePrimedA;
+        private ArrayExpr _valueRateA;
 
         public Variable()
         {
@@ -81,19 +81,19 @@ namespace passel.model
             set { this._valueRate = value; }
         }
 
-        public Term ValueA
+        public ArrayExpr ValueA
         {
             get { return this._valueA; }
             set { this._valueA = value; }
         }
 
-        public Term ValuePrimedA
+        public ArrayExpr ValuePrimedA
         {
             get { return this._valuePrimedA; }
             set { this._valuePrimedA = value; }
         }
 
-        public Term ValueRateA
+        public ArrayExpr ValueRateA
         {
             get { return this._valueRateA; }
             set { this._valueRateA = value; }

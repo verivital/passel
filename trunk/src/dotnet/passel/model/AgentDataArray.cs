@@ -7,7 +7,7 @@ using Microsoft.Z3;
 
 namespace passel.model
 {
-    public class AgentDataArray : AAgentDataTheory<Term>
+    public class AgentDataArray : AAgentDataTheory<ArrayExpr>
     {
 
     }

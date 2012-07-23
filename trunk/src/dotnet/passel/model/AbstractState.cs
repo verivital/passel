@@ -24,12 +24,12 @@ namespace passel.model
         /**
          * predicate describing the concrete states represented by this abstract state
          */
-        private Term _concretization;
+        private Expr _concretization;
 
         /**
          * primed version of the predicate describing the concrete states represented by this abstract state
          */
-        private Term _concretizationPrimed;
+        private Expr _concretizationPrimed;
 
         /**
          * Control location of the reference process
@@ -117,17 +117,17 @@ namespace passel.model
         /**
          * Given this abstract state, return the concretization formula
          */
-        public Term Concretization()
+        public Expr Concretization()
         {
             if (this._concretization == null)
             {
-                List<Term> c = new List<Term>();
+                List<Expr> c = new List<Expr>();
                 foreach (EnvironmentState e in this._stateEnv)
                 {
                     c.Add(e.EnvironmentPredicate);
                 }
                 //c.Add(this._stateRef.StatePredicate);
-                this._concretization = Controller.Instance.Z3.MkAnd(c.ToArray());
+                this._concretization = Controller.Instance.Z3.MkAnd((BoolExpr[])c.ToArray());
                 //this._concretization = Controller.Instance.Z3.Simplify(this._concretization);
             }
             return this._concretization;
@@ -136,18 +136,18 @@ namespace passel.model
         /**
          * Return a primed version of the concrete formula (for finding feasible transitions)
          */
-        public Term ConcretizationPrimed()
+        public Expr ConcretizationPrimed()
         {
             if (this._concretizationPrimed == null)
             {
                 this._concretizationPrimed = this._concretization;
                 foreach (var pair in Controller.Instance.Q)
                 {
-                    Controller.Instance.Z3.replaceTerm(ref this._concretizationPrimed, this._concretizationPrimed, pair.Value, Controller.Instance.QPrimed[pair.Key], true);
+                    this._concretizationPrimed = this._concretizationPrimed.Substitute(pair.Value, Controller.Instance.QPrimed[pair.Key]);
                 }
                 foreach (var pair in Controller.Instance.IndexedVariables)
                 {
-                    Controller.Instance.Z3.replaceTerm(ref this._concretizationPrimed, this._concretizationPrimed, pair.Value, Controller.Instance.IndexedVariablesPrimed[new KeyValuePair<String, String>(pair.Key.Key + "'", pair.Key.Value)], true);
+                    this._concretizationPrimed = this._concretizationPrimed.Substitute(pair.Value, Controller.Instance.IndexedVariablesPrimed[new KeyValuePair<String, String>(pair.Key.Key + "'", pair.Key.Value)]);
                 }
             }
             return this._concretizationPrimed;

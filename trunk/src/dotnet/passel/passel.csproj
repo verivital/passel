@@ -30,15 +30,16 @@
     <BootstrapperEnabled>true</BootstrapperEnabled>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|x86' ">
-    <PlatformTarget>x86</PlatformTarget>
+    <PlatformTarget>x64</PlatformTarget>
     <DebugSymbols>true</DebugSymbols>
     <DebugType>full</DebugType>
-    <Optimize>false</Optimize>
+    <Optimize>true</Optimize>
     <OutputPath>bin\Debug\</OutputPath>
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <RunCodeAnalysis>true</RunCodeAnalysis>
+    <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|x86' ">
     <PlatformTarget>x86</PlatformTarget>
@@ -67,7 +68,6 @@
     <Compile Include="controller\smt\z3\ExamplesZ3.cs" />
     <Compile Include="controller\smt\z3\SymbolsZ3.cs" />
     <Compile Include="controller\smt\z3\Z3Wrapper.cs" />
-    <Compile Include="model\AbstractHybridAutomaton.cs" />
     <Compile Include="model\AbstractState.cs" />
     <Compile Include="model\AgentDataArray.cs" />
     <Compile Include="model\AgentDataUninterpreted.cs" />
@@ -105,8 +105,9 @@
     <Reference Include="Antlr3.Runtime.Debug">
       <HintPath>..\..\..\lib\antlr\Antlr3.Runtime.Debug.dll</HintPath>
     </Reference>
-    <Reference Include="Microsoft.Z3">
-      <HintPath>..\..\..\..\..\..\..\..\..\..\..\..\Program Files\Microsoft Research\Z3-3.2\bin\Microsoft.Z3.dll</HintPath>
+    <Reference Include="Microsoft.Z3, Version=4.0.0.0, Culture=neutral, PublicKeyToken=9c8d792caae602a2, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\..\..\..\..\..\..\..\..\..\Program Files (x86)\Microsoft Research\Z3-4.0\x64\Microsoft.Z3.dll</HintPath>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.XML" />
@@ -144,13 +145,14 @@
     <Antlr3 Include="controller\parsing\math\guard.g3">
       <Generator>MSBuild:Compile</Generator>
     </Antlr3>
+    <None Include="app.config" />
     <None Include="ClassDiagram1.cd" />
+    <None Include="ClassDiagram2.cd" />
     <None Include="Properties\Settings.settings">
       <Generator>SettingsSingleFileGenerator</Generator>
       <LastGenOutput>Settings.Designer.cs</LastGenOutput>
     </None>
   </ItemGroup>
-  <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>
     <!-- Folder containing AntlrBuildTask.dll -->

@@ -95,23 +95,7 @@ In the example:
 	</automaton>
 	
 	
-	<property equn='forall i j (((q[i] == a or q[i] == b or q[i] == c or q[i] == d) and (q[j] == a or q[j] == b or q[j] == c or q[j] == d)) implies (x[i] &lt;= high     and x[j] &lt;= high))' type='safety' expectation='false' />
-	<property equn='forall i j (((q[i] == a or q[i] == b or q[i] == c or q[i] == d) and (q[j] == a or q[j] == b or q[j] == c or q[j] == d)) implies (x[i] &lt; high      and x[j] &lt; high))' type='safety' expectation='false' />
-	<property equn='forall i j (((q[i] == a or q[i] == b or q[i] == c or q[i] == d) and (q[j] == a or q[j] == b or q[j] == c or q[j] == d)) implies (x[i] &lt;= 2.0*high and x[j] &lt;= 2.0*high))' type='safety' expectation='true' />
-	<property equn='forall i j (((q[i] == a or q[i] == b or q[i] == c or q[i] == d) and (q[j] == a or q[j] == b or q[j] == c or q[j] == d)) implies (x[i] &lt; 2.0*high  and x[j] &lt; 2.0*high))' type='safety' expectation='false' />
-	
-	<property equn='forall i j (((q[i] == a or q[i] == b or q[i] == c) and (q[j] == a or q[j] == b or q[j] == c)) implies (x[i] &lt;= high     and x[j] &lt;= high))' type='safety' expectation='true' />
-	<property equn='forall i j (((q[i] == a or q[i] == b or q[i] == c) and (q[j] == a or q[j] == b or q[j] == c)) implies (x[i] &lt; high      and x[j] &lt; high))' type='safety' expectation='false' />
-	<property equn='forall i j (((q[i] == a or q[i] == b or q[i] == c) and (q[j] == a or q[j] == b or q[j] == c)) implies (x[i] &lt;= 2.0*high and x[j] &lt;= 2.0*high))' type='safety' expectation='true' />
-	<property equn='forall i j (((q[i] == a or q[i] == b or q[i] == c) and (q[j] == a or q[j] == b or q[j] == c)) implies (x[i] &lt; 2.0*high  and x[j] &lt; 2.0*high))' type='safety' expectation='true' />
 
-	
-	<property equn='forall i ((q[i] == a or q[i] == b or q[i] == c or q[i] == d) implies (x[i] &lt;= high))' type='safety' expectation='false' />
-	<property equn='forall i ((q[i] == a or q[i] == b or q[i] == c or q[i] == d) implies (x[i] &lt; high))' type='safety' expectation='false' />
-	<property equn='forall i ((q[i] == a or q[i] == b or q[i] == c or q[i] == d) implies (x[i] &lt;= 2.0*high))' type='safety' expectation='true' />
-	<property equn='forall i ((q[i] == a or q[i] == b or q[i] == c or q[i] == d) implies (x[i] &lt; 2.0*high))' type='safety' expectation='false' />
-	<property equn='forall i ((q[i] == a or q[i] == b or q[i] == c) implies (x[i] &lt;= high))' type='safety' />
-	
 	
 	<property equn='forall i ((x[i] &lt;= 2.0*high))' type='safety' expectation='true' />
 	<property equn='forall i ((x[i] &gt; 2.0*high))' type='safety' expectation='false' />
@@ -134,6 +118,25 @@ In the example:
 	<property equn='forall i ((x[i] &gt; 2.0*high - 0.001))' type='safety' expectation='false' />
 	<property equn='forall i ((x[i] &gt; 2.0*high / 3.0))' type='safety' expectation='false' />
 
+
+
+	<property equn='forall i j (((q[i] == a or q[i] == b or q[i] == c or q[i] == d) and (q[j] == a or q[j] == b or q[j] == c or q[j] == d)) implies (x[i] &lt;= high     and x[j] &lt;= high))' type='safety' expectation='false' />
+	<property equn='forall i j (((q[i] == a or q[i] == b or q[i] == c or q[i] == d) and (q[j] == a or q[j] == b or q[j] == c or q[j] == d)) implies (x[i] &lt; high      and x[j] &lt; high))' type='safety' expectation='false' />
+	<property equn='forall i j (((q[i] == a or q[i] == b or q[i] == c or q[i] == d) and (q[j] == a or q[j] == b or q[j] == c or q[j] == d)) implies (x[i] &lt;= 2.0*high and x[j] &lt;= 2.0*high))' type='safety' expectation='true' />
+	<property equn='forall i j (((q[i] == a or q[i] == b or q[i] == c or q[i] == d) and (q[j] == a or q[j] == b or q[j] == c or q[j] == d)) implies (x[i] &lt; 2.0*high  and x[j] &lt; 2.0*high))' type='safety' expectation='false' />
+	
+	<property equn='forall i j (((q[i] == a or q[i] == b or q[i] == c) and (q[j] == a or q[j] == b or q[j] == c)) implies (x[i] &lt;= high     and x[j] &lt;= high))' type='safety' expectation='true' />
+	<property equn='forall i j (((q[i] == a or q[i] == b or q[i] == c) and (q[j] == a or q[j] == b or q[j] == c)) implies (x[i] &lt; high      and x[j] &lt; high))' type='safety' expectation='false' />
+	<property equn='forall i j (((q[i] == a or q[i] == b or q[i] == c) and (q[j] == a or q[j] == b or q[j] == c)) implies (x[i] &lt;= 2.0*high and x[j] &lt;= 2.0*high))' type='safety' expectation='true' />
+	<property equn='forall i j (((q[i] == a or q[i] == b or q[i] == c) and (q[j] == a or q[j] == b or q[j] == c)) implies (x[i] &lt; 2.0*high  and x[j] &lt; 2.0*high))' type='safety' expectation='true' />
+
+	
+	<property equn='forall i ((q[i] == a or q[i] == b or q[i] == c or q[i] == d) implies (x[i] &lt;= high))' type='safety' expectation='false' />
+	<property equn='forall i ((q[i] == a or q[i] == b or q[i] == c or q[i] == d) implies (x[i] &lt; high))' type='safety' expectation='false' />
+	<property equn='forall i ((q[i] == a or q[i] == b or q[i] == c or q[i] == d) implies (x[i] &lt;= 2.0*high))' type='safety' expectation='true' />
+	<property equn='forall i ((q[i] == a or q[i] == b or q[i] == c or q[i] == d) implies (x[i] &lt; 2.0*high))' type='safety' expectation='false' />
+	<property equn='forall i ((q[i] == a or q[i] == b or q[i] == c) implies (x[i] &lt;= high))' type='safety' />
+	
 
 
 	

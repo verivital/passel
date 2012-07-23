@@ -15,6 +15,7 @@ namespace passel.model
     public class Flow
     {
         public DynamicsTypes DynamicsType;
+        public Variable Variable; // pointer to variable for this flow
 
         public enum DynamicsTypes
         {
@@ -25,22 +26,21 @@ namespace passel.model
             nonlinear
         }
 
-        private Term[] _values;
-
-        public Term Value;
+        public Expr Value;
 
         public Flow()
         {
         }
 
-        public Flow(DynamicsTypes t, Term flow)
+        public Flow(DynamicsTypes t, Expr flow, Variable v)
         {
             this.DynamicsType = t;
             this.Value = flow;
+            this.Variable = v;
         }
 
-        public Term RectRateA;
-        public Term RectRateB;
+        public Expr RectRateA;
+        public Expr RectRateB;
 
     }
 }

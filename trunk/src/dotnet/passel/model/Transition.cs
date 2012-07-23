@@ -13,12 +13,12 @@ namespace passel.model
     {
         public enum AbstractTransitionType { ref_ctrl, env_ctrl, ref_data, env_data, time };
 
-        public Term Guard;
-        protected Term _reset;
+        public Expr Guard;
+        protected Expr _reset;
         protected List<AState> _nextStates;
-        protected List<Term> _blockingSetRef;
-        protected List<Term> _blockingSetEnvEC;
-        protected List<Term> _blockingSetEnvCL;
+        protected List<Expr> _blockingSetRef;
+        protected List<Expr> _blockingSetEnvEC;
+        protected List<Expr> _blockingSetEnvCL;
         protected AbstractTransitionType _type;
 
         public Transition()
@@ -43,13 +43,13 @@ namespace passel.model
             this._nextStates = nextStates;
         }
 
-        public Transition(Term guard, Term reset)
+        public Transition(Expr guard, Expr reset)
         {
             this.Guard = guard;
             this._reset = reset;
         }
 
-        public Transition(Term guard, Term reset, AState nextState)
+        public Transition(Expr guard, Expr reset, AState nextState)
         {
             this.Guard = guard;
             this._reset = reset;
@@ -57,20 +57,20 @@ namespace passel.model
             this._nextStates.Add(nextState);
         }
 
-        public Transition(Term guard, Term reset, List<AState> nextStates)
+        public Transition(Expr guard, Expr reset, List<AState> nextStates)
         {
             this.Guard = guard;
             this._reset = reset;
             this._nextStates = nextStates;
         }
 
-        /*public Term Guard
+        /*public Expr Guard
         {
             get { return this._guard; }
             set { this._guard = value; }
         }*/
 
-        public Term Reset
+        public Expr Reset
         {
             get { return this._reset; }
             set { this._reset = value; }
@@ -85,16 +85,17 @@ namespace passel.model
         /**
          * Create a term corresponding to the next states (disjunction)
          */
-        public Term ToTerm()
+        public Expr ToTerm()
         {
-            List<Term> post = new List<Term>();
+            List<Expr> post = new List<Expr>();
             foreach (AState l in this._nextStates)
             {
-                post.Add(Controller.Instance.Z3.MkEq(Controller.Instance.QPrimed["i"], Controller.Instance.Z3.MkIntNumeral(l.Value)));
+                //post.Add(Controller.Instance.Z3.MkEq(Controller.Instance.QPrimed["i"], Controller.Instance.Z3.MkConst(l.Value.ToString(), Controller.Instance.LocType)));
+                post.Add(Controller.Instance.Z3.MkEq(Controller.Instance.QPrimed["i"], Controller.Instance.Z3.MkConst(l.Label, Controller.Instance.LocType)));
             }
             if (post.Count > 1)
             {
-                return Controller.Instance.Z3.MkOr(post.ToArray());
+                return Controller.Instance.Z3.MkOr((BoolExpr[])post.ToArray());
             }
             else if (post.Count == 1)
             {
@@ -106,7 +107,7 @@ namespace passel.model
             }
         }
 
-        public Term UGuard = null;
+        public Expr UGuard = null;
 
         public List<AState> NextStates
         {
@@ -126,50 +127,50 @@ namespace passel.model
             this._nextStates.Add(nextState);
         }
 
-        public List<Term> BlockingSetRef
+        public List<Expr> BlockingSetRef
         {
             get
             {
                 if (this._blockingSetRef == null)
                 {
-                    this._blockingSetRef = new List<Term>();
+                    this._blockingSetRef = new List<Expr>();
                 }
                 return this._blockingSetRef;
             }
             set { this._blockingSetRef = value; }
         }
 
-        public List<Term> BlockingSetEnvEC
+        public List<Expr> BlockingSetEnvEC
         {
             get
             {
                 if (this._blockingSetEnvEC == null)
                 {
-                    this._blockingSetEnvEC = new List<Term>();
+                    this._blockingSetEnvEC = new List<Expr>();
                 }
                 return this._blockingSetEnvEC;
             }
             set { this._blockingSetEnvEC = value; }
         }
 
-        public List<Term> BlockingSetEnvCL
+        public List<Expr> BlockingSetEnvCL
         {
             get
             {
                 if (this._blockingSetEnvCL == null)
                 {
-                    this._blockingSetEnvCL = new List<Term>();
+                    this._blockingSetEnvCL = new List<Expr>();
                 }
                 return this._blockingSetEnvCL;
             }
             set { this._blockingSetEnvCL = value; }
         }
 
-        public void addBlockingRef(Term b)
+        public void addBlockingRef(Expr b)
         {
             if (this._blockingSetRef == null)
             {
-                this._blockingSetRef = new List<Term>();
+                this._blockingSetRef = new List<Expr>();
             }
             // unique add
             if (!this._blockingSetRef.Contains(b))
@@ -178,11 +179,11 @@ namespace passel.model
             }
         }
 
-        public void addBlockingEnvEC(Term b)
+        public void addBlockingEnvEC(Expr b)
         {
             if (this._blockingSetEnvEC == null)
             {
-                this._blockingSetEnvEC = new List<Term>();
+                this._blockingSetEnvEC = new List<Expr>();
             }
             // unique add
             if (!this._blockingSetEnvEC.Contains(b))
@@ -191,11 +192,11 @@ namespace passel.model
             }
         }
 
-        public void addBlockingEnvCL(Term b)
+        public void addBlockingEnvCL(Expr b)
         {
             if (this._blockingSetEnvCL == null)
             {
-                this._blockingSetEnvCL = new List<Term>();
+                this._blockingSetEnvCL = new List<Expr>();
             }
             // unique add
             if (!this._blockingSetEnvCL.Contains(b))

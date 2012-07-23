@@ -10,6 +10,8 @@ using System.IO;
 
 using Microsoft.Z3;
 
+//using VixCOM;
+
 using passel.model;
 using passel.controller.output;
 using passel.controller.smt;
@@ -37,50 +39,52 @@ namespace passel.controller
          * Special variable for control states / locations (modes)
          * - All other variables go into the _vars dictionary
          */
-        private IDictionary<String, Term> _q;
+        private IDictionary<String, Expr> _q;
 
         /**
          * Special variable for control states / locations (modes)
          * - All other variables go into the _vars dictionary
          */
-        private IDictionary<String, Term> _qPrimed;
+        private IDictionary<String, Expr> _qPrimed;
         
         /**
          * Indexed variables: input, e.g., (x i) returns the function corresponding to variable x at process i
          * 
          */
-        private IDictionary<KeyValuePair<String, String>, Term> _ivars;
+        private IDictionary<KeyValuePair<String, String>, Expr> _ivars;
 
         /**
          * Primed indexed variables: input, e.g., (x' i) returns the function corresponding to variable x at process i
          * 
          */
-        private IDictionary<KeyValuePair<String, String>, Term> _ivarsPrimed;
+        private IDictionary<KeyValuePair<String, String>, Expr> _ivarsPrimed;
 
         /**
          * Parameter variables (N, S, etc.)
          */
-        private IDictionary<String, Term> _params;
+        private IDictionary<String, Expr> _params;
 
         /**
          * Global variables
          */
-        private IDictionary<String, Term> _globalVariables;
+        private IDictionary<String, Expr> _globalVariables;
+
+        public IDictionary<String, FuncDecl> Functions;
 
         /**
          * Primed global variables
          */
-        private IDictionary<String, Term> _globalVariablesPrimed;
+        private IDictionary<String, Expr> _globalVariablesPrimed;
 
         /**
          * Location labels to value map
          */
-        private IDictionary<String, Term> _locations;
+        private IDictionary<String, Expr> _locations;
 
         /**
          * Process indices (i, j, k, etc.)
          */
-        private IDictionary<String, Term> _indices;
+        private IDictionary<String, Expr> _indices;
 
         /**
          * integer for control state
@@ -88,42 +92,25 @@ namespace passel.controller
         private UInt32 _qv = 0;
 
         /**
-         * Integer sort
+         * Set used to index processes
          */
-        private Sort _intType;
-
-        /**
-         * Index type: natural number between 1 and N
-         */
-        private Sort _indexType;
-
-        private Term _indexSet;
-
-        /**
-         * Real number sort
-         */
-        private Sort _realType;
-
-        /**
-         * Integer value of zero
-         */
-        private Term _intZero;
+        private Expr IndexSet;
 
         /**
          * Integer value of one
          */
-        public Term IntOne;
+        public Expr IntOne;
 
-        public Term IndexNone;
-        public Term IndexOne;
-        public Term IndexN;
-
-        public Term RealInf;
+        public Expr IndexNone;
+        public Expr IndexOne;
+        public Expr IndexN;
 
         /**
-         * Real value of zero
+         * Value selected for N (if any)
          */
-        private Term _realZero;
+        public int IndexNValue;
+
+        public Expr RealInf;
 
         /**
          * I/O directory path
@@ -154,7 +141,7 @@ namespace passel.controller
 
         public Dictionary<UInt32, String> LocationNumToName;
 
-        public Dictionary<Term, String> LocationNumTermToName;
+        public Dictionary<Expr, String> LocationNumTermToName;
 
         /**
          * implies is weak, and is strict
@@ -176,7 +163,10 @@ namespace passel.controller
 
         public Stopwatch TimerStats = new Stopwatch();
 
-        public Config Config;
+        public Dictionary<string,string> Config;
+
+        public const String PRIME_SUFFIX = "'";
+        public const String DOT_SUFFIX = "_dot";
 
 
         /**
@@ -192,97 +182,98 @@ namespace passel.controller
          */
         private void InitializeZ3()
         {
-            this._q = new Dictionary<String, Term>();
-            this._qPrimed = new Dictionary<String, Term>();
-            this._ivars = new Dictionary<KeyValuePair<String, String>, Term>();
-            this._ivarsPrimed = new Dictionary<KeyValuePair<String, String>, Term>();
-            this._params = new Dictionary<String, Term>();
-            this._globalVariables = new Dictionary<String, Term>();
-            this._globalVariablesPrimed = new Dictionary<String, Term>();
-            this._locations = new Dictionary<String, Term>();
-            this._indices = new Dictionary<String, Term>();
+            this._q = new Dictionary<String, Expr>();
+            this._qPrimed = new Dictionary<String, Expr>();
+            this._ivars = new Dictionary<KeyValuePair<String, String>, Expr>();
+            this._ivarsPrimed = new Dictionary<KeyValuePair<String, String>, Expr>();
+            this._params = new Dictionary<String, Expr>();
+            this._globalVariables = new Dictionary<String, Expr>();
+            this._globalVariablesPrimed = new Dictionary<String, Expr>();
+            this._locations = new Dictionary<String, Expr>();
+            this._indices = new Dictionary<String, Expr>();
             this.LocationNumToName = new Dictionary<UInt32, String>();
-            this.LocationNumTermToName = new Dictionary<Term, String>();
+            this.LocationNumTermToName = new Dictionary<Expr, String>();
             this._inputFiles = new List<string>();
+            this.Functions = new Dictionary<String, FuncDecl>();
 
+            this.Config = new Dictionary<string, string>();
 
-            this.Config = new Config();
+            this.Config.Add("AUTO_CONFIG", "false"); // disable auto-configuration (use all logics)
 
-            this.Config.SetParamValue("AUTO_CONFIG", "false"); // disable auto-configuration (use all logics)
+            // fixed point options
+            //this.Config.Add("DL_COMPILE_WITH_WIDENING", "true");
+            //this.Config.Add("DL_UNBOUND_COMPRESSOR", "false"); 
 
-            /*this.Config.SetParamValue("ARRAY_CANONIZE", "true");
-            this.Config.SetParamValue("ARRAY_CG", "true");
-            this.Config.SetParamValue("ARRAY_LAZY_IEQ", "true");
-            this.Config.SetParamValue("ARRAY_WEAK", "true");
+            /*this.Config.Add("ARRAY_CANONIZE", "true");
+            this.Config.Add("ARRAY_CG", "true");
+            this.Config.Add("ARRAY_LAZY_IEQ", "true");
+            this.Config.Add("ARRAY_WEAK", "true");
              */
-            //this.Config.SetParamValue("ARRAY_SOLVER", "1"); // 0 to 3
+            //this.Config.Add("ARRAY_SOLVER", "1"); // 0 to 3
 
-            //this.Config.SetParamValue("QI_PROFILE", "true");
-            //this.Config.SetParamValue("QI_PROFILE_FREQ", "1000");
-            //this.Config.SetParamValue("MBQI_TRACE", "true");
+            //this.Config.Add("QI_PROFILE", "true");
+            //this.Config.Add("QI_PROFILE_FREQ", "1000");
+            //this.Config.Add("MBQI_TRACE", "true");
 
-            this.Config.SetParamValue("MODEL", "true");
-            this.Config.SetParamValue("MBQI", "true"); //  (see http://research.microsoft.com/en-us/um/redmond/projects/z3/mbqi-tutorial/)
-            //this.Config.SetParamValue("MBQI_MAX_ITERATIONS", "50000");
-
-
-            this.Config.SetParamValue("ELIM_QUANTIFIERS", "true"); // if we fix N to be small, we can rely on MBQI, but if we have N large or unbounded, we may need Q.E.
-            this.Config.SetParamValue("ELIM_NLARITH_QUANTIFIERS", "true");
-            this.Config.SetParamValue("ELIM_BOUNDS", "true");
-            this.Config.SetParamValue("QI_LAZY_INSTANTIATION", "true");
-
-            this.Config.SetParamValue("PULL_CHEAP_ITE_TREES", "true");
-            this.Config.SetParamValue("EMATCHING", "true");
-            this.Config.SetParamValue("MACRO_FINDER", "true");
-            this.Config.SetParamValue("STRONG_CONTEXT_SIMPLIFIER", "true");
-            this.Config.SetParamValue("CONTEXT_SIMPLIFIER", "true");
-
-            this.Config.SetParamValue("PI_PULL_QUANTIFIERS", "true");     // check with on / off 
-            this.Config.SetParamValue("PULL_NESTED_QUANTIFIERS", "true"); // check with on / off (see mbqi tutorial)
-            this.Config.SetParamValue("MODEL_PARTIAL", "true");
-            this.Config.SetParamValue("MODEL_V2", "true");
-            //this.Config.SetParamValue("VERBOSE", "10");
-
-            this.Config.SetParamValue("DISPLAY_ERROR_FOR_VISUAL_STUDIO", "true");
-            this.Config.SetParamValue("DISTRIBUTE_FORALL", "true");
-
-            this.Config.SetParamValue("MODEL_COMPACT", "true"); // slower, but more accurate (as in the models are more useful) it seems
-            //this.Config.SetParamValue("MODEL_ON_FINAL_CHECK", "true"); // leave this off, prints lots of crap
-            this.Config.SetParamValue("MODEL_COMPLETION", "true");
-            this.Config.SetParamValue("DISPLAY_UNSAT_CORE", "true");
+            this.Config.Add("MODEL", "true");
+            this.Config.Add("MBQI", "true"); //  (see http://research.microsoft.com/en-us/um/redmond/projects/z3/mbqi-tutorial/)
+            //this.Config.Add("MBQI_MAX_ITERATIONS", "50000");
 
 
+            this.Config.Add("ELIM_QUANTIFIERS", "true"); // if we fix N to be small, we can rely on MBQI, but if we have N large or unbounded, we may need Q.E.
+            this.Config.Add("ELIM_NLARITH_QUANTIFIERS", "true");
+            this.Config.Add("ELIM_BOUNDS", "true");
+            this.Config.Add("QI_LAZY_INSTANTIATION", "true");
 
+            this.Config.Add("PULL_CHEAP_ITE_TREES", "true");
+            this.Config.Add("EMATCHING", "true");
+            this.Config.Add("MACRO_FINDER", "true");
+            this.Config.Add("STRONG_CONTEXT_SIMPLIFIER", "true");
+            this.Config.Add("CONTEXT_SIMPLIFIER", "true");
 
+            //this.Config.Add("PI_NON_NESTED_ARITH_WEIGHT", "10");
+            this.Config.Add("PI_PULL_QUANTIFIERS", "true");     // check with on / off 
+            this.Config.Add("PULL_NESTED_QUANTIFIERS", "true"); // check with on / off (see mbqi tutorial)
+            this.Config.Add("MODEL_PARTIAL", "false");
+            this.Config.Add("MODEL_V2", "true");
+            //this.Config.Add("VERBOSE", "10");
 
+            this.Config.Add("DISPLAY_ERROR_FOR_VISUAL_STUDIO", "true");
+            this.Config.Add("DISTRIBUTE_FORALL", "true");
+            //this.Config.Add("SOLVER", "true");                              // SOLVER: boolean, default: false, enable solver during preprocessing step.
+
+            this.Config.Add("MODEL_COMPACT", "true"); // slower, but more accurate (as in the models are more useful) it seems
+            //this.Config.Add("MODEL_ON_FINAL_CHECK", "true"); // leave this off, prints lots of warnings, etc., but not to console out, might be a debug stream we aren't redirecting
+            this.Config.Add("MODEL_COMPLETION", "true");
+            this.Config.Add("DISPLAY_UNSAT_CORE", "true");
+
+            this.Config.Add("Z3_SOLVER_LL_PP", "true");
+            //this.Config.Add("Z3_SOLVER_SMT_PP", "true");
 
             // bad syntax for next...
-            //this.Config.SetParamValue("produce-proofs", "true");
-            //this.Config.SetParamValue("produce-models", "true");
-            //this.Config.SetParamValue("produce-unsat-cores", "true");
-            //this.Config.SetParamValue("produce-assignments", "true");
-            //this.Config.SetParamValue("expand-definitions", "true");
+            //this.Config.Add("produce-proofs", "true");
+            //this.Config.Add("produce-models", "true");
+            //this.Config.Add("produce-unsat-cores", "true");
+            //this.Config.Add("produce-assignments", "true");
+            //this.Config.Add("expand-definitions", "true");
 
-            //this.Config.SetParamValue("CNF_FACTOR", "10");
-            //this.Config.SetParamValue("CNF_MODE", "3");
+            //this.Config.Add("CNF_FACTOR", "10");
+            //this.Config.Add("CNF_MODE", "3");
 
             //todo: SOFT_TIMEOUT // can use this option to force queries to return unknown instead of running forever
 
-            //this.Config.SetParamValue("SPC", "true");
+            //this.Config.Add("SPC", "true");
 
-            //this.Config.SetParamValue("STATISTICS", "true"); // crashes
+            //this.Config.Add("STATISTICS", "true"); // crashes
+            /*
+            this.Config.Add("ARITH_SOLVER", "2"); // simplex solver
 
-            this.Config.SetParamValue("ARITH_SOLVER", "2"); // simplex solver
-
-            /**
-             * we need nonlinear real arithmetic for converting the rectangular flow relation to a flow function
-             */
-            this.Config.SetParamValue("NL_ARITH", "true"); // nonlinear arithmetic support: requires arith_solver 2
-            this.Config.SetParamValue("NL_ARITH_GB_EQS", "true"); // boolean, default: false, enable/disable equations in the Grobner Basis to be copied to the Simplex tableau..
-            this.Config.SetParamValue("NL_ARITH_ROUNDS", "2048"); // unsigned integer, default: 1024, threshold for number of (nested) final checks for non linear arithmetic..
-            this.Config.SetParamValue("NL_ARITH_GB_THRESHOLD", "1024"); // unsigned integer, default: 512, Grobner basis computation can be very expensive. This is a threshold on the number of new equalities that can be generated..
-
-            this.Config.SetParamValue("PI_NON_NESTED_ARITH_WEIGHT", "10"); // shows up in some examples
+            // we need nonlinear real arithmetic for converting the rectangular flow relation to a flow function
+            this.Config.Add("NL_ARITH", "true"); // nonlinear arithmetic support: requires arith_solver 2
+            this.Config.Add("NL_ARITH_GB_EQS", "true"); // boolean, default: false, enable/disable equations in the Grobner Basis to be copied to the Simplex tableau..
+            this.Config.Add("NL_ARITH_ROUNDS", "2048"); // unsigned integer, default: 1024, threshold for number of (nested) final checks for non linear arithmetic..
+            this.Config.Add("NL_ARITH_GB_THRESHOLD", "1024"); // unsigned integer, default: 512, Grobner basis computation can be very expensive. This is a threshold on the number of new equalities that can be generated..
+            */
 /*
 NL_ARITH: boolean, default: true, enable/disable non linear arithmetic support. This option is ignored when ARITH_SOLVER != 2..
 NL_ARITH_BRANCHING: boolean, default: true, enable/disable branching on integer variables in non linear clusters.
@@ -292,54 +283,61 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
  */
 
 
-            this.Config.SetParamValue("ARITH_ADAPTIVE", "true");
-            this.Config.SetParamValue("ARITH_PROCESS_ALL_EQS", "true");
-            //this.Config.SetParamValue("ARITH_EUCLIDEAN_SOLVER", "true");
-            //this.Config.SetParamValue("ARITH_FORCE_SIMPLEX", "true");
-            //this.Config.SetParamValue("ARITH_MAX_LEMMA_SIZE", "512"); // default 128
+            //this.Config.Add("ARITH_ADAPTIVE", "true"); // TODO: REENABLE
+            //this.Config.Add("ARITH_PROCESS_ALL_EQS", "true"); // TODO: RENABLE
 
-            //this.Config.SetParamValue("CHECK_PROOF", "true");
-            //this.Config.SetParamValue("DL_COMPILE_WITH_WIDENING", "true");
-            //this.Config.SetParamValue("DACK", "2");
-            //this.Config.SetParamValue("DACK_EQ", "true");
+
+            //this.Config.Add("ARITH_EUCLIDEAN_SOLVER", "true");
+            //this.Config.Add("ARITH_FORCE_SIMPLEX", "true");
+            //this.Config.Add("ARITH_MAX_LEMMA_SIZE", "512"); // default 128
+
+            //this.Config.Add("CHECK_PROOF", "true");
+            //this.Config.Add("DL_COMPILE_WITH_WIDENING", "true");
+            //this.Config.Add("DACK", "2");
+            //this.Config.Add("DACK_EQ", "true");
 
             // some bugs in the next ones
-            //this.Config.SetParamValue("FWD_SR_CHEAP", "true");
-            //this.Config.SetParamValue("LOOKAHEAD", "true");
-            //this.Config.SetParamValue("MBQI_MAX_CEXS", "true"); // crashes
-            //this.Config.SetParamValue("MODEL_VALIDATE", "true"); // corrupts memory?
+            //this.Config.Add("FWD_SR_CHEAP", "true");
+            //this.Config.Add("LOOKAHEAD", "true");
+            //this.Config.Add("MBQI_MAX_CEXS", "true"); // crashes
+            //this.Config.Add("MODEL_VALIDATE", "true"); // corrupts memory?
             // end buggy ones
 
 
-            //this.Config.SetParamValue("LOOKAHEAD_DISEQ", "true");
+            //this.Config.Add("LOOKAHEAD_DISEQ", "true");
 
-            //this.Config.SetParamValue("LIFT_ITE", "2"); // buggy: get memory corruption sometimes
-            //this.Config.SetParamValue("ELIM_TERM_ITE", "true"); // buggy: get memory corruption sometimes
+            //this.Config.Add("LIFT_ITE", "2"); // buggy: get memory corruption sometimes
+            //this.Config.Add("ELIM_TERM_ITE", "true"); // buggy: get memory corruption sometimes
 
-            //this.Config.SetParamValue("MINIMIZE_LEMMAS_STRUCT", "true");
-            //this.Config.SetParamValue("MODEL_DISPLAY_ARG_SORT", "true");
+            //this.Config.Add("MINIMIZE_LEMMAS_STRUCT", "true");
+            //this.Config.Add("MODEL_DISPLAY_ARG_SORT", "true");
 
 
 
-            //this.Config.SetParamValue("enable-cores", "true");
+            //this.Config.Add("enable-cores", "true");
 
-            //this.Config.SetParamValue("DISPLAY_PROOF", "true");
-            //this.Config.SetParamValue("PROOF_MODE", "1"); // BUG: DO NOT USE THIS OPTION, IT CAN CAUSE FORMULAS TO TOGGLE SATISFIABILITY
+            //this.Config.Add("DISPLAY_PROOF", "true");
+            //this.Config.Add("PROOF_MODE", "1"); // BUG: DO NOT USE THIS OPTION, IT CAN CAUSE FORMULAS TO TOGGLE SATISFIABILITY
 
             this.Z3 = new Z3Wrapper(this.Config);
-            this.Z3.OpenLog("asserted.log");
 
-            this._intType = Z3.MkIntSort();
-            this._realType = Z3.MkRealSort();
+            Microsoft.Z3.Log.Open(this._inoutPath + "z3.log");
 
-            this._realZero = Z3.MkRealNumeral(0);
-            this._intZero = Z3.MkIntNumeral(0);
-            this.IntOne = Z3.MkIntNumeral(1);
+            //this.Z3.OpenLog("asserted.log"); // todo: deprecated
+
+            this.IntType = Z3.MkIntSort();
+            this.RealType = Z3.MkRealSort();
+            //this.LocType = Z3.MkUninterpretedSort("loc");
+            this.LocType = Z3.MkIntSort();
+
+            this.RealZero = Z3.MkReal(0);
+            this.IntZero = Z3.MkInt(0);
+            this.IntOne = Z3.MkInt(1);
 
             /* can't do the following to create augmented reals: assumptions are invalid
-            this.RealInf = Z3.MkConst("inf", this.RealType);
+            this.RealInf = Z3.MkRealConst("inf");
             Term assumpInf;
-            Term assumpInfBound = Z3.MkConst("anyRealValue", this.RealType);
+            Term assumpInfBound = Z3.MkRealConst("anyRealValue");
             assumpInf = Z3.MkForall(0, new Term[] {assumpInfBound}, null, this.RealInf >= assumpInfBound);
             this.Z3.AssertCnstr(assumpInf);
             this.Params.Add("inf", this.RealInf);
@@ -350,33 +348,36 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
                 case IndexOptionType.integer:
                     {
                         //this._indexType = Z3.MkSetSort(Z3.MkIntSort());
-                        this._indexType = Z3.MkIntSort();
-                        this.IndexOne = Z3.MkIntNumeral(1);
-                        this.Params.Add("N", Z3.MkConst("N", this._intType));
+                        this.IndexType = Z3.MkIntSort();
+                        this.IndexNone = Z3.MkInt(0);
+                        this.IndexOne = Z3.MkInt(1);
+                        this.Params.Add("N", Z3.MkIntConst("N"));
                         this.IndexN = this.Params["N"];
                         break;
                     }
                 case IndexOptionType.natural:
                     {
-                        this._indexType = Z3.MkIntSort();
-                        this.IndexOne = Z3.MkIntNumeral(1);
-                        this.Params.Add("N", Z3.MkConst("N", this._intType));
+                        this.IndexType = Z3.MkIntSort();
+                        this.IndexNone = Z3.MkInt(0);
+                        this.IndexOne = Z3.MkInt(1);
+                        this.Params.Add("N", Z3.MkIntConst("N"));
                         this.IndexN = this.Params["N"];
                         break;
                     }
                 case IndexOptionType.naturalOneToN:
                     {
-                        this._indexType = Z3.MkIntSort();
-                        this.IndexOne = Z3.MkIntNumeral(1);
-                        this.Params.Add("N", Z3.MkConst("N", this._intType));
+                        this.IndexType = Z3.MkIntSort();
+                        this.IndexNone = Z3.MkInt(0);
+                        this.IndexOne = Z3.MkInt(1);
+                        this.Params.Add("N", Z3.MkIntConst("N"));
                         this.IndexN = this.Params["N"];
                         break;
                     }
                 case IndexOptionType.enumeration:
                 default:
                     {
-                        //this._indexType = Z3.MkEnumerationSort("index", new string[] { "i1", "i2", "i3", "i4" }, new FuncDecl[4], new FuncDecl[4]);
-                        this._indexType = Z3.MkEnumerationSort("index", new string[] { "i0", "i1", "i2", "i3", "i4" }, new FuncDecl[5], new FuncDecl[5]); // todo: parse the value of N, then create a sort with this many distinct elements
+                        //this._indexType = Z3.MkEnumerationSort("index", new string[] { "i1", "i2", "i3", "i4" });
+                        this.IndexType = Z3.MkEnumSort("index", new string[] { "i0", "i1", "i2", "i3", "i4" }); // todo: parse the value of N, then create a sort with this many distinct elements
                         this.IndexOne = Z3.MkConst("i1", this.IndexType);
                         this.IndexNone = Z3.MkConst("i0", this.IndexType);
                         this.IndexN = Z3.MkConst("iN", this.IndexType);
@@ -384,16 +385,16 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
                     }
             }
 
-            this._indexSet = Z3.MkFullSet(this._indexType);
+            //this._indexSet = Z3.MkFullSet((SetSort)this._indexType); // todo: check if legal cast
 
             switch (this.DataOption)
             {
                 case DataOptionType.array:
                     {
-                        this.DataA.IndexedVariableDecl = new Dictionary<String, Term>();
-                        this.DataA.IndexedVariableDeclPrimed = new Dictionary<String, Term>();
-                        this.DataA.VariableDecl = new Dictionary<String, Term>();
-                        this.DataA.VariableDeclPrimed = new Dictionary<String, Term>();
+                        this.DataA.IndexedVariableDecl = new Dictionary<String, ArrayExpr>();
+                        this.DataA.IndexedVariableDeclPrimed = new Dictionary<String, ArrayExpr>();
+                        this.DataA.VariableDecl = new Dictionary<String, ArrayExpr>();
+                        this.DataA.VariableDeclPrimed = new Dictionary<String, ArrayExpr>();
                         break;
                     }
 
@@ -426,46 +427,49 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
             }
         }
 
+        /**
+         * Gettor and settor for Z3 object
+         */
         public Z3Wrapper Z3
         {
             get { return this._z3; }
             set { this._z3 = value; }
         }
 
-        public Sort RealType
-        {
-            get { return this._realType; }
-        }
+        /**
+         * Integer zero value
+         */
+        public Expr IntZero;
 
-        public Term IntZero
-        {
-            get { return this._intZero; }
-        }
+        /**
+         * Real zero value
+         */
+        public ArithExpr RealZero;
 
-        public Term RealZero
-        {
-            get { return this._realZero; }
-        }
+        /**
+         * Integer type
+         */
+        public Sort IntType;
 
-        public Sort IntType
-        {
-            get { return this._intType; }
-        }
+        /**
+         * Control location (state) type
+         */
+        public Sort LocType;
 
-        public Sort IndexType
-        {
-            get { return this._indexType; }
-        }
+        /**
+         * Index type: natural number between 1 and N
+         */
+        public Sort IndexType;
 
-        public Term IndexSet
-        {
-            get { return this._indexSet; }
-        }
+        /**
+         * Real sort
+         */
+        public Sort RealType;
 
         /**
          * Indexed control locations / modes
          */
-        public IDictionary<String, Term> Q
+        public IDictionary<String, Expr> Q
         {
             get { return this._q; }
             set { this._q = value; }
@@ -474,19 +478,25 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
         /**
          * Primed (for resets) Indexed control locations / modes
          */
-        public IDictionary<String, Term> QPrimed
+        public IDictionary<String, Expr> QPrimed
         {
             get { return this._qPrimed; }
             set { this._qPrimed = value; }
         }
 
-        public IDictionary<KeyValuePair<String, String>, Term> IndexedVariables
+        /**
+         * Gettor and settor for indexed variables
+         */
+        public IDictionary<KeyValuePair<String, String>, Expr> IndexedVariables
         {
             get { return this._ivars; }
             set { this._ivars = value; }
         }
 
-        public IDictionary<KeyValuePair<String, String>, Term> IndexedVariablesPrimed
+        /**
+         * Gettor and settor for primed indexed variables
+         */
+        public IDictionary<KeyValuePair<String, String>, Expr> IndexedVariablesPrimed
         {
             get { return this._ivarsPrimed; }
             set { this._ivarsPrimed = value; }
@@ -495,7 +505,7 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
         /**
          * Index variables
          */
-        public IDictionary<String, Term> Indices
+        public IDictionary<String, Expr> Indices
         {
             get { return this._indices; }
             set { this._indices = value; }
@@ -504,7 +514,7 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
         /**
          * Parameter variables
          */
-        public IDictionary<String, Term> Params
+        public IDictionary<String, Expr> Params
         {
             get { return this._params; }
             set { this._params = value; }
@@ -513,7 +523,7 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
         /**
          * Global variables
          */
-        public IDictionary<String, Term> GlobalVariables
+        public IDictionary<String, Expr> GlobalVariables
         {
             get { return this._globalVariables; }
             set { this._globalVariables = value; }
@@ -522,7 +532,7 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
         /**
          * Primed global variables
          */
-        public IDictionary<String, Term> GlobalVariablesPrimed
+        public IDictionary<String, Expr> GlobalVariablesPrimed
         {
             get { return this._globalVariablesPrimed; }
             set { this._globalVariablesPrimed = value; }
@@ -531,7 +541,7 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
         /**
          * Location labels to values
          */
-        public IDictionary<String, Term> Locations
+        public IDictionary<String, Expr> Locations
         {
             get { return this._locations; }
             set { this._locations = value; }
@@ -542,13 +552,22 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
 
         public Holism Sys;
 
+        public IDictionary<String, Expr> ExistentialConstants;
+
+        enum IOSTATE { SELECT_CASE_STUDY, SELECT_N, SELECT_OPERATION, EXECUTE_OPERATION };
+
+        enum PROGRAM_MODE { INDUCTIVE_INVARIANT, OUTPUT_PHAVER, INPUT_PHAVER, BMC };
+        private PROGRAM_MODE OPERATION;
+
         /**
+         * Main entry to program
+         * Accepts console input
          * @param args
          */
         public static void Main(String[] args)
         {
             String choice;
-            Boolean fileSelected = false;
+            Boolean selected_file = false, selected_n = false, selected_operation = false, terminate = false;
 
             Dictionary<int, string> inputFiles = new Dictionary<int, string>();
             int inputFileCount = 0;
@@ -564,6 +583,7 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
 
             inputFiles.Add(inputFileCount++, "lynch_shavit.xml");
 
+            inputFiles.Add(inputFileCount++, "sats_full.xml");
             inputFiles.Add(inputFileCount++, "sats.xml");
             inputFiles.Add(inputFileCount++, "sats_buggy.xml");
             inputFiles.Add(inputFileCount++, "sats_timed.xml");
@@ -583,6 +603,12 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
             inputFiles.Add(inputFileCount++, "gv_buggy.xml");
             inputFiles.Add(inputFileCount++, "flocking.xml");
             inputFiles.Add(inputFileCount++, "flocking_buggy.xml");
+            inputFiles.Add(inputFileCount++, "bully.xml");
+            inputFiles.Add(inputFileCount++, "bully_buggy.xml");
+
+            inputFiles.Add(inputFileCount++, "gcd.xml");
+
+            inputFiles.Add(inputFileCount++, "starl.xml");
 
             if (System.Environment.MachineName.ToLower().StartsWith("johnso99"))
             {
@@ -597,78 +623,171 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
                 Instance._inoutPath = Directory.GetCurrentDirectory();
                 //this._inoutPath = "D:\\Dropbox\\Research\\tools\\passel\\repos\\trunk\\input\\";
             }
-            Instance._inoutPath = Directory.GetCurrentDirectory() + "\\input\\"; // uncomment for release version
-            Console.WriteLine("Using directory path: " + Instance._inoutPath);
+            //Instance._inoutPath = Directory.GetCurrentDirectory() + "\\input\\"; // uncomment for release version
 
-
-            Console.WriteLine("Select an input file: \n\r");
-            foreach (var f in inputFiles)
-            {
-                Console.WriteLine("[" + f.Key.ToString() + "]" + " " + f.Value);
-            }
-            Console.WriteLine("[255] generate FORTE/FMOODS table\n\r");
-            Console.WriteLine("[256] enter custom file\n\r");
+            IOSTATE iostate = IOSTATE.SELECT_CASE_STUDY;
 
             while (true)
             {
-                choice = Console.ReadLine();
-                try
-                {
-                    if (choice != null)
-                    {
-                        int io_opt = int.Parse(choice);
-
-                        if (io_opt < inputFileCount)
-                        {
-                            Instance._inputFiles.Add(inputFiles[io_opt]);
-                        }
-                        else if (io_opt == 255)
-                        {
-                            Console.WriteLine("Generating table for paper (correct vs. buggy versions):");
-
-                            Instance._inputFiles.Add(inputFiles.First(a => a.Value.Contains("sats")).Value);
-                            Instance._inputFiles.Add(inputFiles.First(a => a.Value.Contains("sats_buggy")).Value);
-                            Instance._inputFiles.Add(inputFiles.First(a => a.Value.Contains("sats_timed")).Value);
-                            Instance._inputFiles.Add(inputFiles.First(a => a.Value.Contains("sats_timed_buggy")).Value);
-                            Instance._inputFiles.Add(inputFiles.First(a => a.Value.Contains("fischer_umeno_five_state")).Value);
-                            Instance._inputFiles.Add(inputFiles.First(a => a.Value.Contains("fischer_umeno_five_state_buggy")).Value);
-                        }
-                        else if (io_opt == 256)
-                        {
-                            Console.WriteLine("Using path " + Instance._inoutPath);
-                            Instance._inputFiles.Add(Console.ReadLine()); //todo: dangerous
-                            Console.WriteLine("File: " + Instance._inputFile + "\n\r");
-                        }
-                        else
-                        {
-                            // todo: handle error
-                        }
-                    }
-                }
-                catch (Exception)
-                {
-                    Instance._inputFiles.Add("fischer_umeno_five_state.xml");
-                    //Console.WriteLine("Error, picking default file: " + this._inputFile + ".\n\r");
-                }
-
-                Instance._inputFilePath = Instance._inoutPath + instance._inputFiles.First();
-
-                if (File.Exists(Instance._inputFilePath))
-                {
-                    fileSelected = true;
-                }
-                else
-                {
-                    Console.WriteLine("Error: file " + Instance._inputFilePath + " does not exist, try again.");
-                }
-
-                if (fileSelected)
+                if (terminate)
                 {
                     break;
                 }
+
+                switch (iostate)
+                {
+                    case IOSTATE.SELECT_CASE_STUDY:
+                        {
+                            Console.WriteLine("Using directory path: " + Instance._inoutPath);
+
+                            Console.WriteLine("Select an input file: \n\r");
+                            foreach (var f in inputFiles)
+                            {
+                                Console.WriteLine("[" + f.Key.ToString() + "]" + " " + f.Value);
+                            }
+                            Console.WriteLine("[255] generate FORTE/FMOODS table\n\r");
+                            Console.WriteLine("[256] enter custom file\n\r");
+
+                            choice = Console.ReadLine();
+
+                            try
+                            {
+                                if (choice != null)
+                                {
+                                    int io_opt = int.Parse(choice);
+
+                                    if (io_opt < inputFileCount)
+                                    {
+                                        Instance._inputFiles.Add(inputFiles[io_opt]);
+                                    }
+                                    else if (io_opt == 255)
+                                    {
+                                        Console.WriteLine("Generating table for paper (correct vs. buggy versions):");
+
+                                        Instance._inputFiles.Add(inputFiles.First(a => a.Value.Contains("sats")).Value);
+                                        Instance._inputFiles.Add(inputFiles.First(a => a.Value.Contains("sats_buggy")).Value);
+                                        Instance._inputFiles.Add(inputFiles.First(a => a.Value.Contains("sats_timed")).Value);
+                                        Instance._inputFiles.Add(inputFiles.First(a => a.Value.Contains("sats_timed_buggy")).Value);
+                                        Instance._inputFiles.Add(inputFiles.First(a => a.Value.Contains("fischer_umeno_five_state")).Value);
+                                        Instance._inputFiles.Add(inputFiles.First(a => a.Value.Contains("fischer_umeno_five_state_buggy")).Value);
+                                    }
+                                    else if (io_opt == 256)
+                                    {
+                                        Console.WriteLine("Using path " + Instance._inoutPath);
+                                        Instance._inputFiles.Add(Console.ReadLine()); //todo: dangerous
+                                        Console.WriteLine("File: " + Instance._inputFile + "\n\r");
+                                    }
+                                    else
+                                    {
+                                        // todo: handle error
+                                    }
+                                }
+                            }
+                            catch (Exception)
+                            {
+                                Instance._inputFiles.Add("fischer_umeno_five_state.xml");
+                                Console.WriteLine("Error, picking default file: " + Instance._inputFiles.First() + ".\n\r");
+                            }
+
+                            Instance._inputFilePath = Instance._inoutPath + instance._inputFiles.First();
+
+                            if (File.Exists(Instance._inputFilePath))
+                            {
+                                selected_file = true;
+                            }
+                            else
+                            {
+                                Console.WriteLine("Error: file " + Instance._inputFilePath + " does not exist, try again.");
+                            }
+
+                            if (selected_file)
+                            {
+                                iostate = IOSTATE.SELECT_N;
+                                choice = null;
+                                continue;
+                            }
+                            break;
+                        }
+                    case IOSTATE.SELECT_N:
+                        {
+                            Console.WriteLine("Specify a natural number value for N >= 2 (the number of automata)?  [default 0: enforces N >= 2 with no upper bound]");
+
+                            choice = Console.ReadLine();
+
+                            try
+                            {
+                                if (choice != null)
+                                {
+                                    int io_n = int.Parse(choice);
+
+                                    if (io_n < 2)
+                                    {
+                                        Console.WriteLine("Using unbounded N");
+                                    }
+                                    else
+                                    {
+                                        Console.WriteLine("Using N = " + io_n);
+                                        Instance.IndexNValue = io_n;
+                                    }
+                                    selected_n = true;
+                                }
+                            }
+                            catch (Exception e)
+                            {
+                            }
+
+                            if (selected_n)
+                            {
+                                iostate = IOSTATE.SELECT_OPERATION;
+                                choice = null;
+                                continue;
+                            }
+                            break;
+                        }
+                    case IOSTATE.SELECT_OPERATION:
+                        {
+                            Console.WriteLine("Select an operation to perform on the input file: ");
+
+                            int i = 0; // todo: ensure i is initialized to lowest enum value and increments as enum does (normally 0, 1, 2, but might as well fix this at some point for general case)
+                            foreach (PROGRAM_MODE p in Enum.GetValues(typeof(PROGRAM_MODE)))
+                            {
+                                Console.WriteLine("[" + i + "]" + p.ToString());
+                                i++;
+                            }
+
+                            choice = Console.ReadLine();
+
+                            try
+                            {
+                                if (choice != null)
+                                {
+                                    int io_op = int.Parse(choice);
+
+                                    Instance.OPERATION = (PROGRAM_MODE)Enum.ToObject(typeof(PROGRAM_MODE), io_op); // cast int to enum
+                                    selected_operation = true;
+                                }
+                            }
+                            catch
+                            {
+                            }
+
+                            if (selected_operation)
+                            {
+                                iostate = IOSTATE.EXECUTE_OPERATION;
+                                terminate = true;
+                            }
+                            break;
+                        }
+                    default:
+                        {
+                            // error: should be unreachable
+                            terminate = true;
+                            break;
+                        }
+                }
             }
 
-            // check each file
+            // parse each input file (usually just one)
             foreach (String f in Instance._inputFiles)
             {
                 Instance.InitializeZ3();
@@ -699,42 +818,58 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
                 ISmtSymbols smtSymbols = new SymbolsZ3();
 
                 // constants
-                Term int_zero = Instance.Z3.MkIntNumeral(0);
-                Term int_one = Instance.Z3.MkIntNumeral(1);
-                Term int_two = Instance.Z3.MkIntNumeral(2);
-                Term real_one = Instance.Z3.MkRealNumeral(1);
+                Expr int_zero = Instance.Z3.MkInt(0);
+                Expr int_one = Instance.Z3.MkInt(1);
+                Expr int_two = Instance.Z3.MkInt(2);
+                Expr real_one = Instance.Z3.MkReal(1);
 
                 // process index variables
-                Instance._indices = new Dictionary<String, Term>();
+                Instance._indices = new Dictionary<String, Expr>();
+
+                Instance._indices.Add("h", Instance.Z3.MkIntConst("h"));
+                Instance._indices.Add("i", Instance.Z3.MkIntConst("i"));
+                Instance._indices.Add("j", Instance.Z3.MkIntConst("j"));
+                Instance._indices.Add("k", Instance.Z3.MkIntConst("k"));
+                Instance._indices.Add("l", Instance.Z3.MkIntConst("l"));
+                Instance._indices.Add("m", Instance.Z3.MkIntConst("m"));
+                Instance._indices.Add("n", Instance.Z3.MkIntConst("n"));
+
+                /*
+                Instance._indices.Add("h", Instance.Z3.MkConst("h", Instance.IndexType));
                 Instance._indices.Add("i", Instance.Z3.MkConst("i", Instance.IndexType));
                 Instance._indices.Add("j", Instance.Z3.MkConst("j", Instance.IndexType));
                 Instance._indices.Add("k", Instance.Z3.MkConst("k", Instance.IndexType));
-                Instance._indices.Add("h", Instance.Z3.MkConst("h", Instance.IndexType));
+                Instance._indices.Add("l", Instance.Z3.MkConst("l", Instance.IndexType));
+                Instance._indices.Add("m", Instance.Z3.MkConst("m", Instance.IndexType));
+                Instance._indices.Add("n", Instance.Z3.MkConst("n", Instance.IndexType));
+                 */
+
+                Instance.ExistentialConstants = new Dictionary<String, Expr>();
 
                 switch (Instance.DataOption)
                 {
                     case DataOptionType.array:
                         {
                             Sort locSort = Instance.Z3.MkArraySort(Instance.IndexType, Instance.IntType);
-                            Term q = Instance.Z3.MkConst("q", locSort); // control location; todo: should map to finite control state (just hack to use integers for now)
+                            ArrayExpr q = (ArrayExpr)Instance.Z3.MkConst("q", locSort); // control location; todo: should map to finite control state (just hack to use integers for now)
                             Instance.DataA.IndexedVariableDecl.Add("q", q);
-                            Term qPrime = Instance.Z3.MkConst("q'", locSort); ; // control location; todo: should map to finite control state (just hack to use integers for now)
+                            ArrayExpr qPrime = (ArrayExpr)Instance.Z3.MkConst("q" + Controller.PRIME_SUFFIX, locSort); ; // control location; todo: should map to finite control state (just hack to use integers for now)
                             Instance.DataA.IndexedVariableDeclPrimed.Add("q", qPrime);
 
                             // apply each index to the control location function
                             foreach (var pair in Instance.Indices)
                             {
-                                Instance.Q.Add(pair.Key, Instance.Z3.MkArraySelect(q, pair.Value));
-                                Instance.QPrimed.Add(pair.Key, Instance.Z3.MkArraySelect(qPrime, pair.Value));
+                                Instance.Q.Add(pair.Key, Instance.Z3.MkSelect(q, pair.Value));
+                                Instance.QPrimed.Add(pair.Key, Instance.Z3.MkSelect(qPrime, pair.Value));
                             }
                             break;
                         }
                     case DataOptionType.uninterpreted_function:
                     default:
                         {
-                            FuncDecl q = Instance.Z3.MkFuncDecl("q", Instance.IndexType, Instance.IntType); // control location; todo: should map to finite control state (just hack to use integers for now)
+                            FuncDecl q = Instance.Z3.MkFuncDecl("q", Instance.IndexType, Instance.LocType); // control location; todo: should map to finite control state (just hack to use integers for now)
                             Instance.DataU.IndexedVariableDecl.Add("q", q);
-                            FuncDecl qPrime = Instance.Z3.MkFuncDecl("q'", Instance.IndexType, Instance.IntType); // control location; todo: should map to finite control state (just hack to use integers for now)
+                            FuncDecl qPrime = Instance.Z3.MkFuncDecl("q" + Controller.PRIME_SUFFIX, Instance.IndexType, Instance.LocType); // control location; todo: should map to finite control state (just hack to use integers for now)
                             Instance.DataU.IndexedVariableDeclPrimed.Add("q", qPrime);
 
                             // apply each index to the control location function
@@ -748,6 +883,7 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
                 }
 
                 Instance.Sys = ParseHyXML.ParseFile(Instance._inputFilePath);
+
 
                 if (Instance._inputFile.Contains("sats"))
                 {
@@ -765,7 +901,8 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
                         (assert (greaterThan10 x))
                         (assert (greaterThan10 y))
                         (check-sat)
-                        It is essentially the way to define macros using uninterpreted functions when you're working with Z3 API. Note that you have to set (set-option :macro-finder true) in order that Z3 replaces universal quantifiers with bodies of those functions.
+                     * It is essentially the way to define macros using uninterpreted functions when you're working with Z3 API.
+                     * Note that you have to set (set-option :macro-finder true) in order that Z3 replaces universal quantifiers with bodies of those functions.
 
                         However, if you're working with the textual interface, the macro define-fun in SMT-LIB v2 is an easier way to do what you want:
 
@@ -804,17 +941,77 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
                     //                Instance.Z3.AssertCnstr(Instance.Z3.MkLe(pair.Value, Instance.Params["N"])); // todo: error handling, what if we don't have this parameter in the specification file?
                 //}
 
-                // counter / environment abstraction
-                //AbstractHybridAutomaton aha = new AbstractHybridAutomaton(sys, (AConcreteHybridAutomaton)sys.HybridAutomata.First());
-                //PrintPhaver.writeAbstractSystem(aha, "output.pha", PrintPhaver.OutputMode.phaver);
+                switch (Instance.OPERATION)
+                {
+                    /*case PROGRAM_MODE.ENVIRONMENT_ABSTRACTION:
+                        {
+                            // counter / environment abstraction
+                            //AbstractHybridAutomaton aha = new AbstractHybridAutomaton(sys, (AConcreteHybridAutomaton)sys.HybridAutomata.First());
+                            //PrintPhaver.writeAbstractSystem(aha, "output.pha", PrintPhaver.OutputMode.phaver);
+                            break;
+                        }*/
 
-                // inductive invariant checking for small model theorem
-                Instance.Sys.checkInductiveInvariants();
+                    // inductive invariant checking for small model theorem
+                    case PROGRAM_MODE.INDUCTIVE_INVARIANT:
+                        {
+                            Instance.Sys.checkInductiveInvariants();
+                            break;
+                        }
+                    case PROGRAM_MODE.OUTPUT_PHAVER:
+                        {
+                            if (Instance.IndexNValue != null)
+                            {
+                                String out_phaver = Instance.Sys.outputPhaverN(Instance.IndexNValue);
+                                string pat = "yyyy-MM-ddTHH-mm-ss";
+                                string now = DateTime.Now.ToString(pat);
+                                string fn = Instance._inputFile.Substring(0, Instance._inputFile.Length - 4); // strip .xml extension
 
-                Instance.Z3.CloseLog();
-                Instance.Config.Dispose();
-                Instance.Z3.Dispose();
+                                StreamWriter writer = new StreamWriter(Instance._inoutPath + "..\\output\\phaver\\" + fn + "_" + "N=" + Instance.IndexNValue + "_" + now + ".pha");
+                                writer.Write(out_phaver);
+                                writer.Close();
+                                // TODO: add call to PHAVER, then parse reach set as per next command
+                                //ParseHyXML.ParseReach("C:\\Users\\tjohnson\\Dropbox\\Research\\tools\\phaver\\ii_reach"); // parse reach set
+
+                                //VixCOM.VixLib a = new VixLib();
+                                //a.
+                            }
+                            else
+                            {
+                                Console.WriteLine("ERROR: generating PHAVER output requires selecting a finite value for N.");
+                            }
+
+                            break;
+                        }
+                    case PROGRAM_MODE.INPUT_PHAVER:
+                        {
+                            List<Expr> reachset = ParseHyXML.ParseReach("C:\\Users\\tjohnson\\Dropbox\\Research\\tools\\phaver\\ii_reach_N" + Controller.instance.IndexNValue); // parse reach set
+
+
+
+                            break;
+                        }
+                    case PROGRAM_MODE.BMC:
+                        {
+                            Instance.Sys.boundedModelCheckAllProperties();
+                            break;
+                        }
+                    default:
+                        {
+                            //TODO: throw error should be unreachable
+                            break;
+                        }
+                }
+                Instance.DeinitializeZ3();
             }
+        }
+
+        /**
+         * Free memory used by Z3 context when done / enable creating a new one
+         */
+        public void DeinitializeZ3()
+        {
+            Microsoft.Z3.Log.Close();
+            Instance.Z3.Dispose();
         }
 
         /**
