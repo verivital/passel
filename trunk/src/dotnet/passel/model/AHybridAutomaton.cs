@@ -28,15 +28,18 @@ namespace passel.model
         /**
          * Default constructor
          */
-        public AHybridAutomaton(Holism parent)
+        public AHybridAutomaton(Holism parent, String name)
         {
             this.Parent = parent;
+            this.Name = name;
         }
+
+        public String Name;
 
         /**
          * Set of variables
          */
-        protected ISet<Variable> _variables = new HashSet<Variable>();
+        protected IList<Variable> _variables = new List<Variable>();
 
         /**
          * Set of discrete control locations
@@ -89,13 +92,13 @@ namespace passel.model
         /**
          * Accessor for variables
          */
-        public ISet<Variable> Variables
+        public IList<Variable> Variables
         {
             get
             {
                 if (this._variables == null)
                 {
-                    this._variables = new HashSet<Variable>();
+                    this._variables = new List<Variable>();
                 }
                 return this._variables;
             }
@@ -186,7 +189,7 @@ namespace passel.model
         {
             if (this._variables == null)
             {
-                this._variables = new HashSet<Variable>();
+                this._variables = new List<Variable>();
             }
 
             Variable v = new Variable(name, "", type);
@@ -437,11 +440,13 @@ namespace passel.model
          */
         public void finishConstruction()
         {
+            UInt32 min = UInt32.MaxValue;
             UInt32 max = 0;
             List<Expr> initialStates = new List<Expr>();
             foreach (ConcreteLocation acl in this.Locations)
             {
                 max = Math.Max(max, acl.Value);
+                min = Math.Min(min, acl.Value);
 
                 // disjunction of all states specified as initial
                 if (acl.Initial)
@@ -491,6 +496,33 @@ namespace passel.model
 
             Expr int_maxState = z3.MkInt(max);
 
+            // assign names to the location constants (otherwise we can get in scenarios where all combinatorial assignments to location names show up)
+            for (UInt32 i = min; i <= max; i++)
+            {
+                z3.AssumptionsUniversal.Add(z3.MkEq(Controller.Instance.Locations[Controller.Instance.LocationNumToName[(uint)i]], z3.MkBV(i, Controller.Instance.LocSize)));
+            }
+
+            z3.AssumptionsUniversal.Add(z3.MkDistinct(Controller.Instance.Locations.Values.ToArray())); // assert all control locations are different locations
+            List<BoolExpr> controlRangeList = new List<BoolExpr>();
+            Expr iidx = Controller.Instance.Indices["i"];
+            foreach (var v in Controller.Instance.Locations.Values.ToArray())
+            {
+                controlRangeList.Add(z3.MkEq(z3.MkApp(Controller.Instance.DataU.IndexedVariableDecl["q"], iidx), v));
+            }
+            BoolExpr controlRange;
+            if (controlRangeList.Count > 1)
+            {
+                controlRange = z3.MkForall(new Expr[] { iidx }, z3.MkOr(controlRangeList.ToArray()));
+            }
+            else
+            {
+                controlRange = z3.MkForall(new Expr[] { iidx }, controlRangeList[0]); // todo: error handling...what if 0?
+            }
+
+            z3.Assumptions.Add(controlRange); // assert all processes must stay inside control range bounds
+
+
+
             // bound domain of control locations
             // q
             Expr h = Controller.Instance.Indices["i"];
@@ -515,17 +547,17 @@ namespace passel.model
                 case Controller.DataOptionType.uninterpreted_function:
                 default:
                     {
-                        Expr cnstr = z3.MkAnd(z3.MkGe((ArithExpr)z3.MkApp(Controller.Instance.DataU.IndexedVariableDecl["q"], h), (ArithExpr)Controller.Instance.IntZero), z3.MkLe((ArithExpr)z3.MkApp(Controller.Instance.DataU.IndexedVariableDecl["q"], h), (ArithExpr)int_maxState));
-                        Expr fc = z3.MkForall(new Expr[] { h }, z3.MkImplies((BoolExpr)indexConstrainth, (BoolExpr)cnstr)); // forall indices h, enforce location bounds on q
-                        //Expr fc = z3.MkForall(new Expr[] { h }, (BoolExpr)cnstr); // forall indices h, enforce location bounds on q
-                        z3.Assumptions.Add((BoolExpr)fc);
+                        //Expr cnstr = z3.MkAnd(z3.MkGe((ArithExpr)z3.MkApp(Controller.Instance.DataU.IndexedVariableDecl["q"], h), (ArithExpr)Controller.Instance.IntZero), z3.MkLe((ArithExpr)z3.MkApp(Controller.Instance.DataU.IndexedVariableDecl["q"], h), (ArithExpr)int_maxState));
+                        //Expr fc = z3.MkForall(new Expr[] { h }, z3.MkImplies((BoolExpr)indexConstrainth, (BoolExpr)cnstr)); // forall indices h, enforce location bounds on q
+                        // oldest //Expr fc = z3.MkForall(new Expr[] { h }, (BoolExpr)cnstr); // forall indices h, enforce location bounds on q
+                        //z3.Assumptions.Add((BoolExpr)fc);
 
                         // q'
                         //Controller.Instance.IntOne <= h & h <= Controller.Instance.Params["N"] &
-                        cnstr = z3.MkAnd(z3.MkGe((ArithExpr)z3.MkApp(Controller.Instance.DataU.IndexedVariableDeclPrimed["q"], h), (ArithExpr)Controller.Instance.IntZero), z3.MkGe((ArithExpr)z3.MkApp(Controller.Instance.DataU.IndexedVariableDeclPrimed["q"], h), (ArithExpr)int_maxState));
-                        fc = z3.MkForall(new Expr[] { h }, z3.MkImplies((BoolExpr)indexConstrainth, (BoolExpr)cnstr));
-                        //fc = z3.MkForall(new Expr[] { h }, (BoolExpr)cnstr);
-                        z3.Assumptions.Add((BoolExpr)fc);
+                        //cnstr = z3.MkAnd(z3.MkGe((ArithExpr)z3.MkApp(Controller.Instance.DataU.IndexedVariableDeclPrimed["q"], h), (ArithExpr)Controller.Instance.IntZero), z3.MkGe((ArithExpr)z3.MkApp(Controller.Instance.DataU.IndexedVariableDeclPrimed["q"], h), (ArithExpr)int_maxState));
+                        //fc = z3.MkForall(new Expr[] { h }, z3.MkImplies((BoolExpr)indexConstrainth, (BoolExpr)cnstr));
+                        // oldest //fc = z3.MkForall(new Expr[] { h }, (BoolExpr)cnstr);
+                        //z3.Assumptions.Add((BoolExpr)fc);
                         break;
                     }
             }

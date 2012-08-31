@@ -7,41 +7,46 @@
 	
 	<variable name='g' type='index' update_type='Discrete' comment='lock' />
 	
-	<variable name='now' type='nnreal' update_type='continuous' />
+	<variable name='x' type='nnreal' update_type='continuous' />
 	
 	<assumption equn='A &gt; 0.0 and B &gt; 0.0 and A &lt; B' comment='A *stictly less than* B for mutual exclusion' />
-	<assumption equn='N &gt;= 2 and N &lt;= 100' comment='' />
+	<assumption equn='A == 3.0 and B == 19.0' comment='invariant generation requires chosen values for A and B' />
+	<assumption equn='N &gt;= 2 and N &lt;= 3' comment='' />
 
-	<automaton name='default_automaton'>
+	<automaton name='fischer_umeno_global_clock'>
 		<variable name='last[i]' type='nnreal' update_type='Discrete' comment='' />
 		<variable name='first[i]' type='nnreal' update_type='Discrete' comment='' />
 		
-		<initial equn='(forall i (last[i] == A and first[i] == 0.0 and g == 0 and now == 0.0)) and now == 0.0 and g == 0' />
+		<initial equn='(forall i (last[i] == A and first[i] == 0.0 and g == 0 and x == 0.0)) and x == 0.0 and g == 0' />
 
+<!--
 		<mode id='0' name='rem' initial='True'>
-			<dai variable='now' equn='now_dot = 1.0'/>
+			<dai variable='x' equn='x_dot = 1.0'/>
 		</mode>
+-->
 
-		<mode id='1' name='test' initial='False'>
-			<dai variable='now' equn='now_dot = 1.0'/>
+<!--		<mode id='1' name='test' initial='False'>	-->
+		<mode id='1' name='test' initial='True'>
+			<dai variable='x' equn='x_dot = 1.0'/>
 		</mode>
 		
 		<mode id='2' name='set' initial='False'>
-			<dai variable='now' equn='now_dot = 1.0'/>
-			<invariant equn='now &lt;= last[i]' />
-			<stop equn='now &gt;= last[i]' />
+			<dai variable='x' equn='x_dot = 1.0'/>
+			<invariant equn='x &lt;= last[i]' />
+			<stop equn='x &gt;= last[i]' />
 		</mode>
 		
 		<mode id='3' name='check' initial='False'>
-			<dai variable='now' equn='now_dot = 1.0'/>
+			<dai variable='x' equn='x_dot = 1.0'/>
 		</mode>
 		
 		<mode id='4' name='crit' initial='False'>
-			<dai variable='now' equn='now_dot = 1.0'/>
+			<dai variable='x' equn='x_dot = 1.0'/>
 		</mode>
-		
+<!--
 		<transition source='rem' destination='test'>
 		</transition>
+-->
 
 		<transition source='test' destination='test'>
 			<guard equn='g != 0' />
@@ -49,35 +54,39 @@
 
 		<transition source='test' destination='set'>
 			<guard equn='g == 0' />
-			<action equn='last[i]&apos; = now + A'/>
+			<action equn='last[i]&apos; = x + A'/>
 		</transition>
 		
 		<transition source='set' destination='check'>
-			<action equn='g&apos; = i and first[i]&apos; = now + B'/>
+			<action equn='g&apos; = i and first[i]&apos; = x + B'/>
 		</transition>
 		
 		<transition source='check' destination='test'>
-			<guard equn='g != i and now &gt;= first[i]' />
+			<guard equn='g != i and x &gt;= first[i]' />
 			<action equn='first[i]&apos; = 0.0'/>
 		</transition>
 		
 		<transition source='check' destination='crit'>
-			<guard equn='g == i and now &gt;= first[i]' />
+			<guard equn='g == i and x &gt;= first[i]' />
 		</transition>
 		
-		<transition source='crit' destination='rem'>
+<!--		<transition source='crit' destination='rem'> -->
+		<transition source='crit' destination='test'>
 			<action equn='g&apos; = 0'/>
 		</transition>
 	</automaton>
 	
-	
-	<property equn='forall i ((q[i] == set) implies (last[i] &lt;= now + A))' type='safety' />
-	<property equn='forall i ((q[i] == set) implies (now &lt;= last[i]))' type='safety' />
+	<!--
+	<property equn='forall i ((q[i] == set) implies (last[i] &lt;= x + A))' type='safety' />
+	<property equn='forall i ((q[i] == set) implies (x &lt;= last[i]))' type='safety' />
 
-	<property equn='forall i (now &lt;= last[i])' type='safety' />
+	<property equn='forall i (x &lt;= last[i])' type='safety' />
 
 	<property equn='forall i j ((q[i] == check and q[j] == set and g == i) implies  (first[i] &gt; last[j] ))' type='safety' comment='key lemma for showing stronger inductive property' />
 	<property equn='forall i j ((q[i] == crit) implies (g == i and q[j] != set))' type='safety' comment='stronger inductive property that implies mutual exclusion' />
+	-->
+	
+	
 	<property equn='forall i j ((i != j) implies (q[i] != crit or q[j] != crit))' type='safety' comment='mutual exclusion property' />
 	
 
@@ -92,8 +101,8 @@
 	<property equn='forall i (q[i] &gt;= rem and q[i] &lt;= crit)' type='safety' />
 	<property equn='forall i (first[i] &gt;= 0.0)' type='safety' />
 	<property equn='forall i (last[i] &gt;= 0.0)' type='safety' />
-	<property equn='forall i (now &gt;= 0.0)' type='safety' />
-	<property equn='now &gt;= 0.0' type='safety' />
+	<property equn='forall i (x &gt;= 0.0)' type='safety' />
+	<property equn='x &gt;= 0.0' type='safety' />
 	
 	<property equn='forall i (q[i] == rem)' type='safety' />
 	<property equn='forall i (q[i] == test)' type='safety' />

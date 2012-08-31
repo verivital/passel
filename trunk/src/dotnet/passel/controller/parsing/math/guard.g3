@@ -81,15 +81,86 @@ booleanAndExpression
 AND 	: 	'&&' | 'and';
 
 equalityExpression
+	//:	(doubleRelationalExpression|relationalExpression) ((EQUALS|NEQUALS)^ (doubleRelationalExpression|relationalExpression))*
 	:	relationalExpression ((EQUALS|NEQUALS)^ relationalExpression)*
 	;
 
 EQUALS	:	'='		| '==';
 NEQUALS	:	'!='	| '~=';
 
-relationalExpression
-	:	additiveExpression ( (LT|LTEQ|GT|GTEQ)^ additiveExpression )*
+// output from phaver reach sets can be of the form: a <= x <= b, where x is a variable and a and b are two constant values, so let's rewrite this to a <= x and x <= b
+/*
+doubleRelationalExpression
+	:   (l=additiveExpression LTEQ m=additiveExpression LTEQ r=additiveExpression)   -> ^(AND ^(GTEQ $m $l ) ^(LTEQ $m $r))
+	|   (l=additiveExpression LTEQ m=additiveExpression LT   r=additiveExpression)   -> ^(AND ^(GTEQ $m $l ) ^(LT $m $r))
+	|   (l=additiveExpression LT   m=additiveExpression LTEQ r=additiveExpression)   -> ^(AND ^(GT $m $l )   ^(GTEQ $m $r))
+	|   (l=additiveExpression GTEQ m=additiveExpression GT   r=additiveExpression)   -> ^(AND ^(LTEQ $m $l ) ^(GT $m $r))
+	|   (l=additiveExpression GT   m=additiveExpression GTEQ r=additiveExpression)   -> ^(AND ^(LT $m $l )   ^(GTEQ $m $r))
+	//|   (l=additiveExpression GTEQ m=additiveExpression GTEQ r=additiveExpression    -> ^(AND ^(LTEQ $m $l ) ^(GTEQ $m $r))
+	|   (l=additiveExpression LT   m=additiveExpression LT   r=additiveExpression)   -> ^(AND ^(GT $m $l ) ^(LT $m $r))
+	|   (l=additiveExpression GT   m=additiveExpression GT   r=additiveExpression)   -> ^(AND ^(LT $m $l ) ^(GT $m $r))
+	// add combinations thereof...? couldn't get (LT | LTEQ) to work in replace rule, maybe need to name the token as a variable or something
+	;*/
+
+/* // conditional example
+a : ^(ID INT) -> {some test}? ^(ID["ick"] INT)
+              -> INT
+  ;
+
+additiveExpression
+	:	(a=multiplicativeExpression->$a) // set result
+                (    '+' b=multiplicativeExpression
+                     -> ^('+' $additiveExpression $b) // use previous rule result
+                )*
 	;
+*/
+
+// sources
+// very good overview: http://stackoverflow.com/questions/3056441/what-is-a-semantic-predicate-in-antlr
+// http://www.antlr.org/wiki/display/ANTLR3/Tree+construction
+// http://www.antlr.org/wiki/display/~admin/2007/06/28/Token+stream+rewriting+with+rewrite+rules
+// http://stackoverflow.com/questions/2409628/in-antlr-how-do-you-specify-a-specific-number-of-repetitions
+
+
+relationalExpression
+	: additiveExpression ( (LT|LTEQ|GT|GTEQ)^ additiveExpression)*
+	;
+	
+
+/*
+relationalExpression returns [CommonTree res]
+	// semantic predicate version: create a conjunction for chains of inequalities, but if count is <= 1, don't create a conjunction
+	@init { int count = 0; $res = new CommonTree(); }
+	: (l=additiveExpression -> $l) ( (m = LT| m = LTEQ| m = GT| m = GTEQ) r=additiveExpression { ++count; if (count == 0) { ; } else if (count == 1) { $res.Type = $m.Type; $res.AddChild((ITree)l); $res.AddChild((ITree)r); } else if (count > 1) { $res.Type = AND;  $res.AddChild((ITree)l); $res.AddChild((ITree)r); }  } )*
+*/
+	//: additiveExpression ( (LT|LTEQ|GT|GTEQ)^ additiveExpression { count++; } )*
+	//: l=additiveExpression ( (m = LT | m = LTEQ | m = GT | m = GTEQ)^ r=additiveExpression { ++count; } )* -> {count == 0}? $l
+	//																									   -> {count == 1}? ^($m $l $r)
+	//																									   -> ^(AND ($relationalExpression $m $r)*)
+
+/////	ID '(' ( logicalExpression (',' logicalExpression)* )? ')' -> ^(ID logicalExpression*)
+/*
+	:   (l=additiveExpression LTEQ m=additiveExpression LTEQ r=additiveExpression)   -> ^(AND ^(GTEQ $m $l ) ^(LTEQ $m $r))
+	|   (l=additiveExpression LTEQ m=additiveExpression LT   r=additiveExpression)   -> ^(AND ^(GTEQ $m $l ) ^(LT $m $r))
+	|   (l=additiveExpression LT   m=additiveExpression LTEQ r=additiveExpression)   -> ^(AND ^(GT $m $l )   ^(GTEQ $m $r))
+	|   (l=additiveExpression GTEQ m=additiveExpression GT   r=additiveExpression)   -> ^(AND ^(LTEQ $m $l ) ^(GT $m $r))
+	|   (l=additiveExpression GT   m=additiveExpression GTEQ r=additiveExpression)   -> ^(AND ^(LT $m $l )   ^(GTEQ $m $r))
+	//|   (l=additiveExpression GTEQ m=additiveExpression GTEQ r=additiveExpression    -> ^(AND ^(LTEQ $m $l ) ^(GTEQ $m $r))
+	|   (l=additiveExpression LT   m=additiveExpression LT   r=additiveExpression)   -> ^(AND ^(GT $m $l ) ^(LT $m $r))
+	|	(l=additiveExpression GT   m=additiveExpression GT   r=additiveExpression)   -> ^(AND ^(LT $m $l ) ^(GT $m $r))
+	|	(l=additiveExpression -> $l) (m=(LT|LTEQ|GT|GTEQ) r=additiveExpression		 -> ^($m $relationalExpression $r) )*
+	//|	additiveExpression ( (LT|LTEQ|GT|GTEQ)^ additiveExpression )*
+	//:	additiveExpression ( (LT|LTEQ|GT|GTEQ)^ additiveExpression )*
+	*/
+//	;
+
+	/*
+	(a=multiplicativeExpression->$a) // set result
+                (    '+' b=multiplicativeExpression
+                     -> ^('+' $additiveExpression $b) // use previous rule result
+                )*
+
+				*/
 
 LT		:	'<'		| '&lt;';
 LTEQ	:	'<='	| '&lt;=';
@@ -141,6 +212,7 @@ value
 	: 	INTEGER
 	|	FLOAT
 	|	BOOLEAN
+	|	BITVECTOR
 	|	function
 	|	reset_indexed_variable
 	|	reset_variable
@@ -159,6 +231,11 @@ INTEGER
 FLOAT
 	:	DIGIT* '.' DIGIT+ E?
 	|    DIGIT+ E
+	;
+
+BITVECTOR
+	//:	'#b' ('0' | '1')+
+	:	'#b' ('0'..'9')+ // easier for z3 support
 	;
 
 E    :    ('E'|'e') ('+'|'-')? DIGIT+ 
@@ -203,7 +280,7 @@ dynamics_variable
 	;
 
 indexed_variable
-	:	ID ('[' ID ']' | '[' indexed_variable ']') -> ^(INDEXED_VARIABLE ID ID* indexed_variable*)
+	:	a=ID ( '[' (b=ID | b=INTEGER) ']' | '[' indexed_variable ']' ) -> ^(INDEXED_VARIABLE $a $b* indexed_variable*)
 	;
 
 // declare after all the other tokens

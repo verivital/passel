@@ -22,6 +22,7 @@ namespace passel.model
         inductiveWeak,
         unknown,
         toProcess,
+        toProject,
     }
 
     /**
@@ -30,7 +31,6 @@ namespace passel.model
     public class Property
     {
         private static Z3Wrapper z3 = Controller.Instance.Z3;
-
 
         public Expr InductiveFormula;
         private Expr _formula;
@@ -47,6 +47,9 @@ namespace passel.model
         public int QuantInstantiations = 0;
 
         public TimeSpan Time;
+
+        public int Project = -1; // N projected onto (abstract)
+        public int ProjectedFrom = -1; // N projected from (concrete)
 
         public void addInductiveInvariant(Expr ii)
         {
@@ -101,18 +104,49 @@ namespace passel.model
         public Expr FormulaRankLhs;
         public Expr FormulaRankRhs;
 
+        public override String ToString()
+        {
+            return this.Formula.ToString();
+        }
+
         /**
          * 
          */
         public Property(Expr f)
         {
             this._formula = f;
+            this.Post = primeAllByValue( f);
+        }
+
+        /**
+         * Hack to avoid thrashing original formula
+         */
+        private Expr primeAllByValue(Expr f)
+        {
+            // huge hack to avoid clobbering original formula with pass-by-reference
+            // we create a new z3 context and "translate" (copy) the term to that context, then copy it back
+            // we cannot just "translate" to the same context, because it checks if the context is the same and returns the original reference if so
+            Context tmpcontext = new Context(Controller.Instance.Config);
+            Expr fcopy = f.Translate(tmpcontext);
+            Expr fcopyback = fcopy.Translate(z3);
+
+            z3.primeAllVariables(ref fcopyback);
+            return fcopyback;
+        }
+
+        /**
+         * Make a primed version of the formula for the post-state representation
+         */
+        public void makePost()
+        {
+            this.Post = primeAllByValue(this.Formula);
         }
 
         public Property(String f, PropertyType t, String post, String template)
         {
             this.FormulaStr = f;
             this._type = t;
+            this.Status = StatusTypes.toProcess;
 
             switch (this._type)
             {
@@ -134,16 +168,23 @@ namespace passel.model
             if (this._formula == null && f != null)
             {
                 Antlr.Runtime.Tree.CommonTree tmptree = Expression.Parse(this.FormulaStr);
+                Expression.FixTypes(ref tmptree);
                 this._formula = LogicalExpression.CreateTerm(tmptree);
+            }
+
+            if (post == null)
+            {
+                post = f;
             }
 
             if (post != null)
             {
-                Antlr.Runtime.Tree.CommonTree tmptree = passel.controller.parsing.math.Expression.Parse(post);
-                this.Post = LogicalExpression.CreateTerm(tmptree);
-            }
+                //Antlr.Runtime.Tree.CommonTree tmptree = Expression.Parse(post);
+                //this.Post = LogicalExpression.CreateTerm(tmptree);
+                //z3.primeAllVariables(ref this.Post); // prime all variables in post-state formula
 
-            
+                this.Post = primeAllByValue(this.Formula);
+            }
 
             switch (this.Type)
             {
@@ -190,12 +231,9 @@ namespace passel.model
                 case Property.PropertyType.safety:
                 default:
                     {
-                        this.Post = this.Formula;
                         break;
                     }
             }
-            this.Post = this.Formula;
-            z3.primeAllVariables(ref this.Post); // prime all variables in post-state formula
         }
 
         public Expr generateAffineTemplate(IDictionary<String, Expr> lv, String prefix, int base_num, bool linear)

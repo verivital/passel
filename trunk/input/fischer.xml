@@ -9,8 +9,10 @@
 	
 	<assumption equn='A &gt; 0.0 and B &gt; 0.0 and A &lt; B' comment='A *stictly less than* B for mutual exclusion' />
 	<assumption equn='N &gt;= 2 and N &lt;= 100' comment='' />
+	
+	<assumption equn='A == 5.0 and B == 7.0' comment='invariant synthesis needs fixed values' />
 
-	<automaton name='default_automaton'>
+	<automaton name='fischer'>
 		<variable name='x[i]' type='real' update_type='Continuous' />
 		
 		<initial equn='(forall i (x[i] = 0.0)) and g = 0' />
@@ -64,12 +66,59 @@
 			<action equn='g&apos; = 0 and x[i]&apos; = 0.0'/>
 		</transition>
 	</automaton>
+	
+	
+	
+	
+	
+	
+	<property equn='forall i j ((i != j) implies (q[i] != cs or q[j] != cs))' type='safety' comment='no two processes in critical section.' />
+
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
 <!-- todo: check next	<property equn='forall i j (((q[i] == cs) implies (g = i)) and q[j] != waiting))' type='safety' comment='logical_aux1' /> -->
 
 <!--	<assumption type='inductive_invariant' equn='forall i j ((q[i] = 2 and q[j] != 3) implies (g != 0))' comment='test' />		-->
 <!--	<assumption type='inductive_invariant' equn='forall i j ((g == i and q[j] == waiting) implies (x[i] &gt; x[j]))' />		-->
 <!--	<assumption type='inductive_invariant' equn='forall i j ((q[i] == cs) implies (g == i and q[j] != waiting))' />			-->
-
+<!--
 <property equn='forall i j (true)' type='safety' />
 <property equn='forall i j (false)' type='safety' />
 <property equn='true' type='safety' />
@@ -77,9 +126,10 @@
 <property equn='forall i j (i &gt;= 1 and i &lt;= N and j &gt;= 1 and j &lt;= N)' type='safety' />
 <property equn='forall i (q[i] &gt;= 0 and q[i] &lt;= 3)' type='safety' />
 <property equn='forall i (q[i] &lt; 0 and q[i] &gt; 3)' type='safety' />
+-->
 
 <!-- inductive invariants and strengthening from sri paper -->
-
+<!--
 	<property equn='forall i ((q[i] == waiting) implies (x[i] &lt; A))' type='safety' comment='' /> 
 	
 	
@@ -170,7 +220,7 @@
 	
 	<property equn='forall i (x[i] &lt;= x[i] + A)' type='safety' />
 	
-	
+-->
 
 
 
@@ -283,13 +333,13 @@
 -->
 
 
-
+<!--
 
 	<property equn='forall i ((q[i] == sleeping))' type='safety' />
 	<property equn='forall i ((q[i] == waiting))' type='safety' />
 	<property equn='forall i ((q[i] == trying))' type='safety' />
 	<property equn='forall i ((q[i] == cs))' type='safety' />
-	
+-->	
 	
 	
 	

@@ -22,6 +22,10 @@ namespace passel.model
         public Expr ValueTerm;
         private Expr _statePredicate;
 
+
+        public Expr LabelExpr;
+        public Expr BitVectorExpr;
+
         /**
          * Name for the state
          */
@@ -49,6 +53,10 @@ namespace passel.model
 
             //this.ValueTerm = Controller.Instance.Z3.MkInt(value); // TODO: location type... Instance.LocType
             this.ValueTerm = Controller.Instance.Z3.MkConst(label, Controller.Instance.LocType);
+
+            this.LabelExpr = this.ValueTerm;
+
+            this.BitVectorExpr = Controller.Instance.Z3.MkBV(value, Controller.Instance.LocSize);
 
             //Controller.Instance.Z3.Assumptions.Add(Controller.Instance.Z3.MkEq(this.ValueTerm, Controller.Instance.Z3.MkInt(value)));
 

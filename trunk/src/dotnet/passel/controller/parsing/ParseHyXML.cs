@@ -20,6 +20,7 @@ using passel.controller;
 using passel.controller.parsing;
 using passel.controller.parsing.math;
 using passel.controller.parsing.math.ast;
+using System.Text.RegularExpressions;
 
 namespace passel.controller.parsing
 {
@@ -111,6 +112,11 @@ namespace passel.controller.parsing
         equn
     };
 
+    public enum AutomatonAttributes
+    {
+        name
+    };
+
     public enum ParameterAttributes
     {
         comment,
@@ -196,17 +202,26 @@ namespace passel.controller.parsing
         }
          */
 
-        public static List<Expr> ParseReach(String path)
+        /**
+         *
+         */
+        //public static List<Expr> ParseReach(String path)
+        public static List<String> ParseReach(String path, bool replaceIndices)
         {
-            List<Expr> reach = new List<Expr>();
+            //List<Expr> reach = new List<Expr>();
+            List<String> reach = new List<String>();
 
             StreamReader reader = new StreamReader(path);
             
             String reachset = reader.ReadToEnd();
+            String reachset_entire = "";
+            String forall = "";
+            String exists = "";
 
             reachset = reachset.Substring(reachset.IndexOf("{"));
 
             String reachstate = "";
+            int count = 0;
             do
             {
                 int start = reachset.IndexOf("&");
@@ -219,16 +234,109 @@ namespace passel.controller.parsing
                         break;
                     }
                 }
-                reachstate = reachset.Substring(start + 2, end - (start + 2));
+                if (count == 0)
+                {
+                    reachstate = reachset.Substring(start + 1, end - (start + 1));
+                }
+                else
+                {
+                    reachstate = reachset.Substring(start + 1, end - (start));
+                }
                 reachstate = reachstate.Replace("\n", "");
                 reachstate = reachstate.Replace("\r", "");
                 reachstate = reachstate.Replace("&", "&&");
                 reachstate = reachstate.Replace("|", "||");
                 reachstate = reachstate.Trim();
-                reachstate = reachstate.Substring(1, reachstate.Length - 2); // remove parentheses
+                reachstate = reachstate.TrimStart('(', ',', '}', '{'); // strip parentheses and commas
+                reachstate = reachstate.TrimEnd(')', ',', '}', '{');
+                string vt = "[\\-_a-zA-Z0-9\\s]+"; // variable or number
+                string mid = "[\\-_a-zA-Z0-9\\s\\+\\(\\)\\*\\\\]+"; // linear arithmetic over variables or numbers: TODO: WHAT IF DECIMAL? IS IT POSSIBLE, OR ARE ALL RATIONALS?
+                string ineq = ">=|&gt;=|<=|&lt;=|>|&gt;|<|&lt;";
+                Regex rineq = new Regex("((" + vt + ")(" + ineq + ")(" + mid + ")(" + ineq + ")(" + vt + "))");
+                MatchCollection mc = rineq.Matches(reachstate);
 
+                foreach (var m in mc)
+                {
+                    string[] splits = m.ToString().Split(new String[] {">=", "&gt;=", ">", "&gt;", "<=", "&lt;=", "<", "&lt;"}, StringSplitOptions.None);
+                    string newstr = m.ToString().Replace(splits[1], splits[1] + " && " + splits[1]);
+                    reachstate = reachstate.Replace(m.ToString(), newstr);
+                }
+
+                /*
+                string rel = ">=|&gt;=|<=|&lt;=|>|&gt;|<|&lt;|==";
+                Regex rrel = new Regex("((" + mid + ")(" + rel + ")(" + mid + "))");
+                mc = rrel.Matches(reachstate);
+
+                foreach (var m in mc)
+                {
+                    
+                    reachstate = reachstate.Replace(m.ToString(), newstr);
+                }
+                 */
+
+                reachstate = Regex.Replace(reachstate, "(?<!\\B|\\.)(\\d+)(?!\\.\\d+)\\b", "$1.0"); // replace all integers by floats; TODO: CHECK GENERALITY
+                
+
+
+
+                /*
+                string rel = ">=|&gt;=|<=|&lt;=|>|&gt;|<|&lt;|==";
+                Regex rrel = new Regex("((" + mid + ")(" + rel + ")(" + mid + "))");
+                mc = rrel.Matches(reachstate);
+
+                foreach (var m in mc)
+                {
+                    string[] splits = m.ToString().Split(new String[] { ">=", "&gt;=", ">", "&gt;", "<=", "&lt;=", "<", "&lt;", "==", "+", "\\", "*", "/" }, StringSplitOptions.None);
+
+                    bool hasreal = false;
+                    foreach (var v in splits)
+                    {
+                        string k = v.Trim();
+                        if (Controller.Instance.DataU.IndexedVariableDecl.ContainsKey(k) && Controller.Instance.DataU.IndexedVariableDecl[k].Range == Controller.Instance.RealType)
+                        {
+                            hasreal = true;
+                            break;
+                        }
+                    }
+
+                    string newstr = "";
+                    if (hasreal)
+                    {
+                        foreach (var v in splits)
+                        {
+                            string k = v.Trim();
+                            int tmp;
+                            if (int.TryParse(k, out tmp))
+                            {
+
+                            }
+                            else
+                            {
+                                newstr += " " + k;
+                            }
+                        }
+                    }
+                    //string newstr = m.ToString() + splits[1];
+                    //string newstr = m.ToString().Replace(splits[1], splits[1] + " && " + splits[1]);
+                    
+                    reachstate = reachstate.Replace(m.ToString(), newstr);
+                }*/
+                
+                //reachstate = rineq.Replace(reachstate, ((char)idx).ToString());
+
+                if (count == 0)
+                {
+                    //reachstate = reachstate.Substring(1, reachstate.Length - 2); // remove parentheses
+                }
+                else
+                {
+                    //reachstate = reachstate.Substring(0, reachstate.Length - 1); // remove parentheses
+                }
+
+
+                // nasty hack: add decimal zero behind all numbers (to make them be parsed as reals)
+                /*
                 String[] reachsplit = reachstate.Split(' ');
-
                 for (int i = 0; i < reachsplit.Length; i++)
                 {
                     String s = reachsplit[i];
@@ -272,28 +380,157 @@ namespace passel.controller.parsing
                 {
                     reachstatereal += s + " ";
                 }
-                reachstate = reachstatereal;
+                reachstate = reachstatereal;*/
 
                 for (uint i = 0; i <= Controller.Instance.IndexNValue; i++)
                 {
                     // TODO: add function to convert index integer to index symbol (e.g., wrap-around after hitting z, or some other value, and start making indices like ii, ij, ik, ..., iii, iij, etc.)
                     uint idx = 'i' + i;
-                    reachstate = reachstate.Replace("_" + (i + 1), "[" + (char)idx + "]"); // add integer to char to get next index (temporary)
-                    //reachstate = reachstate.Replace("_2", "[j]");
-                    //reachstate = reachstate.Replace("_3", "[k]");
+                    if (replaceIndices)
+                    {
+                        reachstate = reachstate.Replace("_" + (i + 1), "[" + (char)idx + "]"); // add integer to char to get next index (temporary)
+                        //reachstate = reachstate.Replace("_2", "[j]");
+                        //reachstate = reachstate.Replace("_3", "[k]");
+
+                        Regex r = new Regex("\\b[" + (i + 1).ToString() + "]\\b");
+                        reachstate = r.Replace(reachstate, ((char)idx).ToString());
+                        //reachstate = reachstate.Replace((i+1).ToString(), ((char)idx).ToString()); // TODO: GENERALIZE, THIS IS HORRIBLE, NEED SPECIAL NAMES FOR PROCESS INDICES OR SOMETHING, PERHAPS CONSTANTS AT TOP? BUT REACH SET WILL STILL BE VERY DIFFICULT...MAYBE USE PRIME CONSTANTS?... SOMEHOW HAVE TO MAP BACK FROM CONCRETE IDS TO I,J,K,...
+                    }
+                    else
+                    {
+                        //reachstate = reachstate = reachstate.Replace("_" + (i + 1), "[" + (i + 1) + "]"); // convert _1 to [1]
+                        reachstate = reachstate = reachstate.Replace("_" + (i + 1), (i + 1).ToString()); // convert _1 to [1]
+                    }
                 }
 
                 String loc = reachset.Substring(0, start - 1);
                 // assume 1st state is for global automaton
 
-                Antlr.Runtime.Tree.CommonTree tmptree = math.Expression.Parse(reachstate);
+                String[] locs = loc.Split('~');
 
-                Expr rs = LogicalExpression.CreateTerm(tmptree);
+                loc = "";
+                forall = "forall ";
+                exists = "exists ";
 
-                reach.Add(rs);
+                bool locsame = true;
+
+                for (uint i = 0; i < Controller.Instance.IndexNValue; i++)
+                {
+                    uint idx = 'i' + i;
+
+                    //string locstr = "#b" +  Convert.ToString(Controller.Instance.LocationNameToNum[locs[i + 1]], 2).PadLeft((int)Controller.Instance.LocSize, '0'); // convert integer to bitvector string
+                    string locstr = "#b" + Controller.Instance.LocationNameToNum[locs[i + 1]];
+                    if (replaceIndices)
+                    {
+                        loc += "(q[" + (char)idx + "] == " + locstr + ") && "; // i + 1 to skip global arbiter automaton's state (always listed first)
+                    }
+                    else
+                    {
+                        //loc += "(q[" + (i + 1) + "] == " + locs[i + 1] + ") && "; // i + 1 to skip global arbiter automaton's state (always listed first)
+                        loc += "(q" + (i + 1) + " == " + locstr + ") && "; // i + 1 to skip global arbiter automaton's state (always listed first)
+                    }
+                    forall += (char)idx + " ";
+                    exists += (char)idx + " ";
+                    if (i >= 1)
+                    {
+                        locsame &= locs[i] == locs[i + 1];
+                    }
+                }
+                loc = loc.Substring(0, loc.Length - 4); // remove last and
+
+
+                List<String> disj = reachstate.Split(new string[] { "||" }, StringSplitOptions.RemoveEmptyEntries).ToList();
+
+                foreach (var d in disj)
+                {
+                    // add full disjunctive formula
+                    if (replaceIndices)
+                    {
+                        //reach.Add(forall + "(((" + loc + ")) and (" + reachstate + "))");
+                        reach.Add(forall + "(((" + loc + ")) implies (" + d + "))");
+                        //reach.Add(forall + "( ((" + reachstate + ")) implies (" + loc + "))");
+                    }
+                    else
+                    {
+                        //reach.Add("(" + loc + " and (" + reachstate + "))");
+                        reach.Add("(" + loc + " implies (" + d + "))");
+
+                        //reach.Add("( (" + reachstate + ") implies (" + loc +"))");
+                        //reach.Add("(" + loc + " iff (" + reachstate + "))");
+                    }
+                }
+
+
+                /*
+
+                // add full disjunctive formula
+                if (replaceIndices)
+                {
+                    //reach.Add(forall + "(((" + loc + ")) and (" + reachstate + "))");
+                    reach.Add(forall + "(((" + loc + ")) implies (" + reachstate + "))");
+                    //reach.Add(forall + "( ((" + reachstate + ")) implies (" + loc + "))");
+                }
+                else
+                {
+                    //reach.Add("(" + loc + " and (" + reachstate + "))");
+                    reach.Add("(" + loc + " implies (" + reachstate + "))");
+
+                    //reach.Add("( (" + reachstate + ") implies (" + loc +"))");
+                    //reach.Add("(" + loc + " iff (" + reachstate + "))");
+                }*/
+
+                /*
+                String allVars = "";
+                foreach (var v in Controller.Instance.IndexedVariables.Keys)
+                {
+                    allVars = v.Key + "[" + v.Value + "]";
+                }
+                // project
+                reach.Add(exists + "(((" + loc + ")) implies (" + reachstate + "))");
+                 */
+
+                /*
+                if (reachstate.Contains("|"))
+                {
+                    // split into many disjuncts
+                    String[] reachstate_disj = reachstate.Split(new string[] { "||" }, StringSplitOptions.None);
+                    foreach (var v in reachstate_disj)
+                    {
+                        reachstate = "(((" + loc + ")) implies (" + v + "))"; // todo: generalize > 2
+                        reachstate = forall + reachstate;
+                        reach.Add(reachstate);
+                    }
+                }*/
+                
+
+                //reachstate = forall + "(((" + loc + (Controller.Instance.IndexNValue > 1 ? (locsame ? " && i == j" : " && i != j " ) : "") + ")) implies (" + reachstate + "))"; // todo: generalize > 2
+                //reachstate = forall + "(((" + loc + ")) implies (" + reachstate + "))"; // todo: generalize > 2
+                //reachstate = "(((" + loc + ")) implies (" + reachstate + "))" + " && "; // todo: generalize > 2
+//reachstate = "(((" + loc + ")) implies (" + reachstate + "))"; // todo: generalize > 2
+
+                //reachset_entire += reachstate + " || ";
+
+//reachstate = forall + reachstate;
+
+                //Antlr.Runtime.Tree.CommonTree tmptree = math.Expression.Parse(reachstate);
+                //Expr rs = LogicalExpression.CreateTerm(tmptree);
+                //reach.Add(rs);
+//reach.Add(reachstate);
 
                 reachset = reachset.Substring(end+1); // cut off from reachset
+                count++;
             } while (reachset.Length > 0 || reachset.Contains(","));
+
+            // remove duplicates, if any
+            reach = reach.Distinct().ToList();
+
+            //reachset_entire = forall + "(" + reachset_entire.Substring(0, reachset_entire.Length - 4) + ")"; // remove last and; add forall
+            //Antlr.Runtime.Tree.CommonTree tmptree = math.Expression.Parse(reachset_entire);
+
+            //Expr rs = LogicalExpression.CreateTerm(tmptree);
+
+            //reach.Add(rs);
+            //reach.Add(reachset_entire);
             
 
             return reach;
@@ -310,9 +547,9 @@ namespace passel.controller.parsing
          * Todo:
          * 1) Eventually modify HyLink to generate HyXML using MathML for guards, invariants, and resets
          */
-        public static Holism ParseFile(String path)
+        public static void ParseFile(String path)
         {
-            Holism sys = new Holism();
+            Controller.Instance.Sys = new Holism();
             ConcreteHybridAutomaton h = null;
             Transition t = null;
             ConcreteLocation l = null;
@@ -371,7 +608,7 @@ namespace passel.controller.parsing
                                 // since properties can refer to elements of the automata, we save their strings and parse them after all automata have been fully constructed
                                 case ElementNames.property:
                                     {
-                                        if (sys == null)
+                                        if (Controller.Instance.Sys == null)
                                         {
                                             throw new System.Exception("Error parsing property: automaton not specified properly before reaching property.");
                                         }
@@ -387,7 +624,7 @@ namespace passel.controller.parsing
                                         if (Enum.TryParse<Property.PropertyType>(type, true, out pt))
                                         {
                                             Property p = new Property(pstr, pt, post, template);
-                                            sys.Properties.Add(p);
+                                            Controller.Instance.Sys.Properties.Add(p);
                                         }
                                         else
                                         {
@@ -465,8 +702,8 @@ namespace passel.controller.parsing
                                     }
                                 case ElementNames.automaton:
                                     {
-                                        // todo: get name
-                                        h = new ConcreteHybridAutomaton(sys);
+                                        String name = reader.GetAttribute(AutomatonAttributes.name.ToString());
+                                        h = new ConcreteHybridAutomaton(Controller.Instance.Sys, name);
                                         break;
                                     }
                                 case ElementNames.dai:
@@ -580,7 +817,7 @@ namespace passel.controller.parsing
                                             else // global variables
                                             {
                                                 String variableName = variable;
-                                                f.Variable = sys.GetVariableByName(variableName);
+                                                f.Variable = Controller.Instance.Sys.GetVariableByName(variableName);
 
                                                 // prime the continuous variable occurrences
                                                 expr = expr.Substitute(Controller.Instance.GlobalVariables[variableName], Controller.Instance.GlobalVariablesPrimed[variableName]);
@@ -741,49 +978,98 @@ namespace passel.controller.parsing
                                         String label = reader.GetAttribute(LocationAttributes.name.ToString());
                                         Boolean initial = Boolean.Parse(reader.GetAttribute(LocationAttributes.initial.ToString()));
                                         Controller.Instance.LocationNumToName.Add(value, label);
+                                        Controller.Instance.LocationNameToNum.Add(label, value);
                                         l = new ConcreteLocation(label, value, initial);
                                         // bound control location variable values: 0 <= q_i <= # states, 0 <= q_j <= # states, 0 <= q_k <= # states
                                         break;
                                     }
                                 case ElementNames.transition:
                                     {
-                                        if (sys != null || h != null)
+                                        if (Controller.Instance.Sys != null || h != null)
                                         {
-                                            t = new Transition();
+                                            t = new Transition(l); // l is null for global transitions, no parent
 
                                             if (h == null)
                                             {
-                                                sys.addTransition(t);
+                                                Controller.Instance.Sys.addTransition(t);
                                             }
                                             else
                                             {
+                                                String des = reader.GetAttribute(TransitionAttributes.destination.ToString());
+                                                String src = reader.GetAttribute(TransitionAttributes.source.ToString());
 
-                                                AState from = null; // have to find the frome state as well, because in hyxml syntax, transitions are not associated with locations
+                                                List<String> dess = new List<String>();
+                                                List<String> srcs = new List<String>();
+
+                                                if (!src.Contains(","))
+                                                {
+                                                    srcs.Add(src);
+                                                }
+                                                else
+                                                {
+                                                    srcs.AddRange(src.Split(','));
+                                                }
+
+                                                bool toSelf = false;
+                                                if (des != null && des.Length > 0)
+                                                {
+                                                    if (!des.Contains(","))
+                                                    {
+                                                        dess.Add(des);
+                                                    }
+                                                    else
+                                                    {
+                                                        dess.AddRange(des.Split(','));
+                                                    }
+                                                }
+                                                else
+                                                {
+                                                    toSelf = true; // only self-loops
+                                                    des = src;
+                                                    dess = srcs;
+                                                }
+
+
+                                                List<AState> from = new List<AState>(); // have to find the frome state as well, because in hyxml syntax, transitions are not associated with locations
                                                 foreach (AState s in h.Locations)
                                                 {
-                                                    String des = reader.GetAttribute(TransitionAttributes.destination.ToString());
-                                                    String src = reader.GetAttribute(TransitionAttributes.source.ToString());
-                                                    // todo: build hash table after found once
-
                                                     UInt32 desParsed;
-                                                    UInt32.TryParse(des, out desParsed);
                                                     UInt32 srcParsed;
-                                                    UInt32.TryParse(src, out srcParsed);
 
-                                                    if (s.Label == des || (desParsed != 0 && s.Value == UInt32.Parse(des)))
+                                                    foreach (String stmp in srcs)
                                                     {
-                                                        t.NextStates.Add(s);
+                                                        UInt32.TryParse(stmp, out srcParsed);
+
+                                                        if (s.Label == stmp || (srcParsed != 0 && s.Value == UInt32.Parse(stmp)))
+                                                        {
+                                                            from.Add(s);
+                                                        }
                                                     }
 
-                                                    if (s.Label == src || (srcParsed != 0 && s.Value == UInt32.Parse(src)))
+                                                    foreach (String dtmp in dess)
                                                     {
-                                                        from = s;
+                                                        UInt32.TryParse(dtmp, out desParsed);
+
+                                                        if (s.Label == dtmp || (desParsed != 0 && s.Value == UInt32.Parse(dtmp)))
+                                                        {
+                                                            t.NextStates.Add(s);
+                                                        }
                                                     }
                                                 }
 
-                                                if (from != null)
+
+                                                if (from.Count > 0)
                                                 {
-                                                    from.addTransition(t);
+                                                    foreach (AState ftmp in from)
+                                                    {
+                                                        t.Parent = (ConcreteLocation)ftmp;
+                                                        if (toSelf) // only self-loops
+                                                        {
+                                                            t.NextStates = new List<AState>();
+                                                            t.NextStates.Add(ftmp);
+                                                        }
+                                                        ftmp.addTransition(t);
+                                                    }
                                                 }
                                                 else
                                                 {
@@ -801,7 +1087,7 @@ namespace passel.controller.parsing
                                     }
                                 case ElementNames.variable:
                                     {
-                                        if (h == null && sys == null)
+                                        if (h == null && Controller.Instance.Sys == null)
                                         {
                                             throw new System.Exception("Variable expression for automaton or entire system not well defined (appeared outside of automaton or system declaration).");
                                         }
@@ -824,7 +1110,7 @@ namespace passel.controller.parsing
                                                     // todo: parse the variables
                                                 }
                                             }
-                                            else if (sys != null) // global variable
+                                            else if (Controller.Instance.Sys != null) // global variable
                                             {
                                                 Expr globalVariable = null;
                                                 Expr globalVariablePrime = null;
@@ -871,7 +1157,7 @@ namespace passel.controller.parsing
                                                 {
                                                     if (!Controller.Instance.GlobalVariables.ContainsKey(name))
                                                     {
-                                                        sys.Variables.Add(v);
+                                                        Controller.Instance.Sys.Variables.Add(v);
                                                         Controller.Instance.GlobalVariables.Add(name, globalVariable);
                                                         Controller.Instance.GlobalVariablesPrimed.Add(name, globalVariablePrime);
                                                     }
@@ -910,9 +1196,9 @@ namespace passel.controller.parsing
                                 case ElementNames.automaton:
                                     {
                                         h.finishConstruction(); // finish building the concrete automaton: create equations for initial conditions, assert constraints on locations, etc.
-                                        sys.addHybridAutomaton(h);
+                                        Controller.Instance.Sys.addHybridAutomaton(h);
 
-                                        foreach (var v in sys.Variables)
+                                        foreach (var v in Controller.Instance.Sys.Variables)
                                         {
                                             if (v.UpdateType == Variable.VarUpdateType.discrete && v.Type == Variable.VarType.index)
                                             {
@@ -968,8 +1254,6 @@ namespace passel.controller.parsing
                 }
             }
             reader.Close();
-
-            return sys;
         }
     }
 }

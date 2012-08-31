@@ -10,13 +10,17 @@ using System.IO;
 
 using Microsoft.Z3;
 
-//using VixCOM;
+using VixCOM;
+
+using passel.controller;
 
 using passel.model;
 using passel.controller.output;
 using passel.controller.smt;
 using passel.controller.smt.z3;
 using passel.controller.parsing;
+using System.Runtime.InteropServices;
+using System.Text.RegularExpressions;
 
 namespace passel.controller
 {
@@ -63,6 +67,9 @@ namespace passel.controller
          * Parameter variables (N, S, etc.)
          */
         private IDictionary<String, Expr> _params;
+
+        public IDictionary<String, Expr> UndefinedVariables;
+
 
         /**
          * Global variables
@@ -117,6 +124,8 @@ namespace passel.controller
          */
         private String _inoutPath;
 
+        public String OutPath;
+
         /**
          * filename
          */
@@ -140,6 +149,8 @@ namespace passel.controller
         public enum IndexOptionType { integer, natural, naturalOneToN, enumeration };
 
         public Dictionary<UInt32, String> LocationNumToName;
+
+        public Dictionary<String, UInt32> LocationNameToNum;
 
         public Dictionary<Expr, String> LocationNumTermToName;
 
@@ -166,7 +177,10 @@ namespace passel.controller
         public Dictionary<string,string> Config;
 
         public const String PRIME_SUFFIX = "'";
+        public const String PRIME_SUFFIX_PARSER = "&apos;";
         public const String DOT_SUFFIX = "_dot";
+
+        public const bool LOG_Z3 = true; // enable / disable z3 re-runnable log
 
 
         /**
@@ -189,9 +203,11 @@ namespace passel.controller
             this._params = new Dictionary<String, Expr>();
             this._globalVariables = new Dictionary<String, Expr>();
             this._globalVariablesPrimed = new Dictionary<String, Expr>();
+            this.UndefinedVariables = new Dictionary<String, Expr>();
             this._locations = new Dictionary<String, Expr>();
             this._indices = new Dictionary<String, Expr>();
             this.LocationNumToName = new Dictionary<UInt32, String>();
+            this.LocationNameToNum = new Dictionary<String, UInt32>();
             this.LocationNumTermToName = new Dictionary<Expr, String>();
             this._inputFiles = new List<string>();
             this.Functions = new Dictionary<String, FuncDecl>();
@@ -217,7 +233,35 @@ namespace passel.controller
 
             this.Config.Add("MODEL", "true");
             this.Config.Add("MBQI", "true"); //  (see http://research.microsoft.com/en-us/um/redmond/projects/z3/mbqi-tutorial/)
+
+
+            //this.Config.Add("SOFT_TIMEOUT", "15000"); // in ms
+            this.Config.Add("MODEL_ON_TIMEOUT", "true");
+            
+            //this.Config.Add("MBQI_MAX_CEXS", "500"); // crashes
+            //this.Config.Add("MBQI_MAX_CEXS_INCR", "100");
             //this.Config.Add("MBQI_MAX_ITERATIONS", "50000");
+
+            //this.Config.Add("NNF_MODE", "3"); // min: 0, max: 3, default: 0, NNF translation mode: 0 - skolem normal form, 1 - 0 + quantifiers in NNF, 2 - 1 + opportunistic, 3 - full.
+
+            // HUGE runtime differences (3 was extremely slow); 1 also slow
+            this.Config.Add("CNF_MODE", "0");
+
+            this.Config.Add("QI_QUICK_CHECKER", "2"); // min: 0, max: 2, default: 0, 0 - do not use (cheap) model checker, 1 - instantiate instances unsatisfied by current model, 2 - 1 + instantiate instances not satisfied by current model.
+
+            this.Config.Add("RECENT_LEMMA_THRESHOLD", "10000"); // default 100
+
+            this.Config.Add("REDUCE_ARGS", "true");
+
+            this.Config.Add("REL_CASE_SPLIT_ORDER", "1");
+
+            this.Config.Add("BB_QUANTIFIERS", "true");
+
+            //this.Config.Add("INST_GEN", "true");
+
+            //this.Config.Add("QI_PROFILE", "true");
+
+
 
 
             this.Config.Add("ELIM_QUANTIFIERS", "true"); // if we fix N to be small, we can rely on MBQI, but if we have N large or unbounded, we may need Q.E.
@@ -244,11 +288,19 @@ namespace passel.controller
 
             this.Config.Add("MODEL_COMPACT", "true"); // slower, but more accurate (as in the models are more useful) it seems
             //this.Config.Add("MODEL_ON_FINAL_CHECK", "true"); // leave this off, prints lots of warnings, etc., but not to console out, might be a debug stream we aren't redirecting
-            this.Config.Add("MODEL_COMPLETION", "true");
-            this.Config.Add("DISPLAY_UNSAT_CORE", "true");
+            this.Config.Add("MODEL_COMPLETION", "false");
+            this.Config.Add("DISPLAY_UNSAT_CORE", "false");
 
             this.Config.Add("Z3_SOLVER_LL_PP", "true");
             //this.Config.Add("Z3_SOLVER_SMT_PP", "true");
+
+
+            this.Config.Add("PP_MAX_DEPTH", "32");
+            this.Config.Add("PP_MIN_ALIAS_SIZE", "1000");
+            this.Config.Add("PP_DECIMAL", "true");
+            //this.Config.Add("PP_MIN_ALIAS_SIZE", "true");
+            this.Config.Add("PP_SIMPLIFY_IMPLIES", "true");
+            
 
             // bad syntax for next...
             //this.Config.Add("produce-proofs", "true");
@@ -320,15 +372,13 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
             //this.Config.Add("PROOF_MODE", "1"); // BUG: DO NOT USE THIS OPTION, IT CAN CAUSE FORMULAS TO TOGGLE SATISFIABILITY
 
             this.Z3 = new Z3Wrapper(this.Config);
-
-            Microsoft.Z3.Log.Open(this._inoutPath + "z3.log");
-
-            //this.Z3.OpenLog("asserted.log"); // todo: deprecated
+            this.Z3.PrintMode = Z3_ast_print_mode.Z3_PRINT_SMTLIB2_COMPLIANT;
 
             this.IntType = Z3.MkIntSort();
             this.RealType = Z3.MkRealSort();
             //this.LocType = Z3.MkUninterpretedSort("loc");
-            this.LocType = Z3.MkIntSort();
+            //this.LocType = Z3.MkIntSort();
+            this.LocType = Z3.MkBitVecSort(this.LocSize); // TODO: DECLARE BASED ON INPUT FILE # STATES
 
             this.RealZero = Z3.MkReal(0);
             this.IntZero = Z3.MkInt(0);
@@ -457,6 +507,11 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
         public Sort LocType;
 
         /**
+         * Number of bits for locations (states)
+         */
+        public uint LocSize = 3;
+
+        /**
          * Index type: natural number between 1 and N
          */
         public Sort IndexType;
@@ -568,7 +623,6 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
         {
             String choice;
             Boolean selected_file = false, selected_n = false, selected_operation = false, terminate = false;
-
             Dictionary<int, string> inputFiles = new Dictionary<int, string>();
             int inputFileCount = 0;
             inputFiles.Add(inputFileCount++, "fischer_umeno.xml");
@@ -578,8 +632,14 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
             inputFiles.Add(inputFileCount++, "fischer_umeno_global_clock.xml");
             inputFiles.Add(inputFileCount++, "fischer_umeno_global_clock_buggy.xml");
 
+            inputFiles.Add(inputFileCount++, "fischer_phaver.xml");
+            inputFiles.Add(inputFileCount++, "fischer_phaver_const.xml");
+            inputFiles.Add(inputFileCount++, "fischer_phaver_const_lastin.xml");
+
             inputFiles.Add(inputFileCount++, "fischer.xml");
             inputFiles.Add(inputFileCount++, "fischer_buggy.xml");
+
+            inputFiles.Add(inputFileCount++, "fischer_bit.xml");
 
             inputFiles.Add(inputFileCount++, "lynch_shavit.xml");
 
@@ -589,6 +649,21 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
             inputFiles.Add(inputFileCount++, "sats_timed.xml");
             inputFiles.Add(inputFileCount++, "sats_timed_buggy.xml");
             inputFiles.Add(inputFileCount++, "sats_timed_counter.xml");
+
+            inputFiles.Add(inputFileCount++, "mux-sem.xml");
+            inputFiles.Add(inputFileCount++, "mux-sem-lastin.xml");
+            inputFiles.Add(inputFileCount++, "mux-index.xml");
+            inputFiles.Add(inputFileCount++, "mux-index-ta.xml");
+
+            inputFiles.Add(inputFileCount++, "djikstra.xml");
+
+            inputFiles.Add(inputFileCount++, "bakery-lynch.xml");
+
+            inputFiles.Add(inputFileCount++, "german.xml");
+
+            inputFiles.Add(inputFileCount++, "peterson.xml");
+
+            inputFiles.Add(inputFileCount++, "token-ring.xml");
 
             inputFiles.Add(inputFileCount++, "bakery.xml");
             inputFiles.Add(inputFileCount++, "bakery_lamport.xml");
@@ -624,6 +699,13 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
                 //this._inoutPath = "D:\\Dropbox\\Research\\tools\\passel\\repos\\trunk\\input\\";
             }
             //Instance._inoutPath = Directory.GetCurrentDirectory() + "\\input\\"; // uncomment for release version
+
+            Instance.OutPath = instance._inoutPath + "..\\output\\";
+
+            if (Controller.LOG_Z3)
+            {
+                Microsoft.Z3.Log.Open(Instance.OutPath + "z3_" + System.DateTime.Now.ToString("s").Replace(":", "-") + ".log"); // TODO: DO AS EARLY AS POSSIBLE
+            }
 
             IOSTATE iostate = IOSTATE.SELECT_CASE_STUDY;
 
@@ -710,7 +792,7 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
                         }
                     case IOSTATE.SELECT_N:
                         {
-                            Console.WriteLine("Specify a natural number value for N >= 2 (the number of automata)?  [default 0: enforces N >= 2 with no upper bound]");
+                            Console.WriteLine("Specify a natural number value for N >= 1 (the number of automata)?  [default 0: enforces N >= 2 with no upper bound]");
 
                             choice = Console.ReadLine();
 
@@ -720,7 +802,7 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
                                 {
                                     int io_n = int.Parse(choice);
 
-                                    if (io_n < 2)
+                                    if (io_n < 1)
                                     {
                                         Console.WriteLine("Using unbounded N");
                                     }
@@ -881,9 +963,8 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
                             break;
                         }
                 }
-
-                Instance.Sys = ParseHyXML.ParseFile(Instance._inputFilePath);
-
+                
+                ParseHyXML.ParseFile(Instance._inputFilePath); // create Sys object
 
                 if (Instance._inputFile.Contains("sats"))
                 {
@@ -972,8 +1053,114 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
                                 // TODO: add call to PHAVER, then parse reach set as per next command
                                 //ParseHyXML.ParseReach("C:\\Users\\tjohnson\\Dropbox\\Research\\tools\\phaver\\ii_reach"); // parse reach set
 
-                                //VixCOM.VixLib a = new VixLib();
-                                //a.
+                                /*
+                                // from: http://tranxcoder.wordpress.com/2008/05/14/using-the-vixcom-library/
+                                string hostName = "localhost";
+                                //string hostName = "Ubuntu";
+                                string hostUser = "";
+                                string hostPassword = "";
+                                string virtualMachineUsername = "tjohnson";
+                                string virtualMachinePassword = "asdf!234";
+                                string vmxFilePath = "C:/Users/tjohnson/Documents/Virtual Machines/Ubuntu/Ubuntu.vmx";
+                                string exePath = "/mnt/hgfs/Dropbox/Research/tools/phaver/phaver";
+                                string exeParameters = "";
+                                bool returnValue = false;
+                                */
+                                /*
+                                // vmware vix is 32-bit, but I can't set project to 32-bit, because then Z3 won't work (get an exception when using the 32-bit library in 32-bit compilation mode...)
+                                try
+                                {
+                                    VixWrapper vix = new VixWrapper();
+
+                                    //
+                                    // Connect to the VMWare Server
+                                    //
+                                    if (vix.Connect(hostName, hostUser, hostPassword))
+                                    {
+                                        //
+                                        // Opening the VMX File
+                                        //
+                                        if (vix.Open(vmxFilePath))
+                                        {
+                                            //
+                                            // Reverting to the ‘only’ snapshot
+                                            //
+                                            if (vix.RevertToLastSnapshot())
+                                            {
+                                                //
+                                                // Powering on the Virtual Machine
+                                                //
+                                                if (vix.PowerOn())
+                                                {
+                                                    //
+                                                    // Logging in to the Virtual Machine
+                                                    //
+                                                    if (vix.LogIn(virtualMachineUsername, virtualMachinePassword))
+                                                    {
+                                                        
+                                                        //
+                                                        // Run the test program
+                                                        //
+                                                        int resultCode = 0;
+                                                        if (vix.RunProgram(exePath, exeParameters, out resultCode))
+                                                        {
+                                                            if (resultCode == 0)
+                                                            {
+                                                                //
+                                                                // The test PASSED!
+                                                                //
+                                                                returnValue = true;
+                                                            }
+                                                            else
+                                                            {
+                                                                // The test FAILED!
+                                                                returnValue = false;
+                                                            }
+                                                        }
+                                                        else
+                                                        {
+                                                            //
+                                                            // Unable to run test
+                                                            //
+                                                        }
+                                                    }
+                                                    else
+                                                    {
+                                                        // Unable to login to the virtual machine
+                                                    }
+
+                                                    //vix.PowerOff();
+                                                }
+                                                else
+                                                {
+                                                    // Unable to power on the virtual machine
+                                                }
+                                            }
+                                            else
+                                            {
+                                                // Unable to revert to the last snapshot
+                                            }
+                                        }
+                                        else
+                                        {
+                                            // Unable to open the VMX file
+                                        }
+                                    }
+                                    else
+                                    {
+                                        // Unable to connect to the host
+                                    }
+
+                                    //return returnValue;
+                                }
+                                catch (COMException comExc)
+                                {
+                                    //
+                                    // COM Exception
+                                    //
+                                }
+                                 */
+
                             }
                             else
                             {
@@ -984,9 +1171,445 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
                         }
                     case PROGRAM_MODE.INPUT_PHAVER:
                         {
-                            List<Expr> reachset = ParseHyXML.ParseReach("C:\\Users\\tjohnson\\Dropbox\\Research\\tools\\phaver\\ii_reach_N" + Controller.instance.IndexNValue); // parse reach set
+                            //Instance.Sys.Properties = new List<Property>(); // clear all properties (todo: can add them back...)
+
+                            int tmpN = Controller.Instance.IndexNValue; // save copy, clobbering
+
+                            int projectNMax = 2; // maximum number to project onto: will project onto 1, ..., projectNMax; usually choose 2
+
+                            for (int N = 1; N <= tmpN; N++)
+                            {
+                                Controller.Instance.IndexNValue = N; // set global variable value
+                                //List<Expr> reachset = ParseHyXML.ParseReach("C:\\Users\\tjohnson\\Dropbox\\Research\\tools\\phaver\\ii_reach_N" + N); // parse reach set
+                                // TODO: generalize for > 1 automata
+                                List<String> reachset = null;
+                                if (N == 1)
+                                {
+                                    //reachset = ParseHyXML.ParseReach("C:\\Users\\tjohnson\\Dropbox\\Research\\tools\\phaver\\" + Instance.Sys.HybridAutomata[0].Name + "_ii_reach_N" + N, false); // parse reach set
+                                }
+                                else if (N == 2)
+                                {
+                                    //reachset = ParseHyXML.ParseReach("C:\\Users\\tjohnson\\Dropbox\\Research\\tools\\phaver\\" + Instance.Sys.HybridAutomata[0].Name + "_ii_reach_N" + N + "projected11", false); // parse reach set
+                                }
+                                else if (N >= 3)
+                                {
+                                    //reachset = ParseHyXML.ParseReach("C:\\Users\\tjohnson\\Dropbox\\Research\\tools\\phaver\\" + Instance.Sys.HybridAutomata[0].Name + "_ii_reach_N" + N + "projected12", false); // parse reach set
+                                }
+                                //TODO:CHANGE NEXT
+                                reachset = ParseHyXML.ParseReach("C:\\Users\\tjohnson\\Dropbox\\Research\\tools\\phaver\\" + Instance.Sys.HybridAutomata[0].Name + "_ii_reach_N" + N, false); // parse reach set
+
+                                for (int projectN = 1; projectN <= projectNMax && projectN < N; projectN++)  // assume 1 <= projectN < 10 (otherwise have to change regex below)
+                                {
+                                    List<BoolExpr> prall = new List<BoolExpr>();
+                                    foreach (var p in reachset)
+                                    {
+                                        Property pr = new Property(p, Property.PropertyType.safety, null, null);
+
+                                        if (pr.Formula.IsImplies)
+                                        {
+                                            Expr tmp_all = Instance.Z3.MkAnd((BoolExpr)pr.Formula.Args[0], (BoolExpr)pr.Formula.Args[1]);
+                                            tmp_all = tmp_all.Simplify();
+                                            //tmp_all = Instance.Z3.MkAnd((BoolExpr)tmp_all, Instance.Z3.MkAnd(Instance.Z3.AssumptionsUniversal.ToArray()));
+                                            prall.Add((BoolExpr)tmp_all); // add before modifying formula
+                                        }
+
+                                        pr.Formula = pr.Formula.Simplify(); // simplify here vastly speeds removing redundancies later; note, do it after the previous isimplies
+
+                                        //pr.Formula = Instance.Z3.MkAnd((BoolExpr)pr.Formula, Instance.Z3.MkAnd(Instance.Z3.AssumptionsUniversal.ToArray())); // add data-type assumptions
+
+                                        List<Expr> bi = new List<Expr>();
+                                        foreach (var v in Instance.UndefinedVariables)
+                                        {
+                                            Regex projecting = new Regex("[" + (projectN + 1).ToString() + "-9]+[1-9]*"); // projectN followed by any number, have to change if we have projectN >= 10
+                                            if (projecting.IsMatch(v.Key) && Instance.Z3.findTerm(pr.Formula, Instance.UndefinedVariables[v.Key], true))
+                                            {
+                                                bi.Add(v.Value);
+                                            }
+                                        }
+
+                                        // do projection
+                                        if (bi.Count > 0 && projectN < N)
+                                        {
+                                            pr.Formula = Instance.Z3.MkExists(bi.ToArray(), pr.Formula);
+                                            pr.Status = StatusTypes.toProject;
+                                            pr.ProjectedFrom = N;
+                                            pr.Project = projectN;
+                                        }
+                                        // just assert this version as a potential invariant
+                                        else
+                                        {
+                                            Expr tmpf = pr.Formula;
+                                            Instance.Z3.generalizeAllVariables(ref tmpf, N);
+                                            pr.Formula = tmpf;
+                                            pr.Status = StatusTypes.toProcess;
+
+                                            //Expr idxi = Instance.Indices["i"];
+                                            Expr idxi = Instance.Z3.MkIntConst("i");
+                                            BoolExpr idxBounds = Instance.Z3.MkAnd(Instance.Z3.MkGe((ArithExpr)idxi, (ArithExpr)Instance.IndexOne), Instance.Z3.MkLe((ArithExpr)idxi, (ArithExpr)Instance.IndexN));
+                                            List<BoolExpr> prabstr = new List<BoolExpr>();
+                                            for (int i = 1; i <= N; i++)
+                                            {
+                                                BoolExpr tmp_abs = (BoolExpr)Instance.Z3.copyExpr(pr.Formula); // make a deep copy
+                                                tmp_abs = (BoolExpr)Instance.Z3.abstractGlobals(tmp_abs, N, projectN, i, -1); // j unused
+                                                prabstr.Add(tmp_abs);
+                                            }
+                                            pr.Formula = Instance.Z3.MkAnd(prabstr.ToArray());
+                                            pr.Formula = Instance.Z3.MkForall(new Expr[] { Instance._indices["i"] }, Instance.Z3.MkImplies(idxBounds, (BoolExpr)pr.Formula));
+                                            pr.makePost(); // update post-state formula
+                                        }
+
+                                        //Instance.Sys.Properties.Add(pr); // TODO: never seems to be satisfied: this won't be, it's the AND version that's the problem---the quantified invariant would need to be IMPLIES
+                                    }
+
+                                    Instance.Sys.removeDuplicateProperties();
+
+                                    int numall = prall.Count;
+                                    numall = numall;
+                                    prall = prall.Distinct().ToList();
+                                    numall = prall.Count;
 
 
+
+
+
+
+
+
+
+
+
+
+                                    List<BoolExpr> newall = new List<BoolExpr>();
+                                    foreach (var v in prall)
+                                    {
+                                        Goal g = Instance.Z3.MkGoal(true, true, false);
+                                        //g.Assert(Instance.Z3.AssumptionsUniversal.ToArray()); // data-type assumptions
+
+
+                                        List<Expr> bi = new List<Expr>();
+                                        foreach (var udf in Instance.UndefinedVariables)
+                                        {
+                                            Regex projecting = new Regex("[" + (projectN + 1).ToString() + "-9]+[1-9]*"); // projectN followed by any number, have to change if we have projectN >= 10
+                                            if (projecting.IsMatch(udf.Key) && Instance.Z3.findTerm(v, Instance.UndefinedVariables[udf.Key], true))
+                                            {
+                                                bi.Add(udf.Value);
+                                            }
+                                        }
+
+                                        Expr newv = null;
+                                        // do projection
+                                        if (bi.Count > 0 && projectN < N)
+                                        {
+                                            newv = Instance.Z3.MkExists(bi.ToArray(), v);
+                                        }
+
+
+                                        g.Assert((BoolExpr)newv);
+                                        Tactic tac = Instance.Z3.MkTactic("qe"); // quantifier elimination for projection
+                                        ApplyResult a;
+                                        a = tac.Apply(g);
+                                        a = a;
+
+                                        foreach (var sg in a.Subgoals)
+                                        {
+                                            Expr e;
+                                            if (sg.Formulas.Length > 1)
+                                            {
+                                                e = Instance.Z3.MkAnd(sg.Formulas);
+                                            }
+                                            else
+                                            {
+                                                e = sg.Formulas[0];
+                                            }
+
+                                            /*
+                                            if (e.IsOr)
+                                            {
+                                                HashSet<Expr> tmp_args = new HashSet<Expr>();
+                                                for (int arg = 0; arg < e.NumArgs; arg++)
+                                                {
+                                                    if (!e.Args[arg].IsTrue)
+                                                    {
+                                                        tmp_args.Add(e.Args[arg]); // Expr.update requires same number of args, so we can't just delete the trues
+                                                    }
+                                                }
+                                                e.Update(tmp_args.ToArray());
+                                            }*/
+                                            uint oldnum = e.NumArgs;
+                                            oldnum = oldnum;
+                                            //e.Update(e.Args.Distinct().ToArray()); // distinct terms
+                                            uint newnum = e.NumArgs;
+                                            newnum = newnum;
+
+                                            Instance.Z3.generalizeAllVariables(ref e, N); // todo: set projection number
+                                            newall.Add((BoolExpr)e);
+                                        }
+                                    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                    Property prand = new Property(Instance.Z3.MkOr(newall.ToArray())); // TODO: OR VS AND IN FULL REACH SET?
+                                    prand.Status = StatusTypes.toProcess;
+                                    prand.Type = Property.PropertyType.safety;
+
+                                    List<Expr> bound = new List<Expr>();
+                                    foreach (var v in Instance.UndefinedVariables)
+                                    {
+                                        Regex projecting = new Regex("[" + (projectN + 1).ToString() + "-9]+[1-9]*"); // projectN followed by any number, have to change if we have projectN >= 10
+                                        if (projecting.IsMatch(v.Key) && Instance.Z3.findTerm(prand.Formula, Instance.UndefinedVariables[v.Key], true))
+                                        {
+                                            bound.Add(v.Value);
+                                        }
+                                    }
+
+                                    if (bound.Count > 0 && projectN < N)
+                                    {
+                                        prand.Formula = Instance.Z3.MkExists(bound.ToArray(), prand.Formula);
+                                        prand.Status = StatusTypes.toProject;
+                                        prand.ProjectedFrom = N;
+                                        prand.Project = projectN;
+                                    }
+                                    else
+                                    {
+                                        Expr tmpf = prand.Formula;
+                                        Instance.Z3.generalizeAllVariables(ref tmpf, N);
+                                        prand.Formula = tmpf;
+                                        prand.Status = StatusTypes.toProcess;
+
+                                        List<Expr> boundIds = new List<Expr>();
+                                        List<BoolExpr> idxBounds = new List<BoolExpr>();
+                                        if (projectN >= 1)
+                                        {
+                                            //Expr idxi = Instance.Indices["i"];
+                                            Expr idxi = Instance.Z3.MkIntConst("i");
+                                            idxBounds.Add(Instance.Z3.MkAnd(Instance.Z3.MkGe((ArithExpr)idxi, (ArithExpr)Instance.IndexOne), Instance.Z3.MkLe((ArithExpr)idxi, (ArithExpr)Instance.IndexN)));
+                                            boundIds.Add(idxi);
+                                        }
+                                        if (projectN >= 2)
+                                        {
+                                            //Expr idxi = Instance.Indices["j"];
+                                            Expr idxi = Instance.Z3.MkIntConst("j");
+                                            idxBounds.Add(Instance.Z3.MkAnd(Instance.Z3.MkGe((ArithExpr)idxi, (ArithExpr)Instance.IndexOne), Instance.Z3.MkLe((ArithExpr)idxi, (ArithExpr)Instance.IndexN)));
+                                            boundIds.Add(idxi);
+                                        }
+
+                                        //prand.Formula = Instance.Z3.abstractGlobals(prand.Formula, projectN);
+                                        /*List<BoolExpr> prabstr = new List<BoolExpr>();
+                                        for (int i = 1; i <= N; i++)
+                                        {
+                                            BoolExpr tmp_abs = (BoolExpr)Instance.Z3.copyExpr(prand.Formula); // make a deep copy
+                                            tmp_abs = (BoolExpr)Instance.Z3.abstractGlobals(tmp_abs, N, projectN, i, -1); // j unused
+                                            prabstr.Add(tmp_abs);
+                                        }*/
+                                        //prand.Formula = Instance.Z3.MkAnd(prabstr.ToArray());
+                                        if (boundIds.Count > 1)
+                                        {
+                                            idxBounds.Add(Instance.Z3.MkDistinct(boundIds.ToArray())); // i != j
+                                        }
+                                        //prand.Formula = Instance.Z3.MkForall(boundIds.ToArray(), Instance.Z3.MkImplies(Instance.Z3.MkAnd(idxBounds.ToArray()), Instance.Z3.MkImplies(Instance.Z3.MkDistinct(boundIds.ToArray()), (BoolExpr)prand.Formula)));
+                                        prand.Formula = Instance.Z3.MkForall(boundIds.ToArray(), Instance.Z3.MkImplies(Instance.Z3.MkAnd(idxBounds.ToArray()), (BoolExpr)prand.Formula));
+                                        //prand.Formula = Instance.Z3.MkForall(boundIds.ToArray(), Instance.Z3.MkImplies(Instance.Z3.MkAnd(idxBounds.ToArray()), Instance.Z3.MkOr((BoolExpr)prand.Formula, Instance.Z3.MkEq(Instance.Indices["i"], Instance.Indices["j"]))));
+
+                                        BoolExpr tmpand = (BoolExpr)Instance.Z3.copyExpr(prand.Formula); // make a deep copy
+                                        tmpand = (BoolExpr)Instance.Z3.abstractGlobals(tmpand, N, projectN, 1, 0);
+                                        prand.Formula = tmpand;
+
+                                        foreach (var s in Instance.Sys.HybridAutomata[0].Locations)
+                                        {
+                                            prand.Formula = prand.Formula.Substitute(s.BitVectorExpr, s.LabelExpr);
+                                        }
+
+                                        prand.makePost(); // update post-state formula
+                                    }
+
+                                    //Instance.Z3.PrintMode = Z3_ast_print_mode.Z3_PRINT_LOW_LEVEL;
+                                    //String st = prand.Formula.ToString();
+                                    //String se = prand.Formula.SExpr();
+                                    //se = se;
+                                    //st = st;
+                                    //Instance.Z3.ParseZ3String
+                                    //prand.Formula = Instance.Z3.ParseSMTLIB2String(prand.Formula.ToString());
+                                    //prand.Formula = Instance.Z3.ParseZ3String(st);
+                                    //prand.Formula = Instance.Z3.ParseZ3String(se);
+
+                                    prand.Formula = Instance.Z3.copyExpr(prand.Formula); // deep copy
+                                    
+                                    //prand.Formula = Instance.Z3.ParseZ3File(Instance._inoutPath + "test.z3");
+                                    Instance.Sys.Properties.Add(prand);
+
+                                    //Instance.Z3.slvr = Instance.Z3.MkSolver();
+                                    
+                                }
+                                
+                            }
+                            Controller.Instance.IndexNValue = tmpN; // restore
+
+                            //Instance.Z3 = new Z3Wrapper(Instance.Config); // would have to copy things over, might bring over corruption if that's the problem
+
+                            //Controller.Instance.Z3.Assumptions.Add(Controller.Instance.Z3.MkEq(Controller.Instance.IndexN, Controller.Instance.Z3.MkInt(1)));
+
+                            Instance.Sys.removeDuplicateProperties(); // remove duplicate properties
+
+                            System.Console.WriteLine("Universal assumptions (data types, etc.):\n\r");
+                            System.Console.WriteLine(Instance.Z3.ExprArrayToString(Instance.Z3.AssumptionsUniversal.ToArray()) + "\n\r\n\r");
+
+                            // project all properties specified as such
+                            foreach (var p in Instance.Sys.Properties)
+                            {
+                                if (p.Status == StatusTypes.toProject)
+                                {
+                                    System.Console.WriteLine("Property before projection:\n\r");
+                                    System.Console.WriteLine(p.Formula.ToString() + "\n\r\n\r");
+                                    Goal g = Instance.Z3.MkGoal(true, true, false);
+                                    //g.Assert(Instance.Z3.AssumptionsUniversal.ToArray()); // data-type assumptions
+                                    g.Assert((BoolExpr)p.Formula);
+                                    Tactic tac = Instance.Z3.MkTactic("qe"); // quantifier elimination for projection
+                                    ApplyResult a;
+                                    a = tac.Apply(g);
+                                    a = a;
+
+                                    foreach (var sg in a.Subgoals)
+                                    {
+                                        Expr e;
+                                        if (sg.Formulas.Length > 1)
+                                        {
+                                            e = Instance.Z3.MkAnd(sg.Formulas);
+                                        }
+                                        else
+                                        {
+                                            e = sg.Formulas[0];
+                                        }
+
+                                        /*
+                                        if (e.IsOr)
+                                        {
+                                            HashSet<Expr> tmp_args = new HashSet<Expr>();
+                                            for (int arg = 0; arg < e.NumArgs; arg++)
+                                            {
+                                                if (!e.Args[arg].IsTrue)
+                                                {
+                                                    tmp_args.Add(e.Args[arg]); // Expr.update requires same number of args, so we can't just delete the trues
+                                                }
+                                            }
+                                            e.Update(tmp_args.ToArray());
+                                        }*/
+                                        uint oldnum = e.NumArgs;
+                                        oldnum = oldnum;
+                                        e.Update(e.Args.Distinct().ToArray()); // distinct terms
+                                        uint newnum = e.NumArgs;
+                                        newnum = newnum;
+
+                                        Instance.Z3.generalizeAllVariables(ref e, p.Project);
+                                        p.Formula = e;
+
+                                        List<Expr> bound = new List<Expr>();
+                                        List<BoolExpr> idxBounds = new List<BoolExpr>();
+                                        if (p.Project >= 1)
+                                        {
+                                            //Expr idxi = Instance.Indices["i"];
+                                            Expr idxi = Instance.Z3.MkIntConst("i");
+                                            idxBounds.Add(Instance.Z3.MkAnd(Instance.Z3.MkGe((ArithExpr)idxi, (ArithExpr)Instance.IndexOne), Instance.Z3.MkLe((ArithExpr)idxi, (ArithExpr)Instance.IndexN)));
+                                            bound.Add(idxi);
+                                        }
+                                        if (p.Project >= 2)
+                                        {
+                                            //Expr idxi = Instance.Indices["j"];
+                                            Expr idxi = Instance.Z3.MkIntConst("j");
+                                            idxBounds.Add(Instance.Z3.MkAnd(Instance.Z3.MkGe((ArithExpr)idxi, (ArithExpr)Instance.IndexOne), Instance.Z3.MkLe((ArithExpr)idxi, (ArithExpr)Instance.IndexN)));
+                                            bound.Add(idxi);
+                                        }
+
+                                        //p.Formula = Instance.Z3.abstractGlobals(p.Formula, p.Project);
+
+                                        List<BoolExpr> prabstr = new List<BoolExpr>();
+                                        //for (int i = 1; i <= p.ProjectedFrom; i++)
+                                        //{
+                                        //    int j = 0;
+                                        //do
+                                        //{
+                                        BoolExpr tmp_abs = (BoolExpr)Instance.Z3.copyExpr(p.Formula); // make a deep copy
+                                        tmp_abs = (BoolExpr)Instance.Z3.abstractGlobals(tmp_abs, p.ProjectedFrom, p.Project, 1, 0);
+                                        //prabstr.Add(tmp_abs);
+                                        //j++;
+                                        //}
+                                        //    while (bound.Count > 1 && j <= p.ProjectedFrom);
+                                        //}
+                                        //prabstr = prabstr.Distinct().ToList();
+                                        //p.Formula = Instance.Z3.MkAnd(prabstr.ToArray());
+
+                                        p.Formula = tmp_abs;
+
+
+                                        if (bound.Count == 1)
+                                        {
+                                            p.Formula = Instance.Z3.MkForall(bound.ToArray(), Instance.Z3.MkImplies(Instance.Z3.MkAnd(idxBounds.ToArray()), (BoolExpr)p.Formula)); // todo: check if > 1 subgoal
+                                        }
+                                        else
+                                        {
+                                            idxBounds.Add(Instance.Z3.MkDistinct(bound.ToArray())); // this is what pnueli2001tacas does
+                                            //e = Instance.Z3.MkAnd(Instance.Z3.MkDistinct(bound.ToArray()), (BoolExpr)e);
+                                            p.Formula = Instance.Z3.MkForall(bound.ToArray(), Instance.Z3.MkImplies(Instance.Z3.MkAnd(idxBounds.ToArray()), (BoolExpr)p.Formula)); // todo: check if > 1 subgoal
+                                        }
+
+
+                                        p.Status = StatusTypes.toProcess;
+                                    }
+                                    p.Formula = p.Formula.Simplify();
+                                    p.makePost(); // update post-state formula
+
+                                    /*
+                                    Goal gr = Instance.Z3.MkGoal(true, false, false);
+                                    //gr.Assert(z3.slvr.Assertions);
+                                    gr.Assert((BoolExpr)p.Formula);
+                                    Tactic tr = Instance.Z3.Repeat(Instance.Z3.Then(Instance.Z3.MkTactic("symmetry-reduce"), Instance.Z3.MkTactic("distribute-forall")));
+                                    ApplyResult ar;
+                                    ar = tr.Apply(gr);
+                                    ar = ar;
+
+                                    if (ar.NumSubgoals == 1)
+                                    {
+                                        p.Formula = Instance.Z3.MkAnd(ar.Subgoals[0].Formulas);
+                                    }
+                                    else
+                                    {
+                                        throw new Exception("Error in reduction");
+                                    }
+                                     */
+
+                                    //:elim-and
+                                    //distribute-forall
+
+
+                                    System.Console.WriteLine("Property after projection and generalization:\n\r");
+                                    System.Console.WriteLine(p.Formula.ToString() + "\n\r\n\r");
+                                }
+                            }
+
+                            
+                            //Instance.Sys.removeDuplicateProperties(); // remove duplicate properties (may get more during projection)
+                            
+
+                            Instance.Sys.checkInductiveInvariants();
 
                             break;
                         }
@@ -1010,7 +1633,10 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
          */
         public void DeinitializeZ3()
         {
-            Microsoft.Z3.Log.Close();
+            if (Controller.LOG_Z3)
+            {
+                Microsoft.Z3.Log.Close();
+            }
             Instance.Z3.Dispose();
         }
 

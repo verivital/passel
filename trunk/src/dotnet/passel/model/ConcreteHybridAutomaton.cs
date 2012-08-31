@@ -7,8 +7,8 @@ namespace passel.model
 {
     public class ConcreteHybridAutomaton : AHybridAutomaton {
 
-        public ConcreteHybridAutomaton(Holism parent)
-            : base(parent)
+        public ConcreteHybridAutomaton(Holism parent, String name)
+            : base(parent, name)
         {
         }
     }

@@ -10,7 +10,7 @@
 	<assumption equn='A &gt; 0.0 and B &gt; 0.0 and A &gt;= B' comment='A *stictly less than* B for mutual exclusion' />
 	<assumption equn='N &gt;= 2 and N &lt;= 100' comment='' />
 
-	<automaton name='default_automaton'>
+	<automaton name='fischer_umeno_five_state_buggy'>
 		<variable name='x[i]' type='nnreal' update_type='Continuous' />
 		<variable name='last[i]' type='nnreal' update_type='Discrete' comment='' />
 		<variable name='first[i]' type='nnreal' update_type='Discrete' comment='' />

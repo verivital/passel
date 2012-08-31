@@ -7,6 +7,9 @@ using Microsoft.Z3;
 
 using passel.model;
 
+using passel.controller;
+using System.Text.RegularExpressions;
+
 namespace passel.controller.smt.z3
 {
     public class Z3Wrapper : Microsoft.Z3.Context
@@ -17,6 +20,7 @@ namespace passel.controller.smt.z3
             : base(c)
         {
             this.Assumptions = new List<BoolExpr>();
+            this.AssumptionsUniversal = new List<BoolExpr>();
             //this.slvr = this.MkSolver();
             //this.slvr = this.MkSimpleSolver();
             // doesn't seem to allow nested tactics.... (apply (then simplify propagate-values split-clause propagate-ineqs))
@@ -28,6 +32,11 @@ namespace passel.controller.smt.z3
          * Asserted assumptions
          */
         public List<BoolExpr> Assumptions;
+
+        /**
+         * Basic data type assumptions needed even for unquantified tasks (e.g., reach set projection)
+         */
+        public List<BoolExpr> AssumptionsUniversal;
 
         public Solver slvr;
 
@@ -360,6 +369,20 @@ namespace passel.controller.smt.z3
             return false;*/
         }
 
+        /**
+         * Hack to deep copy a formula
+         */
+        public Expr copyExpr(Expr orig)
+        {
+            // huge hack to avoid clobbering original formula with pass-by-reference
+            // we create a new z3 context and "translate" (copy) the term to that context, then copy it back
+            // we cannot just "translate" to the same context, because it checks if the context is the same and returns the original reference if so
+            Context tmpcontext = new Context(Controller.Instance.Config);
+            Expr fcopy = orig.Translate(tmpcontext);
+            Expr fcopyback = fcopy.Translate(this);
+            return fcopyback;
+        }
+
         
 
         /**
@@ -415,6 +438,206 @@ namespace passel.controller.smt.z3
                 origReplaced = origReplaced.Substitute(Controller.Instance.GlobalVariables[v.Key], v.Value);
             }
         }
+
+        /**
+         * abstract global indexed variables
+         */
+        public Expr abstractGlobals(Expr f, int N, int projectN, int i, int j)
+        {
+            // TODO: SPECIAL CARE MUST BE TAKEN DEFINITELY FOR INDEX-VALUED GLOBAL VARIABLES, AND POSSIBLY ALSO FOR INDEXED CONTROL LOCATION VARIABLES....
+
+            System.Console.WriteLine("Property before generalization: ");
+            System.Console.WriteLine(f.ToString() + "\n\r\n\r");
+
+            Expr iidx = this.MkIntConst("i");
+            Expr jidx = this.MkIntConst("j");
+
+            // TODO: GENERALIZE
+            foreach (var v in Controller.Instance.Sys.Variables)
+            {
+                if (v.Type == Variable.VarType.index)
+                {
+                    Expr gv = Controller.Instance.GlobalVariables[v.Name];
+
+                    //RAND BUG: COMMENT NEXT
+                    f = f.Substitute(this.MkEq(gv, Controller.Instance.IndexNone), this.MkTrue()); // weakeast abstraction
+                    //f = f.Substitute(this.MkEq(gv, Controller.Instance.IndexNone), this.MkFalse()); // weakeast abstraction
+
+
+
+
+                    //f = f.Substitute(this.MkEq(gv, Controller.Instance.IndexNone), this.MkNot(this.MkEq(gv, iidx)));
+                    //f = f.Substitute(this.MkEq(gv, Controller.Instance.IndexOne), this.MkEq(gv, iidx));
+
+                    if (projectN == 1)
+                    {
+                        f = f.Substitute(this.MkEq(gv, this.MkInt(1)), this.MkEq(gv, iidx)); // 1 -> i
+                        //f = f.Substitute(this.MkEq(gv, this.MkInt(2)), this.MkNot(this.MkEq(gv, iidx))); // 2 -> not i
+                        //f = f.Substitute(this.MkEq(gv, this.MkInt(3)), this.MkNot(this.MkEq(gv, iidx))); // 3 -> not i
+                        //f = f.Substitute(this.MkEq(gv, this.MkInt(2)), this.MkEq(gv, iidx)); // 2 -> i
+                        
+                        
+                        
+                        //RAND BUG: COMMENT NEXT
+                        f = f.Substitute(this.MkEq(gv, this.MkInt(2)), this.MkTrue()); // 2 -> null
+
+
+
+                        //f = f.Substitute(this.MkEq(gv, Controller.Instance.IndexNone), this.MkNot(this.MkEq(gv, iidx)));
+                    }
+
+                    if (projectN == 2)
+                    {
+                        f = f.Substitute(this.MkEq(gv, this.MkInt(1)), this.MkEq(gv, iidx)); // 1 -> i
+                        f = f.Substitute(this.MkEq(gv, this.MkInt(2)), this.MkEq(gv, jidx)); // 2 -> j
+
+
+                        f = f.Substitute(this.MkEq(gv, this.MkInt(3)), this.MkTrue()); // 3 -> null
+
+                        //f = f.Substitute(this.MkEq(gv, Controller.Instance.IndexNone), this.MkAnd(this.MkNot(this.MkEq(gv, iidx)), this.MkNot(this.MkEq(gv, jidx)))); // 0 -> not i
+
+                        // RAND BUG: COMMENT NEXT
+                        //f = f.Substitute(this.MkEq(gv, this.MkInt(3)), this.MkAnd(this.MkNot(this.MkEq(gv, iidx)), this.MkNot(this.MkEq(gv, jidx)))); // 3 -> not i
+                    }
+
+
+
+                    if (i == 1)
+                    {
+                        f = f.Substitute(this.MkEq(gv, this.MkInt(1)), this.MkEq(gv, iidx));
+                    }
+                    if (projectN > 1 && j == 0 && i == 2)
+                    {
+                        f = f.Substitute(this.MkEq(gv, this.MkInt(2)), this.MkEq(gv, jidx));
+                    }
+
+                    if (j > 0 && j == 1)
+                    {
+                        f = f.Substitute(this.MkEq(gv, this.MkInt(1)), this.MkEq(gv, iidx));
+                    }
+                    if (projectN > 1 && j > 0 && j == 2)
+                    {
+                        f = f.Substitute(this.MkEq(gv, this.MkInt(2)), this.MkEq(gv, jidx));
+                    }
+
+                    // replace all other indices with true
+                    for (int x = 1; x <= N; x++)
+                    {
+                        if (x == i || x == j)
+                        {
+                            //continue;
+                        }
+                        f = f.Substitute(this.MkEq(gv, this.MkInt(x)), this.MkTrue());
+
+
+                        // this is what arons2001cav does
+                        /*if (projectN > 1)
+                        {
+                            f = f.Substitute(this.MkEq(gv, this.MkInt(x)), this.MkAnd(this.MkNot(this.MkEq(gv, iidx)), this.MkNot(this.MkEq(gv, jidx))));
+                        }
+                        else
+                        {
+                            f = f.Substitute(this.MkEq(gv, this.MkInt(x)), this.MkNot(this.MkEq(gv, iidx)));
+                        }*/
+                    }
+
+                    /*
+
+                    if (projectN == 1)
+                    {
+                        f = f.Substitute(this.MkEq(gv, this.MkInt(2)), this.MkTrue()); // weakeast abstraction
+                        //f = f.Substitute(this.MkEq(gv, this.MkInt(2)), this.MkNot(this.MkEq(gv, iidx)));
+                        //f = f.Substitute(this.MkEq(gv, this.MkInt(2)), this.MkGt((ArithExpr)gv, (ArithExpr)iidx));
+                    }
+                    else
+                    {
+                        //f = f.Substitute(this.MkEq(gv, this.MkInt(2)), this.MkEq(gv, jidx));
+                        f = f.Substitute(this.MkEq(gv, this.MkInt(j)), this.MkEq(gv, jidx));
+                    }
+                    //f = f.Substitute(this.MkEq(gv, this.MkInt(3)), this.MkTrue()); // weakeast abstraction
+                    //f = f.Substitute(this.MkEq(gv, this.MkInt(3)), this.MkAnd(this.MkNot(this.MkEq(gv, iidx)), this.MkNot(this.MkEq(gv, jidx))));
+                    //f = f.Substitute(this.MkEq(gv, this.MkInt(3)), this.MkAnd(this.MkGt((ArithExpr)gv, (ArithExpr)iidx), this.MkGt((ArithExpr)gv, (ArithExpr)jidx)));
+
+                    //f = f.Substitute(this.MkEq(gv, this.MkInt(4)), this.MkAnd(this.MkNot(this.MkEq(gv, iidx)), this.MkNot(this.MkEq(gv, jidx))));
+                    // TODO: > 4 cases, inequality cases, non-equality cases
+                     */
+                }
+            }
+
+            System.Console.WriteLine("Property after generalization: ");
+            System.Console.WriteLine(f.ToString() + "\n\r\n\r");
+
+            return f;
+        }
+
+        /**
+         * Generalization step from a finite instantiation reach set to a quantified predicate
+         * 
+         * N is the number of processes in the finite instantiation
+         * 
+         * Assumes original term has already been projected onto a small instance
+         */
+        public void generalizeAllVariables(ref Expr origReplaced, int N)
+        {/*
+            if (origReplaced.IsOr)
+            {
+                //origReplaced = origReplaced.Args[0]; // TODO: CHECK GENERALITY
+                for (int i = 0; i < origReplaced.NumArgs; i++)
+                {
+                    if (origReplaced.Args[i].IsTrue)
+                    {
+                        Expr[] copy = origReplaced.Args;
+                        copy[i] = MkFalse();
+                        origReplaced.Update(copy);
+                    }
+                }
+            }*/
+
+            for (int i = 1; i <= N; i++)
+            {
+                switch (Controller.Instance.DataOption)
+                {
+                    case Controller.DataOptionType.array:
+                        {
+                            // TODO
+                            break;
+                        }
+                    case Controller.DataOptionType.uninterpreted_function:
+                    default:
+                        {
+                            foreach (var v in Controller.Instance.UndefinedVariables)
+                            {
+                                if (v.Key.Contains(i.ToString()))
+                                {
+                                    int idx = 'i' + i - 1;
+                                    string sidx = ((char)idx).ToString();
+                                    string varname = Regex.Replace(v.Key, "[\\d+]", ""); // strip all numbers TODO: generalize to allow numbers in variable names
+                                    KeyValuePair<string,string> kv = new KeyValuePair<string, string>(varname, sidx);
+                                    if (varname == "q")
+                                    {
+                                        origReplaced = origReplaced.Substitute(v.Value, Controller.Instance.Q[sidx]);
+                                    }
+                                    else
+                                    {
+                                        origReplaced = origReplaced.Substitute(v.Value, Controller.Instance.IndexedVariables[kv]);
+                                    }
+                                }
+                            }
+                            break;
+                        }
+                }
+            }
+
+            /*
+            foreach (var v in Controller.Instance.GlobalVariablesPrimed) // uses primed from earlier revision before global variables added in more coherent manner (were parameters with update_type)
+            {
+                origReplaced = origReplaced.Substitute(Controller.Instance.GlobalVariables[v.Key], v.Value);
+            }
+             */
+        }
+
+
+
 
         /**
          * Unprime all variables
@@ -861,7 +1084,7 @@ namespace passel.controller.smt.z3
 
             if (debug)
             {
-                Console.WriteLine("Term:\n\r" + t.ToString());
+                //Console.WriteLine("Term:\n\r" + t.ToString());
             }
 
             //this.slvr = this.MkSolver(); // WAY slower
@@ -891,6 +1114,7 @@ namespace passel.controller.smt.z3
                     if (debug)
                     {
                         Console.WriteLine("unknown");
+                        Console.WriteLine("Term:\n\r" + t.ToString());
                     }
                     ret = true; // may occur semantics
                     break;
@@ -898,7 +1122,7 @@ namespace passel.controller.smt.z3
                     if (debug)
                     {
                         Console.WriteLine("sat");
-                        Console.WriteLine(slvr.Model.ToString());
+                        //Console.WriteLine(slvr.Model.ToString());
                     }
                     ret = true;
                     model = slvr.Model;
@@ -935,7 +1159,7 @@ namespace passel.controller.smt.z3
 
             if (debug)
             {
-                Console.WriteLine("Term:\n\r" + t.ToString());
+                //Console.WriteLine("Term:\n\r" + t.ToString());
             }
 
             //this.slvr = this.MkSolver(); // WAY slower
@@ -963,6 +1187,8 @@ namespace passel.controller.smt.z3
                     if (debug)
                     {
                         Console.WriteLine("unknown: quantifier elimination failure");
+                        Console.WriteLine("Term:\n\r" + t.ToString());
+                        Console.WriteLine("\n\r\n\r All assertions: \n\r" + this.ExprArrayToString(this.slvr.Assertions) + "\n\r\n\r");
                     }
                     ret = false; // may occur semantics
                     // todo: add breakpoint back and check when this gets hit
@@ -972,7 +1198,7 @@ namespace passel.controller.smt.z3
                     if (debug)
                     {
                         Console.WriteLine("sat: disproved claim");
-                        Console.WriteLine(model.ToString());
+                        //Console.WriteLine(model.ToString());
                     }
                     ret = false;
                     break;
@@ -1034,7 +1260,7 @@ namespace passel.controller.smt.z3
                         }
 
                         int i = 0;
-                        uint j = q.NumBound - 1;
+                        int j = (int)q.NumBound - 1;
                         Expr b = null;
                         foreach (Symbol y in q.BoundVariableNames)
                         {
@@ -1151,7 +1377,7 @@ namespace passel.controller.smt.z3
                                     if (i > 0 && s.Contains("q[") && args[i - 1].ToString().StartsWith("(q"))
                                     {
                                         // only display first letter of location in caps (e.g., for SATS)
-                                        s += Controller.Instance.LocationNumTermToName[args[i]].Substring(0,1).ToUpper(); // todo: add error handling
+                                        //s += Controller.Instance.LocationNumTermToName[args[i]].Substring(0,1).ToUpper(); // todo: add error handling (buggy with bitvectors)
                                     }
                                     else
                                     {
