@@ -33,6 +33,7 @@ namespace passel.controller.parsing.math.ast
 		Integer,
 		Float,
 		Boolean,
-        Variable
+        Variable,
+        Bitvector
 	}
 }

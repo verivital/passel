@@ -35,18 +35,18 @@ namespace passel.model
         /**
          * Global variables
          */
-        protected ISet<Variable> _variables = new HashSet<Variable>();
+        protected List<Variable> _variables = new List<Variable>();
 
         /**
          * Gettor for global variables
          */
-        public ISet<Variable> Variables
+        public List<Variable> Variables
         {
             get
             {
                 if (this._variables == null)
                 {
-                    this._variables = new HashSet<Variable>();
+                    this._variables = new List<Variable>();
                 }
                 return this._variables;
             }
@@ -105,6 +105,33 @@ namespace passel.model
         }
 
         /**
+         * Remove duplicate properties
+         */
+        public void removeDuplicateProperties()
+        {
+            this.Properties = this.Properties.Distinct().ToList();
+
+            // todo: use distinct as in previous line combined with comparer that looks at Property.Formula
+
+            // remove duplicates by formulas
+            for (int i = 0; i < this.Properties.Count; i++)
+            {
+                for (int j = 1; j < this.Properties.Count; j++)
+                {
+                    if (i == j)
+                    {
+                        continue;
+                    }
+
+                    if (this.Properties[i].Formula.Equals(this.Properties[j].Formula))
+                    {
+                        this.Properties.RemoveAt(j);
+                    }
+                }
+            }
+        }
+
+        /**
          * TODO: refactoring
          * 
          * Break the property loop out of the following
@@ -132,33 +159,16 @@ namespace passel.model
 
             //z3.Assumptions.RemoveAll(a => a.IsQuantifier);
 
-            this.z3.Assumptions.Add(z3.MkDistinct(Controller.Instance.Locations.Values.ToArray())); // assert all control locations are different locations
-
-            List<BoolExpr> controlRangeList = new List<BoolExpr>();
-            Expr iidx = Controller.Instance.Indices["i"];
-            foreach (var v in Controller.Instance.Locations.Values.ToArray())
-            {
-                controlRangeList.Add(z3.MkEq(z3.MkApp(Controller.Instance.DataU.IndexedVariableDecl["q"], iidx), v));
-            }
-            BoolExpr controlRange;
-            if (controlRangeList.Count > 1)
-            {
-                controlRange = z3.MkForall(new Expr[] { iidx }, z3.MkOr(controlRangeList.ToArray()));
-            }
-            else
-            {
-                controlRange = z3.MkForall(new Expr[] { iidx }, controlRangeList[0]); // todo: error handling...what if 0?
-            }
-
-            this.z3.Assumptions.Add(controlRange); // assert all processes must stay inside control range bounds
-
             this.z3.slvr.Assert(this.z3.Assumptions.ToArray()); // assert all the data-type assumptions
+            this.z3.slvr.Assert(this.z3.AssumptionsUniversal.ToArray()); // assert all the data-type assumptions
             
 
             System.Console.WriteLine("Attempting to prove the following properties as inductive invariants: >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n\r");
             foreach (Property pi in this.Properties)
             {
                 System.Console.WriteLine(pi.Formula.ToString() + "\n\r");
+
+                System.Console.WriteLine(pi.Post.ToString() + "\n\r");
             }
 
             Property p = null;
@@ -197,14 +207,14 @@ namespace passel.model
                     {
                         if (ptmp.Status == StatusTypes.inductiveInvariant)
                         {
-                            System.Console.WriteLine(ptmp.Formula.ToString() + "\n\r\n\r");
+                            //System.Console.WriteLine(ptmp.Formula.ToString() + "\n\r\n\r");
                         }
 
                         if (ptmp.Status == StatusTypes.inductive)
                         {
                             foreach (var pt in ptmp.InductiveInvariants)
                             {
-                                System.Console.WriteLine(pt.ToString() + "\n\r\n\r");
+                                //System.Console.WriteLine(pt.ToString() + "\n\r\n\r");
                             }
                         }
                     }
@@ -310,17 +320,17 @@ namespace passel.model
                 //if (iinv)
                 if (true)
                 {
-                    List<BoolExpr> discreteall = new List<BoolExpr>(); // conjunction of all possible locations for discrete transitions
+                    //List<BoolExpr> discreteall = new List<BoolExpr>(); // conjunction of all possible locations for discrete transitions
                     List<BoolExpr> timeall = new List<BoolExpr>(); // conjunction of all possible locations for time transition
                     
                     // global discrete transitions
                     foreach (var t in this.Transitions)
                     {
                         Expr inductiveInvariant = p.Formula;
-                        // todo next: switch if not int type: , Controller.Instance.IndexType
+
+                        //inductiveInvariant = z3.MkAnd((BoolExpr)inductiveInvariant, (BoolExpr)t.TransitionTermGlobal);
                         Expr hidxinner = z3.MkIntConst("h");
                         Expr transitionTerm = this.makeTransitionTerm(t, null, hidxinner);
-
                         inductiveInvariant = z3.MkAnd((BoolExpr)inductiveInvariant, (BoolExpr)transitionTerm);
 
                         // alternative next, get the body and recreate
@@ -333,22 +343,22 @@ namespace passel.model
                         if (true)
                         {
                             //z3.checkTerm(inductiveInvariant, out model, out core, true);
-                            Console.WriteLine("\n\r<><><><><> GUARDED MODEL START\n\r\n\r");
-                            Console.WriteLine(inductiveInvariant.ToString() + "\n\r\n\r");
-                            if (z3.slvr.Model != null)
-                            {
-                                Console.WriteLine(z3.slvr.Model.ToString());
-                            }
-                            Console.WriteLine("\n\r<><><><><> GUARDED MODEL END\n\r\n\r");
+                            //Console.WriteLine("\n\r<><><><><> GUARDED MODEL START\n\r\n\r");
+                            //Console.WriteLine(inductiveInvariant.ToString() + "\n\r\n\r");
+                            //if (z3.slvr.Model != null)
+                            //{
+                            //    Console.WriteLine(z3.slvr.Model.ToString());
+                            //}
+                            //Console.WriteLine("\n\r<><><><><> GUARDED MODEL END\n\r\n\r");
 
                             Expr claim = z3.MkImplies((BoolExpr)inductiveInvariant, (BoolExpr)p.Post);
 
                             Console.WriteLine("\n\r<><><><><> INDUCTIVE INVARIANT START\n\r\n\r");
-                            Console.WriteLine(claim.ToString() + "\n\r\n\r");
-                            if (z3.slvr.Model != null)
-                            {
-                                Console.WriteLine(z3.slvr.Model.ToString());
-                            }
+                            //Console.WriteLine(claim.ToString() + "\n\r\n\r");
+                            //if (z3.slvr.Model != null)
+                            //{
+                            //    Console.WriteLine(z3.slvr.Model.ToString());
+                            //}
                             Console.WriteLine("\n\r<><><><><> INDUCTIVE INVARIANT END\n\r\n\r");
 
                             //z3.Push();
@@ -397,6 +407,7 @@ namespace passel.model
                             //Expr hidxinner = z3.MkConst("h", Controller.Instance.IndexType);
                             Expr hidxinner = z3.MkIntConst("h");
                             Expr transitionTerm = this.makeTransitionTerm(t, l, hidxinner);
+                            //Expr transitionTerm = t.TransitionTerm;
 
                             List<Expr> bound = new List<Expr>();
                             //hidx = z3.MkConst("h", Controller.Instance.IndexType);
@@ -419,16 +430,18 @@ namespace passel.model
                             //if (z3.proveTerm(inductiveInvariant, out model, out core, true))
                             if (true)
                             {
+                                /*
                                 Boolean res = z3.checkTerm(inductiveInvariant, out model, out core, true);
                                 res = res;
                                 if (res)
                                 {
                                     bool tenabled = res; // omg...
                                     tenabled = tenabled;
-                                }
+                                }*/
 
                                 z3.slvr.Assert((BoolExpr)inductiveInvariant);
 
+                                /*
                                 Goal g = z3.MkGoal(true, true, false);
                                 g.Assert(z3.slvr.Assertions);
                                 Tactic tac = z3.MkTactic("qe");
@@ -437,6 +450,7 @@ namespace passel.model
                                 tac = z3.MkTactic("smt");
                                 a = tac.Apply(g);
                                 a = a;
+                                 
 
                                 //z3.checkTerm(z3.MkTrue(), out model, out core, true);
                                 Status ao = Status.UNKNOWN;
@@ -465,6 +479,7 @@ namespace passel.model
                                 //    Console.WriteLine(z3.slvr.Model.ToString());
                                 //}
                                 Console.WriteLine("\n\r<><><><><> GUARDED MODEL END\n\r\n\r");
+                                 */
 
                                 /*
                                 // ranking function synthesis
@@ -484,7 +499,7 @@ namespace passel.model
                                 
 
                                 Console.WriteLine("\n\r<><><><><> INDUCTIVE INVARIANT START\n\r\n\r");
-                                Console.WriteLine(claim.ToString() + "\n\r\n\r");
+                                //Console.WriteLine(claim.ToString() + "\n\r\n\r");
                                 //if (z3.slvr.Model != null)
                                 //{
                                 //    Console.WriteLine(z3.slvr.Model.ToString());
@@ -503,7 +518,7 @@ namespace passel.model
                                 // TODO: the following existential probably has to be uniform across ALL transitions---i.e., the epsilon decrease has to be the same for every transition...? this differs somewhat
                                 // from how we can check safety properties by checking each transition separately
                                 //claim = z3.MkExists(0, Controller.Instance.ExistentialConstants.Values.ToArray(), null, claim); // todo: only do this for termination properties
-                                discreteall.Add((BoolExpr)claim);
+                                //discreteall.Add((BoolExpr)claim);
 
                                 //Console.WriteLine("GENERATED INVARIANT MODEL (explicit quantifiers)\n\r");
                                 //z3.checkTerm(claim, out model, out core, true);
@@ -779,12 +794,14 @@ namespace passel.model
                 // property is not an inductive invariant
                 if (!iinv)
                 {
-                    Console.WriteLine("\n\r\n\rProperty was NOT an inductive invariant! Property checked was: \n\r" + p.Formula.ToString());
+                    Console.WriteLine("\n\r\n\rProperty was NOT an inductive invariant!");
+                    //Console.WriteLine("Property checked was: \n\r" + p.Formula.ToString());
                     p.Status = StatusTypes.disproved;
                 }
                 else
                 {
-                    Console.WriteLine("\n\r\n\rProperty was an inductive invariant! Property checked was: \n\r" + p.Formula.ToString());
+                    Console.WriteLine("\n\r\n\rProperty was an inductive invariant!");
+                    //Console.WriteLine("Property checked was: \n\r" + p.Formula.ToString());
                     p.Status = StatusTypes.inductiveInvariant;
 
                     switch (p.Type)
@@ -820,7 +837,8 @@ namespace passel.model
                 // property is not inductive (a property may be inductive without being an inductive invariant, e.g., if only the initial condition check fails)
                 if (!inv)
                 {
-                    Console.WriteLine("\n\r\n\rProperty was NOT inductive! Property checked was: \n\r" + p.Formula.ToString());
+                    Console.WriteLine("\n\r\n\rProperty was NOT inductive!");
+                    //Console.WriteLine("Property checked was: \n\r" + p.Formula.ToString());
                     p.Status = StatusTypes.disproved;
                 }
                 else
@@ -828,7 +846,8 @@ namespace passel.model
                     // only do this for non-invariants
                     if (!iinv)
                     {
-                        Console.WriteLine("\n\r\n\rProperty was inductive! Property checked was: \n\r" + p.Formula.ToString());
+                        Console.WriteLine("\n\r\n\rProperty was inductive!");
+                        //Console.WriteLine("Property checked was: \n\r" + p.Formula.ToString());
                         p.Status = StatusTypes.inductive;
 
                         //z3.AssertCnstr(p.Formula); // probably don't want to assert this, as this would require it to be invariant
@@ -909,6 +928,7 @@ namespace passel.model
                 }
             }
 
+            /*
             System.Console.WriteLine("DISPROVED INVARIANTS SUMMARY WITH STATISTICS >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n\r");
             foreach (Property pi in this.Properties)
             {
@@ -923,7 +943,7 @@ namespace passel.model
                     }
                 }
             }
-
+            
             System.Console.WriteLine("\n\rPROVED INVARIANTS >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n\r");
             foreach (Property pi in this.Properties)
             {
@@ -937,8 +957,9 @@ namespace passel.model
                         System.Console.WriteLine(stmp + "\n\r\n\r");
                     }
                 }
-            }
+            }*/
 
+            /*
             System.Console.WriteLine("\n\rPROVED INDUCTIVE >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n\r");
             foreach (Property pi in this.Properties)
             {
@@ -953,6 +974,7 @@ namespace passel.model
                     }
                 }
             }
+             */
 
 
 
@@ -980,7 +1002,7 @@ namespace passel.model
                     num_inv++;
                 }
             }
-
+            /*
             int num_ind = 0;
             System.Console.WriteLine("\n\rPROVED INDUCTIVE >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n\r");
             foreach (Property pi in this.Properties)
@@ -991,13 +1013,14 @@ namespace passel.model
                     System.Console.WriteLine("Time: " + String.Format("{0}", pi.Time.TotalSeconds) + "\n\r\n\r");
                     num_ind++;
                 }
-            }
+            }*/
 
             System.Console.WriteLine("\n\rSUMMARY\n\r");
             System.Console.WriteLine("Disproved: " + num_dis.ToString());
             System.Console.WriteLine("Invariant: " + num_inv.ToString());
-            System.Console.WriteLine("Inductive: " + num_ind.ToString());
+            //System.Console.WriteLine("Inductive: " + num_ind.ToString());
 
+            /*
             System.Console.WriteLine("\n\rLatex Table\n\r\n\r");
             foreach (Property pi in this.Properties)
             {
@@ -1021,6 +1044,7 @@ namespace passel.model
                 String timeStr = Math.Round(pi.Time.TotalSeconds, 3).ToString();
                 System.Console.WriteLine(" & $" + timeStr + "$ & $" + qi.ToString() + "$ \\\\ ");
             }
+             */
 
             
         }
@@ -1120,7 +1144,27 @@ namespace passel.model
             Expr identity;
             if (l == null)
             {
-                identity = z3.forallIdentity(null, globalVariableResets, indexVariableResets, universalIndexVariableResets, t.UGuard); // no process moves if no location
+                // TODO NEXT: GLOBAL INDEXED VARIABLE COULD CAUSE RESETS / "be the process moving"
+                int i = 0;
+                Expr gidx = null;
+                foreach (var v in Controller.Instance.GlobalVariables)
+                {
+                    if (Controller.Instance.Sys.Variables.Find(
+                        delegate(Variable gv) {
+                            return gv.Name == v.Key;
+                        }).Type == Variable.VarType.index && z3.findTerm(t.Reset, v.Value, true))
+                    {
+                        gidx = v.Value;
+                        i++;
+                    }
+                    // TODO: need to refactor forall identity to allow multiple processes moving, for now throw exception if it happens
+                    if (i > 1)
+                    {
+                        throw new Exception("Error: too many global index variables used.");
+                    }
+
+                }
+                identity = z3.forallIdentity(gidx, globalVariableResets, indexVariableResets, universalIndexVariableResets, t.UGuard); // no process moves if no location
             }
             else
             {
@@ -1462,12 +1506,8 @@ namespace passel.model
             return transitionTerms;
         }
 
-
-
-
-
         /**
-         * Generate a specification of N automata for Phaver
+         * Generate a specification of N (for a fixed natural number) automata for Phaver
          */
         public String outputPhaverN(int N)
         {
@@ -1477,8 +1517,6 @@ namespace passel.model
             ConcreteHybridAutomaton h = this._has.First();
 
             outmode mode = outmode.MODE_PHAVER;
-            
-
 
             const string PHAVER_AUTOMATON = "automaton";
             const string PHAVER_VAR_CONTR = "contr_var";
@@ -1502,6 +1540,9 @@ namespace passel.model
             string out_guard;
             string out_separator;
 
+            List<String> globalSyncLabels = new List<string>();
+            Dictionary<String, IList<Variable>> globalSyncLabelsToResetGlobals = new Dictionary<string, IList<Variable>>();  // map global sync labels to global variables (for identity resets)
+
             string newline = "\n";
 
             switch (mode) {
@@ -1523,6 +1564,14 @@ namespace passel.model
                     }
             }
 
+            spec += "REACH_USE_CONVEX_HULL = false; // not possible because of global variables" + newline +
+                    "REACH_MAX_ITER = 0; " + newline +
+                    "REACH_USE_BBOX = false;" + newline +
+                    //"USE_HIOA_AUTOMATA = true;" + newline +
+                    "COMPOSE_USE_CONVEX_HULL_FOR_REACH = false;" + newline +
+                    "COMPOSE_WITH_REACH_MIN = true;" + newline +
+                    "CHEAP_CONTAIN_RETURN_OTHERS = false;" + newline + newline;
+
             // global constants
             if (Controller.Instance.Params.Count > 0)
             {
@@ -1533,48 +1582,11 @@ namespace passel.model
             }
             spec += newline;
 
-            // create global/shared variable automaton
-            if (this.Variables.Count > 0)
-            {
-                spec += out_automaton + " global" + newline;
-
-                spec += out_var_contr + " " + out_separator + " ";
-                foreach (var v in this.Variables) // globals (controlled by global automaton)
-                {
-                    spec += v.Name + ",";
-                }
-                spec = spec.Substring(0, spec.Length - 1) + out_endline + newline;
-
-                spec += "synclabs: tau;" + newline;
-
-                spec += "loc default: while True wait { ";
-
-                foreach (var v in this.Variables)
-                {
-                    if (v.UpdateType == Variable.VarUpdateType.discrete)
-                    {
-                        spec += v.Name + "' == 0 & ";
-                    }
-                    else
-                    {
-                        // todo: timed vs. rect
-                        spec += v.Name + "' == " + "1" + " & ";
-                    }
-                }
-                spec = spec.Substring(0, spec.Length - 3) + "}" + newline;
-
-                spec += "\t when True sync tau do { true } goto default;" + newline + newline;
-
-                //spec += "initially $ & True;" + newline + newline;
-                spec += "initially default & g == 0;" + newline + newline;
-
-                spec += "end" + newline + newline;
-            }
-
-            // generate N such automata
+            // generate N automata
             for (int i = 1; i <= N; i++)
             {
                 // TODO: ADD FUNCTION EVAL AND REMOVE THIS
+                /* STARL STUFF
                 double x0, y0, xwp, ywp, xr, yr;
                 double r = 1;
                 x0 = r * Math.Cos((2 * Math.PI) * ((double)i / (double)Controller.Instance.IndexNValue));
@@ -1608,6 +1620,7 @@ namespace passel.model
                 xru = xr + delta_rate;
                 yrl = yr - delta_rate;
                 yru = yr + delta_rate;
+                 */
                 
 
                 spec += out_automaton + " ";
@@ -1656,18 +1669,19 @@ namespace passel.model
                     if (l.Invariant != null)
                     {
                         tmp = z3.ToStringFormatted(l.Invariant, controller.smt.z3.Z3Wrapper.PrintFormatMode.phaver);
-                        tmp = tmp.Replace("[i]", i.ToString());
+                        tmp = tmp.Replace("[i]", "_" + i.ToString());
                         spec += tmp;
                         spec += " & ";
                     }
 
-                    if (l.Stop != null)
+                    /*if (l.Stop != null)
                     {
+                        // needs to be closure of negation... switch based on strict / nonstrict cases, but how to do in general?
                         tmp = z3.ToStringFormatted( z3.MkNot((BoolExpr)l.Stop), controller.smt.z3.Z3Wrapper.PrintFormatMode.phaver);
-                        tmp = tmp.Replace("[i]", i.ToString());
+                        tmp = tmp.Replace("[i]", "_" + i.ToString());
                         spec += tmp;
                         spec += " & ";
-                    }
+                    }*/
 
                     if (l.Invariant != null || l.Stop != null)
                     {
@@ -1675,15 +1689,17 @@ namespace passel.model
                     }
                     else
                     {
+                        /* STARL stuff
                         double lb, ub;
                         lb = -r - delta_max;
                         ub = r + delta_max;
                         spec += " x_" + i + " >= " + lb + " & x_" + i + " <= " + ub + " & y_" + i + " >= " + lb + " & y_" + i + " <= " + ub + " ";
+                         */
 
                         //double wpdelta = 0.05;
                         //spec += " & (x" + i + " < " + (xwp - wpdelta) + " | x" + i + " > " + (xwp + wpdelta) + " | y" + i + " < " + (ywp - wpdelta) + " | y" + i + " > " + (ywp + wpdelta) + ") ";
 
-                        //spec += " true ";
+                        spec += " true ";
                     }
 
                     spec += " wait { ";
@@ -1702,13 +1718,15 @@ namespace passel.model
                         {
                             case Flow.DynamicsTypes.rectangular:
                                 {
+                                    tmp = f.Variable.Name + "_" + i.ToString() + "' == 1"; // todo: add rates
                                     break;
                                 }
                             case Flow.DynamicsTypes.timed: // pass through
                             default:
                                 {
-                                    //tmp = f.Variable.Name + i.ToString() + "' == 1"; // todo: add rates
+                                    tmp = f.Variable.Name + "_" + i.ToString() + "' == 1"; // todo: add rates
 
+                                    /* STARL STUFF
                                     if (f.Variable.Name == "x")
                                     {
                                         //tmp = f.Variable.Name + "_" + i + "' == " + xr;
@@ -1721,15 +1739,25 @@ namespace passel.model
                                         tmp =  f.Variable.Name + "_" + i + "' >= " + yrl + " & ";
                                         tmp += f.Variable.Name + "_" + i + "' <= " + yru;
                                     }
+                                     */
 
                                     break;
                                 }
                         }
                         //tmp = z3.ToStringFormatted(f., controller.smt.z3.Z3Wrapper.PrintFormatMode.phaver);
 
-                        tmp = tmp.Replace("[i]", i.ToString());
+                        tmp = tmp.Replace("[i]", "_" + i.ToString());
                         spec += tmp;
                         spec += " & ";
+                    }
+
+                    foreach (var v in h.Variables)
+                    {
+                        // set all discrete variables to have constant (0) dynamics
+                        if (v.UpdateType == Variable.VarUpdateType.discrete)
+                        {
+                            spec += v.Name + "_" + i.ToString() + "' == 0 & ";
+                        }
                     }
 
                     if (spec.Length != lbefore)
@@ -1757,8 +1785,8 @@ namespace passel.model
                                     Expr indexConst = z3.MkNumeral(i, Controller.Instance.IndexType);
                                     tmpt = tmpt.Substitute(Controller.Instance.Indices["i"], indexConst); // replace i with actual number i (e.g., i by 1, i by 2, etc)
                                     tmp = z3.ToStringFormatted(tmpt, controller.smt.z3.Z3Wrapper.PrintFormatMode.phaver); // todo: format appropriately
-                                    tmp = tmp.Replace("[i]", i.ToString());
-                                    tmp = tmp.Replace("[" + i.ToString() + "]", i.ToString());
+                                    tmp = tmp.Replace("[i]", "_" + i.ToString());
+                                    tmp = tmp.Replace("[" + i.ToString() + "]", "_" + i.ToString());
                                     spec += tmp;
                                 }
                                 else
@@ -1766,15 +1794,52 @@ namespace passel.model
                                     spec += " true ";
                                 }
 
-                                spec += " sync " + l.Label + ns.Label + i.ToString() + " ";
+                                string synclab =  l.Label + ns.Label + i.ToString(); // unique label for all
+                                spec += " sync " + synclab + " ";
                                 if (t.Reset != null)
                                 {
                                     Expr tmpt = t.Reset;
                                     Expr indexConst = z3.MkNumeral(i, Controller.Instance.IndexType);
                                     tmpt = tmpt.Substitute(Controller.Instance.Indices["i"], indexConst); // replace i with actual number i (e.g., i by 1, i by 2, etc)
                                     tmp = z3.ToStringFormatted(tmpt, controller.smt.z3.Z3Wrapper.PrintFormatMode.phaver); // todo: format appropriately
-                                    tmp = tmp.Replace("[i]", i.ToString());
-                                    tmp = tmp.Replace("[" + i.ToString() + "]", i.ToString());
+                                    tmp = tmp.Replace("[i]", "_" + i.ToString());
+                                    tmp = tmp.Replace("[" + i.ToString() + "]", "_" + i.ToString());
+                                    IList<Variable> globals = new List<Variable>();
+                                    IList<Variable> locals = new List<Variable>();
+
+                                    // TODO: REFACTOR NEXT TO TRANSITION CONSTRUCTOR AND ADD A LIST OF LOCAL/GLOBAL VARIABLE NAMES RESET IN THAT TRANSITION
+                                    // find globals reset in t.Reset
+                                    foreach (var v in this.Variables)
+                                    {
+                                        if (z3.findTerm(t.Reset, Controller.Instance.GlobalVariablesPrimed[v.Name], true)) // todo: add accessor in this.Variables for the expression...
+                                        {
+                                            globalSyncLabels.Add(synclab);
+                                            continue;
+                                        }
+                                        else
+                                        {
+                                            globals.Add(v); // set identity
+                                        }
+                                    }
+                                    globalSyncLabelsToResetGlobals.Add(synclab, globals); // add variables for identity
+                                    // find locals reset in t.Reset
+                                    foreach (var v in h.Variables)
+                                    {
+                                        if (z3.findTerm(t.Reset, Controller.Instance.IndexedVariablesPrimed[new KeyValuePair<string,string>(v.Name + Controller.PRIME_SUFFIX, "i")], true)) // todo: add accessor in this.Variables for the expression...
+                                        {
+                                            continue;
+                                        }
+                                        else
+                                        {
+                                            locals.Add(v);
+                                        }
+                                    }
+
+                                    string id = makePhaverIdentity(globals, locals, i); // add identity resets for all variables not actually reset;
+                                    if (id.Length > 0)
+                                    {
+                                        tmp += " & " + id;
+                                    }
                                     spec += " do {" + tmp + " } ";
                                 }
                                 spec += " goto " + ns.Label + out_endline + newline;
@@ -1782,7 +1847,7 @@ namespace passel.model
                         }
 
                         // add self-loop (tau) transition; must have identity on all local variables (or it will introduce conservative non-determinism, which may lead to violation of properties)
-                        //spec += "\t when true sync tau do {" + makePhaverIdentity(this.Variables, h.Variables, i) + "} goto " + l.Label + ";" + newline;
+                        spec += "\t when true sync tau do {" + makePhaverIdentity(this.Variables, h.Variables, i) + "} goto " + l.Label + ";" + newline;
                     }
                     else
                     {
@@ -1801,12 +1866,12 @@ namespace passel.model
                     }
                 }
 
-                /*Expr tmpi = h.Initial;
+                Expr tmpi = h.Initial;
                 Expr iConst = z3.MkNumeral(i, Controller.Instance.IndexType);
                 tmpi = tmpi.Substitute(Controller.Instance.Indices["i"], iConst); // replace i with actual number i (e.g., i by 1, i by 2, etc)
 
                 // todo: huge hack
-                while (tmpi.ASTKind != Z3_ast_kind.Z3_QUANTIFIER_AST)
+                while (tmpi.ASTKind != Z3_ast_kind.Z3_QUANTIFIER_AST && tmpi.NumArgs > 0)
                 {
                     tmpi = tmpi.Args[0];
                 }
@@ -1814,22 +1879,80 @@ namespace passel.model
                 {
                     tmpi = ((Quantifier)tmpi).Body;
                 }
-                if (tmpi.FuncDecl.DeclKind == Z3_decl_kind.Z3_OP_IMPLIES)
+                if (tmpi.FuncDecl.DeclKind == Z3_decl_kind.Z3_OP_IMPLIES || tmpi.FuncDecl.DeclKind == Z3_decl_kind.Z3_OP_OR) // may have simplified implies to not or form
                 {
                     tmpi = tmpi.Args[1];
                 }
 
                 tmp = z3.ToStringFormatted(tmpi, controller.smt.z3.Z3Wrapper.PrintFormatMode.phaver); // todo: format appropriately
-                tmp = tmp.Replace("[i]", i.ToString());
-                tmp = tmp.Replace("[#0]", i.ToString());
-                spec += tmp;*/  
+                tmp = tmp.Replace("[i]", "_" + i.ToString());
+                tmp = tmp.Replace("[#0]", "_" + i.ToString()); // z3 3.2 format
+                tmp = tmp.Replace("[(:var 0)]", "_" + i.ToString()); // z3 4.0 format
+                spec += tmp;
                 
-                spec += "x_" + i + " >= " + (x0 - delta_init) + " & x_" + i + " <= " + (x0 + delta_init) + " & y_" + i + " >= " + (y0 - delta_init) + " & y_" + i + " <= " + (y0 + delta_init);
+                // STARL STUFF
+                //spec += "x_" + i + " >= " + (x0 - delta_init) + " & x_" + i + " <= " + (x0 + delta_init) + " & y_" + i + " >= " + (y0 - delta_init) + " & y_" + i + " <= " + (y0 + delta_init);
 
                 spec += ";" + newline + newline;
 
                 // todo next: generalize
                 //spec += " rem & True;" + newline + newline;
+                spec += "end" + newline + newline;
+            }
+
+            // create global/shared variable automaton (need to do after local automaton creation to get appropriate sync labels)
+            if (this.Variables.Count > 0)
+            {
+                spec += out_automaton + " global" + newline;
+
+                spec += out_var_contr + " " + out_separator + " ";
+                foreach (var v in this.Variables) // globals (controlled by global automaton)
+                {
+                    spec += v.Name + ",";
+                }
+                spec = spec.Substring(0, spec.Length - 1) + out_endline + newline;
+
+                spec += "synclabs: tau,";
+
+                foreach (var v in globalSyncLabels)
+                {
+                    spec += v + ",";
+                }
+                spec = spec.Substring(0, spec.Length - 1); // strip last comma
+                spec += ";" + newline;
+
+                spec += "loc default: while True wait { ";
+
+                foreach (var v in this.Variables)
+                {
+                    if (v.UpdateType == Variable.VarUpdateType.discrete)
+                    {
+                        spec += v.Name + "' == 0 & ";
+                    }
+                    else
+                    {
+                        // todo: timed vs. rect
+                        spec += v.Name + "' == " + "1" + " & ";
+                    }
+                }
+                spec = spec.Substring(0, spec.Length - 3) + "}" + newline;
+
+                spec += "\t when True sync tau do { " + makePhaverIdentity(this.Variables, new List<Variable>(), 0)  + " } goto default;" + newline; // note identity here over globals only (e.g., g' == g, no x[i]' == x[i])
+
+                foreach (var v in globalSyncLabels)
+                {
+                    string id = makePhaverIdentity(globalSyncLabelsToResetGlobals[v], new List<Variable>(), 0);
+                    spec += "\t when True sync " + v + " do { " + (id.Length > 0 ? id : "true") + " } goto default;" + newline; // note identity here (e.g., g' == g)
+                }
+                spec += newline;
+
+                // TODO: for each synchronization label (action) of the local automata, if they modify a global variable x, add a sync label for that local action
+                //       ALSO: if this action DOES NOT modify some other variables, set identity here
+                //       E.g.: if action a modifies x, but not y, then reset should be y' == y, with no constraint on x' (or copy the reset if its not over the local variables of A_i making the move, i.e., if x' == 0, set it)
+
+                //spec += "initially $ & True;" + newline + newline;
+                spec += "initially default & True;" + newline + newline;
+
                 spec += "end" + newline + newline;
             }
 
@@ -1845,31 +1968,62 @@ namespace passel.model
             }
             spec = spec.Substring(0, spec.Length - 3);
             spec += ";" + newline + newline;
-            spec += "sys.print(\"ii_sys_N" + Controller.Instance.IndexNValue + "\", 0);" + newline;
+            spec += "sys.print(\"" + h.Name + "_ii_sys_N" + Controller.Instance.IndexNValue + "\", 0);" + newline;
 
             spec += "reg = sys.reachable;" + newline;
 
-            spec += "reg.print(\"ii_reach_N" + Controller.Instance.IndexNValue + "\", 0);" + newline;
+            spec += "reg.print(\"" + h.Name + "_ii_reach_N" + Controller.Instance.IndexNValue + "\", 0);" + newline;
 
+            string globalNames = ","; // start with comma
+            foreach (var v in this.Variables)
+            {
+                globalNames += v.Name + ",";
+            }
+            globalNames = globalNames.Substring(0, globalNames.Length - 1); // note length always > 0 since initially comma (even if var empty): remove last ,
+
+            for (int i = 1; i <= N; i++)
+            {
+                for (int j = 1; j <= N; j++)
+                {
+                    if (j == i && j != 1)
+                    {
+                        continue;
+                    }
+
+                    string ij = i.ToString() + j.ToString();
+                    spec += "regm" + ij + " = reg;" + newline;
+                    if (j == 1)
+                    {
+                        spec += "regm" + ij + ".project_to(x_" + i.ToString() + globalNames + ");" + newline;
+                    }
+                    else
+                    {
+                        spec += "regm" + ij + ".project_to(x_" + i.ToString() + ",x_" + j.ToString() + globalNames + ");" + newline;
+                    }
+                    spec += "regm" + ij + ".print(\"" + h.Name + "_ii_reach_N" + Controller.Instance.IndexNValue + "projected" + ij + "\", 0);" + newline;
+                }
+            }
+
+            spec += "reg.print(\"" + h.Name + "_ii_reach_N" + Controller.Instance.IndexNValue + "\", 0);" + newline;
+
+            /* STARL
             for (int i = 1; i <= N; i++)
             {
                 spec += "reg" + i + " = reg;" + newline;
                 spec += "reg" + i + ".project_to(x_" + i + "," + "y_" + i + ");" + newline;
                 spec += "reg" + i + ".print(\"ii_reach_poly_N" + Controller.Instance.IndexNValue + "_" + i + "\", 2);" + newline;
-            }
+            }*/
 
             // for fischer / mutual exclusion algorithms 
-            /*
             spec += "forbidden = sys.{";
             for (int i = 1; i <= N; i++)
             {
                 for (int j = i + 1; j <= N; j++)
                 {
-                    spec += "$~" + makeBadString("crit", i, j, N) + " & True," + newline;
+                    spec += "$~" + makeBadString("crit", i, j, N) + " & True," + newline; // TODO: set a bad bit on states in input file?
                 }
             }
             spec = spec.Substring(0, spec.Length - 2) + "};" + newline;
-             */
 /*
  * forbidden=sys.{
 	$~CS~CS~$~$~$ & True ,
@@ -1878,13 +2032,13 @@ namespace passel.model
 	$~$~$~$~CS~CS & True 
 	};
  */
-            //spec += "reg.intersection_assign(forbidden);" + newline;
-            //spec += "echo \"\";" + newline;
-            //spec += "echo \"Reachable forbidden states:\";" + newline;
-            //spec += "reg.print(\"ii_reach_bad\", 0);" + newline;
-            //spec += "echo \"\";" + newline;
-            //spec += "echo \"Reachable forbidden states empty?\";" + newline;
-            //spec += "reg.is_empty;" + newline;
+            spec += "reg.intersection_assign(forbidden);" + newline;
+            spec += "echo \"\";" + newline;
+            spec += "echo \"Reachable forbidden states:\";" + newline;
+            spec += "reg.print(\"" + h.Name + "_ii_reach_bad\", 0);" + newline;
+            spec += "echo \"\";" + newline;
+            spec += "echo \"Reachable forbidden states empty?\";" + newline;
+            spec += "reg.is_empty;" + newline;
 
             return spec;
         }
@@ -1892,7 +2046,7 @@ namespace passel.model
         /**
          * Return phaver identity for tau transitions
          */
-        String makePhaverIdentity(ISet<Variable> globals, ISet<Variable> locals, int id)
+        String makePhaverIdentity(IList<Variable> globals, IList<Variable> locals, int id)
         {
             String identity = "";
 
@@ -1903,9 +2057,12 @@ namespace passel.model
 
             foreach (var v in locals)
             {
-                identity += v.Name + id + "' == " + v.Name + id + " & ";
+                identity += v.Name + "_" + id + "' == " + v.Name + "_" + id + " & ";
             }
-            identity = identity.Substring(0, identity.Length - 3); // remove last " & " added
+            if (identity.Length > 3)
+            {
+                identity = identity.Substring(0, identity.Length - 3); // remove last " & " added
+            }
             return identity;
         }
 

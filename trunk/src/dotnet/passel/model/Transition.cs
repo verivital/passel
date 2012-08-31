@@ -21,47 +21,68 @@ namespace passel.model
         protected List<Expr> _blockingSetEnvCL;
         protected AbstractTransitionType _type;
 
-        public Transition()
+        private ConcreteLocation _parent;
+
+        public BoolExpr TransitionTerm;
+
+        public ConcreteLocation Parent
         {
+            get { return this._parent; }
+            set {
+                this._parent = value;
+                Expr hidxinner = Controller.Instance.Z3.MkIntConst("h");
+                this.TransitionTermGlobal = (BoolExpr)Controller.Instance.Sys.makeTransitionTerm(this, null, hidxinner); // no local vars
+                this.TransitionTerm = (BoolExpr)Controller.Instance.Sys.makeTransitionTerm(this, value, hidxinner); // with local vars
+            }
         }
 
-        public Transition(AState nextState)
+        public BoolExpr TransitionTermGlobal;
+
+        public Transition(ConcreteLocation p)
+        {
+            this.Parent = p;
+
+            // todo next: switch if not int type: , Controller.Instance.IndexType
+            Expr hidxinner = Controller.Instance.Z3.MkIntConst("h");
+            this.TransitionTermGlobal = (BoolExpr)Controller.Instance.Sys.makeTransitionTerm(this, null, hidxinner); // no local vars
+            this.TransitionTerm = (BoolExpr)Controller.Instance.Sys.makeTransitionTerm(this, this.Parent, hidxinner); // with local vars
+        }
+        
+        public Transition(ConcreteLocation p, AState nextState) : this(p)
         {
             this._nextStates = new List<AState>();
             this._nextStates.Add(nextState);
         }
 
-        public Transition(AState nextState, AbstractTransitionType t)
+        public Transition(ConcreteLocation p, AState nextState, AbstractTransitionType t)
+            : this(p, nextState)
         {
-            this._nextStates = new List<AState>();
-            this._nextStates.Add(nextState);
             this._type = t;
         }
 
-        public Transition(List<AState> nextStates)
+        public Transition(ConcreteLocation p, List<AState> nextStates) : this(p)
         {
             this._nextStates = nextStates;
         }
 
-        public Transition(Expr guard, Expr reset)
+        public Transition(ConcreteLocation p, Expr guard, Expr reset) : this(p)
         {
             this.Guard = guard;
             this._reset = reset;
         }
 
-        public Transition(Expr guard, Expr reset, AState nextState)
+        public Transition(ConcreteLocation p, Expr guard, Expr reset, AState nextState)
+            : this(p, nextState)
         {
             this.Guard = guard;
             this._reset = reset;
-            this._nextStates = new List<AState>();
-            this._nextStates.Add(nextState);
         }
 
-        public Transition(Expr guard, Expr reset, List<AState> nextStates)
+        public Transition(ConcreteLocation p, Expr guard, Expr reset, List<AState> nextStates)
+            : this(p, nextStates)
         {
             this.Guard = guard;
             this._reset = reset;
-            this._nextStates = nextStates;
         }
 
         /*public Expr Guard
@@ -87,7 +108,7 @@ namespace passel.model
          */
         public Expr ToTerm()
         {
-            List<Expr> post = new List<Expr>();
+            List<BoolExpr> post = new List<BoolExpr>();
             foreach (AState l in this._nextStates)
             {
                 //post.Add(Controller.Instance.Z3.MkEq(Controller.Instance.QPrimed["i"], Controller.Instance.Z3.MkConst(l.Value.ToString(), Controller.Instance.LocType)));
@@ -95,7 +116,7 @@ namespace passel.model
             }
             if (post.Count > 1)
             {
-                return Controller.Instance.Z3.MkOr((BoolExpr[])post.ToArray());
+                return Controller.Instance.Z3.MkOr(post.ToArray());
             }
             else if (post.Count == 1)
             {
@@ -215,7 +236,8 @@ namespace passel.model
             //    newList.Add((AState)item); // don't clone the next state...
             //});
 
-            return new Transition(this.Guard, this.Reset, this.NextStates);
+            //return new Transition(this.Guard, this.Reset, this.NextStates);
+            return null;
         }
     }
 }
