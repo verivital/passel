@@ -142,8 +142,16 @@ namespace passel.controller.parsing.math
                                 Controller.Instance.UndefinedVariables.ContainsKey(var) && Controller.Instance.UndefinedVariables[var].Sort != Controller.Instance.RealType)
                                 // TODO: ADD OTHER CASES
                             {
-                                //ast.Type = guardLexer.INTEGER; // no settor...simplest method actually apears to just do a (non-recursive) copy, where you CAN modify the type of the token, e.g., ast.Token.Type, which is rather annoying
-                                ast = copyTree(ast, ast, guardLexer.INTEGER);
+                                if (Controller.Instance.GlobalVariables.ContainsKey(var) && Controller.Instance.GlobalVariables[var].Sort != Controller.Instance.IntType)
+                                { // bitvector / boolean
+                                    ast = copyTree(ast, ast, guardLexer.BOOLEAN);
+                                }
+                                else
+                                {
+
+                                    //ast.Type = guardLexer.INTEGER; // no settor...simplest method actually apears to just do a (non-recursive) copy, where you CAN modify the type of the token, e.g., ast.Token.Type, which is rather annoying
+                                    ast = copyTree(ast, ast, guardLexer.INTEGER);
+                                }
                                 // TODO: STRIP ALL DECIMAL POINTS???
                             }
                             break;

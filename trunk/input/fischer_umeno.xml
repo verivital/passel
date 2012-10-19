@@ -9,6 +9,8 @@
 	
 	<assumption equn='A &gt; 0.0 and B &gt; 0.0 and A &lt; B' comment='A *stictly less than* B for mutual exclusion' />
 	<assumption equn='N &gt;= 2 and N &lt;= 100' comment='' />
+	
+	<assumption equn='A == 5.0 and B == 11.0' />
 
 	<automaton name='default_automaton'>
 		<variable name='x[i]' type='nnreal' update_type='Continuous' />
@@ -104,7 +106,7 @@
 	</automaton>
 	
 	<property equn='forall i j (x[i] == x[j])' type='safety' />
-
+<!--
 	<property equn='forall i ((q[i] == set) implies (last[i] &lt;= x[i] + A))' type='safety' />
 	<property equn='forall i ((q[i] == set) implies (x[i] &lt;= last[i]))' type='safety' />
 	<property equn='forall i j ((q[i] == check and g == i and q[j] == set) implies (first[i] &gt; last[j]))' type='safety' />
@@ -112,6 +114,7 @@
 
 	
 	<property equn='forall i j ((q[i] == leavetry or q[i] == crit or q[i] == reset) implies (g == i and q[j] != set))' type='safety' />
+-->
 	<property equn='forall i j ((i != j) implies (q[i] != crit or q[j] != crit))' type='safety' />
 	
 

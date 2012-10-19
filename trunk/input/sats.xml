@@ -32,15 +32,29 @@
 
 	<variable name='last'  type='index' update_type='discrete' comment='global tail pointer variable, where tail is defined as the plane that is last to land' />
 
-	<assumption equn='a &gt; 0.0 and b &gt; 0.0 and a &lt;= b and a = 90.0 and b = 120.0' comment='xdot in [a, b]' />
+	<assumption equn='a = 1.0 and b = 1.0' comment='xdot in [a, b]' />
+	
+<!--
 	<assumption equn='LS &gt; 0.0 and LS == 7.0' comment='the safety spacing is positive' />
 	<assumption equn='LB &gt; 0.0' comment='the base zone length is positive'/>
+-->
+	
+	
+	<assumption equn='(LB == (5.0 + 10.0 + 13.0)) and (LS == 7.0)' />
+	<assumption equn='LGUARD == LS + (b - a) * ((LB - LS) / a)' />
+	
+	
+<!--	
 	<assumption equn='LB == 15.0' comment='the base length is at least as large as the safety spacing'/>
 	<assumption equn='LSsmall &gt; 0.0 and LSsmall &lt;= LS - (b - a) * (LB / a)  and LSsmall &lt;= LB and LSsmall &lt;= LS' comment='max time in base is LB/A; max speed difference is b - a; thus, max difference in position through base is (b-a)*(LB/a)'/>
-<!-- equivalent to LS + (b - a) * ((LB - LS) / a) -->
+-->
+<!-- equivalent to using guard of: LS + (b - a) * ((LB - LS) / a) -->
+
+
+
 	<assumption equn='N &gt;= 2 and N &lt;= 100' comment='there are at least 2 aircraft in the system, but no more than 100' />
 
-	<automaton name='default_automaton'>
+	<automaton name='sats'>
 		<variable name='x[i]' type='nnreal' update_type='Continuous' />
 		<variable name='next[i]' type='index' update_type='Discrete' />
 		
@@ -71,7 +85,7 @@
 		
 
 		<transition source='Holding' destination='Base'>
-			<guard equn='(next[i] == 0) or (next[i] != 0 and q[ next[i] ] == Base and x[ next[i] ] &gt;= LS)'/>
+			<guard equn='(next[i] == 0) or (next[i] != 0 and q[ next[i] ] == Base and x[ next[i] ] &gt;= LGUARD)'/>
 			<action equn='x[i]&apos; = 0.0'/>
 		</transition>
 
@@ -93,113 +107,11 @@
 	
 	
 	
-<!-- uniqueness property of lists
-<property equn='forall i (exists j ((next[j] == i) implies (forall k ((k != j) implies (next[k] != i)))))' type='safety' comment='' />	
-	<property equn='forall i j ((q[i] == Base and q[j] == Base and next[j] == i) implies (x[i] &gt; x[j]))' type='safety' comment='not a necessary lemma' />
--->
-
-
-	<property equn='forall i ((q[i] == Base) implies (x[i] &lt;= LB))' type='safety' comment='' />
-	<property equn='forall i ((x[i] &lt;= LB))' type='safety' comment='' />
-
-
-	<property equn='forall i ((q[i] == Fly) implies (last != i))' type='safety' comment='key lemma 3: must hold to show key lemma 2' />
-	<property equn='forall i j ((next[j] == i) implies (q[i] != Fly))' type='safety' comment='key lemma 2: must hold to show key lemma 1' />	
-	<property equn='forall i j ((q[i] = Holding and next[j] = i) implies (q[j] = Holding))' type='safety' comment='key lemma 1: for showing safety (if this holds, safety holds)' />
-	
-
-
-
-
-	<property equn='forall i ((q[i] == Fly) implies (next[i] == 0))' type='safety' comment='' />
-	<property equn='forall i ((q[i] == Land) implies (next[i] == 0))' type='safety' comment='' />
-	<property equn='forall i j ((q[i] == Fly) implies (next[i] != j))' type='safety' comment='' />
-	<property equn='forall i j ((q[i] == Land) implies (next[i] != j))' type='safety' comment='' />
-	<property equn='forall i j ((q[i] == Fly) implies (next[j] != i))' type='safety' comment='' />
-	<property equn='forall i j ((q[i] == Land) implies (next[j] != i))' type='safety' comment='' />
-
-
-	<property equn='forall i (next[i] != i)' type='safety' comment='key lemma 1 for landing order property' />
-	<property equn='forall i ((last != 0) implies (next[i] != last))' type='safety' comment='basic landing order property' />
-
-
-
-	<property equn='forall i ((last == 0) implies (q[i] == Fly or q[i] == Land))' type='safety' comment='key sublemma for showing key lemma for landing order' />
-
-	<property equn='forall i ((q[i] == Holding or q[i] == Base) implies (last != 0))' type='safety' comment='key lemma for showing landing order (needed for transition from Fly to Holding)' />
-	<property equn='forall i j ((i != j and (q[i] == Holding or q[i] == Base) and (q[j] == Holding or q[j] == Base) and next[i] == 0) implies (next[j] != 0))' type='safety' comment='unique leader' />
-	<property equn='forall i j ((q[i] == Base and q[j] == Base and next[i] == 0) implies (x[i] &gt; x[j]))' type='safety' comment='leader is farthest in base' />
-
-
-
-	<property equn='forall i j ((i != j) implies (q[i] != Holding or q[j] != Holding))' type='safety' comment='' />
-	<property equn='forall i j ((i != j) implies (q[i] != Base or q[j] != Base))' type='safety' comment='' />
-
-	<property equn='forall i (q[i] == Fly)' type='safety' comment='' />
-	<property equn='forall i (q[i] == Holding)' type='safety' comment='' />
-	<property equn='forall i (q[i] == Base)' type='safety' comment='' />
-	<property equn='forall i (q[i] == Land)' type='safety' comment='' />
-	<property equn='forall i (q[i] != Fly)' type='safety' comment='' />
-	<property equn='forall i (q[i] != Holding)' type='safety' comment='' />
-	<property equn='forall i (q[i] != Base)' type='safety' comment='' />
-	<property equn='forall i (q[i] != Land)' type='safety' comment='' />
-	
-	
-	<property equn='forall i j ((next[i] == 0 and last == i) implies (next[j] != i))' type='safety' comment='' />
-
-
-
-
-<!-- <property equn='forall i j ((q[i] == Base and q[j] == Base and next[j] == i) implies (x[i] - x[j] &gt;= LS))' post='forall i j ((q[i] == Base and q[j] == Base and next[j] == i) implies (x[i] - x[j] &gt;= LSsmall))'  type='safety_weak' comment='weak safety: we have to assume there is LS space in the prestate to show there is LSsmall space in the post-state due to the rectangular dynamics' /> -->
-	<property equn='forall i j ((q[i] == Base and q[j] == Base and next[j] == i) implies (x[i] &gt;= LSsmall + (LB - x[j]) / (a) * (b - a)))' type='safety' comment='inductive invariant of safety' />
-	<property equn='forall i j ((i != j and q[i] == Base and q[j] == Base and next[j] == i) implies (x[i] - x[j] &gt;= LSsmall))' type='safety' comment='Safety: there is always at least LSsmall distance between any two distinct aircraft.' />
-	<property equn='forall i j ((i != j and q[i] == Base and q[j] == Base and next[j] == i) implies (x[i] - x[j] &gt;= LB))' type='safety' comment='Safety: there is always at least LSsmall distance between any two distinct aircraft.' />
-	<property equn='forall i j ((q[i] == Base and q[j] == Base and next[j] == i) implies (x[i] - x[j] &gt;= LS))' type='safety' comment='Safety: there is always at least S distance between any two distinct aircraft.' />
-	<property equn='forall i j ((i != j and q[i] == Base and q[j] == Base and next[j] == i) implies (x[i] - x[j] &gt;= LS))' type='safety' comment='Safety: there is always at least S distance between any two distinct aircraft.' />
-
-
-<!--
-
-	<property equn='forall i j ((next[i] == 0 and last == i) implies (q[j] == Fly or q[j] == Land))' type='safety' comment='' />	
-
-
-
-	<property equn='forall i ((last != 0) implies (next[i] != last))' type='safety' comment='' />	
-
-	<property equn='forall i ((last == 0) implies (q[i] == Fly or q[i] == Land))' type='safety' comment='' />
-	<property equn='forall i ((q[i] == Fly or q[i] == Land) implies (last == 0))' type='safety' comment='' />
-	<property equn='forall i ((last != 0) implies (q[i] == Holding or q[i] == Base))' type='safety' comment='' />
-	<property equn='forall i ((q[i] == Holding or q[i] == Base) implies (last != 0))' type='safety' comment='' />
-
-
-
-
-
-
-
-
-	<property equn='forall i j ((last == j and next[i] == 0 and q[i] = Holding and next[j] = i) implies (q[j] = Holding))' type='safety' comment='holds with 2 processes' />	
-	<property equn='forall i j ((last == j  and q[i] = Holding and next[j] = i) implies (q[j] = Holding))' type='safety' comment='holds with 2 processes' />
-
-
-
-
-
-
-	<property equn='forall i j ((last != 0 and next[i] == 0 and q[i] = Holding and next[j] = i) implies (q[j] = Holding))' type='safety' comment='' />	
-
-
-
-	<property equn='forall i j ((next[i] == 0 and q[i] = Holding and next[j] = i) implies (q[j] = Holding or q[j] = Land))' type='safety' comment='' />	
 	
 	
 	
 	
-	<property equn='forall i j ((next[i] == 0 and q[i] = Holding and next[j] = i) implies (q[j] = Holding))' type='safety' comment='' />	
-
-
-	<property equn='forall i j ((q[i] = Holding and next[j] = i) implies (q[j] = Holding))' type='safety' comment='key lemma for showing safety (if this holds, safety holds)' />
--->
+	<property equn='forall i j ((i != j and q[i] == Base and q[j] == Base and next[j] == i) implies (x[i] - x[j] &gt;= LS))' type='safety' comment='Safety: there is always at least LS distance between any two distinct aircraft.' />
 	
 	
 	
@@ -207,69 +119,56 @@
 	
 	
 	
-<!--
-
-
-
-
-
-
-
-
-
-
-	<property equn='forall i j ((next[i] == 0 and q[i] == Holding and next[j] == i) implies (q[j] = Holding))' type='safety' comment='' />	
-
-
-	<property equn='forall i j ((i != j and last != 0 and q[i] = Holding and next[j] = i) implies (q[j] = Holding))' type='safety' comment='' />	
-	<property equn='forall i j ((i != j and next[j] = i and q[i] == Base) implies (x[i] &gt;= x[j]))' type='safety' comment='' />	
-
-
-	<property equn='forall i (q[i] = 0)' type='safety' comment='' />
-	<property equn='forall i (q[i] = 1)' type='safety' comment='' />
-	<property equn='forall i (q[i] = 2)' type='safety' comment='' />
-	<property equn='forall i (q[i] = 3)' type='safety' comment='' />
-	
-	
-	<property equn='forall i j ((q[i] == Base and q[j] == Base) imply (x[i] - x[j] &gt;= LS))' type='safety' comment='Safety: there is always at least S distance between any two distinct aircraft.' />
-	
-
-
-<property equn='(first != 0) implies (last != 0)' type='safety' comment='' />
 	
 	
 	
-	<property equn='(first = 0)' type='safety' comment='' />
-	<property equn='(last = 0)' type='safety' comment='' />
-	
-
-	
-	<property equn='forall i (q[i] == Fly or q[i] == Holding or q[i] == Base or q[i] == Land)' type='safety' comment='Invariant' />
-
-	<property equn='forall i j ((q[i] == Fly or q[i] == Holding or q[i] == Base or q[i] == Land) and (q[j] == Fly or q[j] == Holding or q[j] == Base or q[j] == Land))' type='safety' comment='Invariant' />
 	
 	
 	
-	<property equn='forall i (x[i] &gt;= 0.0)' type='safety' comment='' />
-	<property equn='forall i (x[i] = 0.0)' type='safety' comment='' />
-	<property equn='forall i (x[i] &gt;= 0.0 and x[i] &lt;= LB)' type='safety' comment='' />
-	<property equn='forall i ((q[i] == Base) implies (x[i] &gt;= 0.0 and x[i] &lt;= LB))' type='safety' comment='' />
-
-	<property equn='forall i (x[i] &gt;= 0.0 and x[i] &lt; LB)' type='safety' comment='' />
-	<property equn='forall i ((q[i] == Base) implies (x[i] &gt;= 0.0 and x[i] &lt; LB))' type='safety' comment='' />
-
-
-
 	
 	
-	<property equn='forall i j ((q[i] == Base and q[j] == Base) imply (x[i] - x[j] &gt;= LS))' type='safety' comment='Safety: there is always at least S distance between any two distinct aircraft.' />
-	
-
-
 	
 	
-	<property equn='forall i j ((x[i] >= x[j]) implies (x[i] - x[j] &gt;= LS))' type='safety' comment='Safety: there is always at least S distance between any two distinct aircraft.' />
--->
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
 </holism>
 
 

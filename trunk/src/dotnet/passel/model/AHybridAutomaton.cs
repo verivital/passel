@@ -442,7 +442,7 @@ namespace passel.model
         {
             UInt32 min = UInt32.MaxValue;
             UInt32 max = 0;
-            List<Expr> initialStates = new List<Expr>();
+            List<BoolExpr> initialStates = new List<BoolExpr>();
             foreach (ConcreteLocation acl in this.Locations)
             {
                 max = Math.Max(max, acl.Value);
