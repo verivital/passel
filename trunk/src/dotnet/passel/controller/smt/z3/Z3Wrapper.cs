@@ -460,7 +460,7 @@ namespace passel.controller.smt.z3
                     Expr gv = Controller.Instance.GlobalVariables[v.Name];
 
                     //RAND BUG: COMMENT NEXT
-                    f = f.Substitute(this.MkEq(gv, Controller.Instance.IndexNone), this.MkTrue()); // weakeast abstraction
+                    //f = f.Substitute(this.MkEq(gv, Controller.Instance.IndexNone), this.MkTrue()); // weakeast abstraction
                     //f = f.Substitute(this.MkEq(gv, Controller.Instance.IndexNone), this.MkFalse()); // weakeast abstraction
 
 
@@ -483,7 +483,7 @@ namespace passel.controller.smt.z3
 
 
 
-                        //f = f.Substitute(this.MkEq(gv, Controller.Instance.IndexNone), this.MkNot(this.MkEq(gv, iidx)));
+                        f = f.Substitute(this.MkEq(gv, Controller.Instance.IndexNone), this.MkNot(this.MkEq(gv, iidx)));
                     }
 
                     if (projectN == 2)
@@ -494,7 +494,7 @@ namespace passel.controller.smt.z3
 
                         f = f.Substitute(this.MkEq(gv, this.MkInt(3)), this.MkTrue()); // 3 -> null
 
-                        //f = f.Substitute(this.MkEq(gv, Controller.Instance.IndexNone), this.MkAnd(this.MkNot(this.MkEq(gv, iidx)), this.MkNot(this.MkEq(gv, jidx)))); // 0 -> not i
+                        f = f.Substitute(this.MkEq(gv, Controller.Instance.IndexNone), this.MkAnd(this.MkNot(this.MkEq(gv, iidx)), this.MkNot(this.MkEq(gv, jidx)))); // 0 -> not i and not j
 
                         // RAND BUG: COMMENT NEXT
                         //f = f.Substitute(this.MkEq(gv, this.MkInt(3)), this.MkAnd(this.MkNot(this.MkEq(gv, iidx)), this.MkNot(this.MkEq(gv, jidx)))); // 3 -> not i
@@ -527,7 +527,16 @@ namespace passel.controller.smt.z3
                         {
                             //continue;
                         }
-                        f = f.Substitute(this.MkEq(gv, this.MkInt(x)), this.MkTrue());
+                        //f = f.Substitute(this.MkEq(gv, this.MkInt(x)), this.MkTrue()); // weakest
+
+                        if (projectN == 1)
+                        {
+                            f = f.Substitute(this.MkEq(gv, this.MkInt(x)), this.MkNot(this.MkEq(gv, iidx)));
+                        }
+                        else if (projectN == 2)
+                        {
+                            f = f.Substitute(this.MkEq(gv, this.MkInt(x)), this.MkAnd(this.MkNot(this.MkEq(gv, iidx)), this.MkNot(this.MkEq(gv, jidx)))); // 0 -> not i and not j
+                        }
 
 
                         // this is what arons2001cav does
@@ -561,6 +570,81 @@ namespace passel.controller.smt.z3
                     //f = f.Substitute(this.MkEq(gv, this.MkInt(4)), this.MkAnd(this.MkNot(this.MkEq(gv, iidx)), this.MkNot(this.MkEq(gv, jidx))));
                     // TODO: > 4 cases, inequality cases, non-equality cases
                      */
+                }
+            }
+
+
+            // replace local index-value variables
+            foreach (var v in Controller.Instance.Sys.HybridAutomata[0].Variables)
+            {
+                if (v.Type == Variable.VarType.index)
+                {
+                    foreach (var iv in Controller.Instance.IndexedVariables)
+                    {
+                        if (v.Name != iv.Key.Key)
+                        {
+                            continue;
+                        }
+                        Expr gv = iv.Value;
+
+                        if (projectN == 1)
+                        {
+                            f = f.Substitute(this.MkEq(gv, this.MkInt(1)), this.MkEq(gv, iidx)); // 1 -> i
+
+                            f = f.Substitute(this.MkEq(gv, this.MkInt(2)), this.MkTrue()); // 2 -> null
+
+                            f = f.Substitute(this.MkEq(gv, Controller.Instance.IndexNone), this.MkNot(this.MkEq(gv, iidx)));
+                        }
+
+                        if (projectN == 2)
+                        {
+                            f = f.Substitute(this.MkEq(gv, this.MkInt(1)), this.MkEq(gv, iidx)); // 1 -> i
+                            f = f.Substitute(this.MkEq(gv, this.MkInt(2)), this.MkEq(gv, jidx)); // 2 -> j
+
+
+                            f = f.Substitute(this.MkEq(gv, this.MkInt(3)), this.MkTrue()); // 3 -> null
+
+                            f = f.Substitute(this.MkEq(gv, Controller.Instance.IndexNone), this.MkAnd(this.MkNot(this.MkEq(gv, iidx)), this.MkNot(this.MkEq(gv, jidx)))); // 0 -> not i and not j
+                        }
+
+                        if (i == 1)
+                        {
+                            f = f.Substitute(this.MkEq(gv, this.MkInt(1)), this.MkEq(gv, iidx));
+                        }
+                        if (projectN > 1 && j == 0 && i == 2)
+                        {
+                            f = f.Substitute(this.MkEq(gv, this.MkInt(2)), this.MkEq(gv, jidx));
+                        }
+
+                        if (j > 0 && j == 1)
+                        {
+                            f = f.Substitute(this.MkEq(gv, this.MkInt(1)), this.MkEq(gv, iidx));
+                        }
+                        if (projectN > 1 && j > 0 && j == 2)
+                        {
+                            f = f.Substitute(this.MkEq(gv, this.MkInt(2)), this.MkEq(gv, jidx));
+                        }
+
+                        // replace all other indices with true
+                        for (int x = 1; x <= N; x++)
+                        {
+                            if (x == i || x == j)
+                            {
+                                //continue;
+                            }
+                            //f = f.Substitute(this.MkEq(gv, this.MkInt(x)), this.MkTrue()); // weakest
+
+                            if (projectN == 1)
+                            {
+                                f = f.Substitute(this.MkEq(gv, this.MkInt(x)), this.MkNot(this.MkEq(gv, iidx)));
+                            }
+                            else if (projectN == 2)
+                            {
+                                f = f.Substitute(this.MkEq(gv, this.MkInt(x)), this.MkAnd(this.MkNot(this.MkEq(gv, iidx)), this.MkNot(this.MkEq(gv, jidx)))); // 0 -> not i and not j
+                            }
+                        }
+                    }
+                    
                 }
             }
 
@@ -772,6 +856,13 @@ namespace passel.controller.smt.z3
                             {
                                 //grab only idx
                                 f.Add(Controller.Instance.Z3.MkEq(Controller.Instance.Z3.MkApp(v.Value, Controller.Instance.Indices[idx]), Controller.Instance.Z3.MkApp(Controller.Instance.DataU.IndexedVariableDeclPrimed[v.Key], Controller.Instance.Indices[idx])));
+
+                                // add basic universal guard
+                                // TODO: CHECK IF THIS WORKS WITH RESETS
+                                if (uguardReset != null && !uguardReset.ToString().Contains(Controller.PRIME_SUFFIX) && !uguardReset.ToString().Contains(Controller.PRIME_SUFFIX_PARSER))
+                                {
+                                    f.Add((BoolExpr)uguardReset);
+                                }
                             }
                             else
                             {

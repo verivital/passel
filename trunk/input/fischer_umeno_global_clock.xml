@@ -87,6 +87,13 @@
 	-->
 	
 	
+	
+	
+	<property equn='forall i (q[i] == test or q[i] == set or q[i] == check or q[i] == crit)' type='safety' />
+	<property equn='forall i j ((i != j) implies ((q[i] == test or q[i] == set or q[i] == check or q[i] == crit) and (q[j] == test or q[j] == set or q[j] == check or q[j] == crit)))' type='safety' />
+	
+	
+	
 	<property equn='forall i j ((i != j) implies (q[i] != crit or q[j] != crit))' type='safety' comment='mutual exclusion property' />
 	
 

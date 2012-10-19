@@ -112,21 +112,31 @@ namespace passel.model
             this.Properties = this.Properties.Distinct().ToList();
 
             // todo: use distinct as in previous line combined with comparer that looks at Property.Formula
-
             // remove duplicates by formulas
-            for (int i = 0; i < this.Properties.Count; i++)
+            int c = this.Properties.Count;
+            for (int i = 0; i < c; i++)
             {
-                for (int j = 1; j < this.Properties.Count; j++)
+                for (int j = 1; j < c; j++)
                 {
-                    if (i == j)
+                    if (i == j || i == this.Properties.Count || j == this.Properties.Count)
                     {
                         continue;
                     }
 
-                    if (this.Properties[i].Formula.Equals(this.Properties[j].Formula))
+                    // try proving them equal
+                    Controller.Instance.Z3.slvr.Push(); // save original context
+                    BoolExpr p = Controller.Instance.Z3.MkEq(this.Properties[i].Formula, this.Properties[j].Formula); // prop_i = prop_j
+                    Model m;
+                    Expr[] core;
+                    String stat;
+
+                    if (this.Properties[i].Formula.Equals(this.Properties[j].Formula) || Controller.Instance.Z3.proveTerm(p, out m, out core, out stat)) // short-circuit, don't prove them equal if we can do the simple check
                     {
+                        System.Console.WriteLine("REMOVING PROPERTY, DUPLICATE\n\r");
                         this.Properties.RemoveAt(j);
+                        c = this.Properties.Count; // update count
                     }
+                    Controller.Instance.Z3.slvr.Pop(); // restore original context
                 }
             }
         }
@@ -1648,6 +1658,7 @@ namespace passel.model
 
                 spec += out_sync_label + " " + out_separator + " " + " tau, ";
                 // generate sync label for each transition: iterate over all locations and transitions
+                List<String> synclabels = new List<string>();
                 foreach (var l in h.Locations)
                 {
                     foreach (var t in l.Transitions)
@@ -1655,7 +1666,19 @@ namespace passel.model
                         // todo: generate label only if transition is not named
                         foreach (var ns in t.NextStates)
                         {
-                            spec += l.Label + ns.Label + i.ToString() + ", ";
+                            String synclab = l.Label + ns.Label + i.ToString();
+
+                            if (synclabels.Contains(synclab))
+                            {
+                                synclab += synclabels.Count(
+                                        delegate(String s)
+                                        {
+                                            return s == synclab;
+                                        }).ToString();
+                            }
+
+                            spec += synclab + ", ";
+                            synclabels.Add(synclab);
                         }
                     }
                 }
@@ -1779,22 +1802,56 @@ namespace passel.model
                             {
                                 // generate sync label
                                 spec += "\t when ";
-                                if (t.Guard != null)
-                                {
-                                    Expr tmpt = t.Guard;
-                                    Expr indexConst = z3.MkNumeral(i, Controller.Instance.IndexType);
-                                    tmpt = tmpt.Substitute(Controller.Instance.Indices["i"], indexConst); // replace i with actual number i (e.g., i by 1, i by 2, etc)
-                                    tmp = z3.ToStringFormatted(tmpt, controller.smt.z3.Z3Wrapper.PrintFormatMode.phaver); // todo: format appropriately
-                                    tmp = tmp.Replace("[i]", "_" + i.ToString());
-                                    tmp = tmp.Replace("[" + i.ToString() + "]", "_" + i.ToString());
-                                    spec += tmp;
-                                }
-                                else
+                                if (t.Guard == null && t.UGuard == null && l.Invariant == null && l.Stop == null)
                                 {
                                     spec += " true ";
                                 }
+                                else
+                                {
+                                    if (t.Guard != null)
+                                    {
+                                        Expr tmpt = t.Guard;
+                                        Expr indexConst = z3.MkNumeral(i, Controller.Instance.IndexType);
+                                        tmpt = tmpt.Substitute(Controller.Instance.Indices["i"], indexConst); // replace i with actual number i (e.g., i by 1, i by 2, etc)
+                                        tmp = z3.ToStringFormatted(tmpt, controller.smt.z3.Z3Wrapper.PrintFormatMode.phaver); // todo: format appropriately
+                                        tmp = tmp.Replace("[i]", "_" + i.ToString());
+                                        tmp = tmp.Replace("[" + i.ToString() + "]", "_" + i.ToString());
+                                        spec += tmp;
+                                    }
+                                    if (l.Invariant != null)
+                                    {
+                                        Expr tmpt = l.Invariant;
+                                        Expr indexConst = z3.MkNumeral(i, Controller.Instance.IndexType);
+                                        tmpt = tmpt.Substitute(Controller.Instance.Indices["i"], indexConst); // replace i with actual number i (e.g., i by 1, i by 2, etc)
+                                        tmp = z3.ToStringFormatted(tmpt, controller.smt.z3.Z3Wrapper.PrintFormatMode.phaver); // todo: format appropriately
+                                        tmp = tmp.Replace("[i]", "_" + i.ToString());
+                                        tmp = tmp.Replace("[" + i.ToString() + "]", "_" + i.ToString());
+                                        spec += tmp;
+                                    }
+                                    /*
+                                    if (l.Stop != null)
+                                    {
+                                        Expr tmpt = l.Stop;
+                                        Expr indexConst = z3.MkNumeral(i, Controller.Instance.IndexType);
+                                        tmpt = tmpt.Substitute(Controller.Instance.Indices["i"], indexConst); // replace i with actual number i (e.g., i by 1, i by 2, etc)
+                                        tmp = z3.ToStringFormatted(tmpt, controller.smt.z3.Z3Wrapper.PrintFormatMode.phaver); // todo: format appropriately
+                                        tmp = tmp.Replace("[i]", "_" + i.ToString());
+                                        tmp = tmp.Replace("[" + i.ToString() + "]", "_" + i.ToString());
+                                        spec += tmp;
+                                    }*/
+                                }
 
                                 string synclab =  l.Label + ns.Label + i.ToString(); // unique label for all
+
+                                if (globalSyncLabelsToResetGlobals.ContainsKey(synclab)) // already added this label, add a counter to end of label
+                                {
+                                    synclab += globalSyncLabelsToResetGlobals.Keys.Count(
+                                        delegate(String s)
+                                        {
+                                            return s == synclab;
+                                        }).ToString();
+                                }
+
                                 spec += " sync " + synclab + " ";
                                 if (t.Reset != null)
                                 {
@@ -1825,7 +1882,7 @@ namespace passel.model
                                     // find locals reset in t.Reset
                                     foreach (var v in h.Variables)
                                     {
-                                        if (z3.findTerm(t.Reset, Controller.Instance.IndexedVariablesPrimed[new KeyValuePair<string,string>(v.Name + Controller.PRIME_SUFFIX, "i")], true)) // todo: add accessor in this.Variables for the expression...
+                                        if (z3.findTerm(t.Reset, Controller.Instance.IndexedVariablesPrimed[new KeyValuePair<string, string>(v.Name + Controller.PRIME_SUFFIX, "i")], true)) // todo: add accessor in this.Variables for the expression...
                                         {
                                             continue;
                                         }
@@ -1842,6 +1899,10 @@ namespace passel.model
                                     }
                                     spec += " do {" + tmp + " } ";
                                 }
+                                else // if no reset, set all identities
+                                {
+                                    spec += " do {" + makePhaverIdentity(this.Variables, h.Variables, i) + "} ";
+                                } // end reset
                                 spec += " goto " + ns.Label + out_endline + newline;
                             }
                         }
@@ -1914,6 +1975,7 @@ namespace passel.model
 
                 spec += "synclabs: tau,";
 
+                globalSyncLabels = globalSyncLabels.Distinct().ToList(); // remove duplicates
                 foreach (var v in globalSyncLabels)
                 {
                     spec += v + ",";

@@ -76,7 +76,7 @@
 	</automaton>
 
 
-<!--	<property equn='forall i j ((((q[i] == rem) or (q[i] == test) or (q[i] == set) or (q[i] == check) or (q[i] == crit)) and ((q[j] == rem) or (q[j] == test) or (q[j] == set) or (q[j] == check) or (q[j] == crit))) implies x[i] == x[j])' type='safety' /> -->
+<!--	<property equn='forall i j ((((q[i] == rem) or (q[i] == test) or (q[i] == set) or (q[i] == check) or (q[i] == crit)) and ((q[j] == rem) or (q[j] == test) or (q[j] == set) or (q[j] == check) or (q[j] == crit))) implies x[i] == x[j])' type='safety' />
 
 	<property equn='forall i j (x[i] == x[j])' type='safety' />
 	
@@ -84,15 +84,15 @@
 	
 	<property equn='forall i j (x[i] != x[j])' type='safety' />
 
-<!--	<property equn='forall i (q[i] == rem)' type='safety' />
--->
+	<property equn='forall i (q[i] == rem)' type='safety' />
+
 
 	<property equn='forall i (q[i] == test)' type='safety' />
 	<property equn='forall i (q[i] == set)' type='safety' />
 	<property equn='forall i (q[i] == check)' type='safety' />
 	<property equn='forall i (q[i] == crit)' type='safety' />
-<!--	<property equn='forall i (q[i] != rem)' type='safety' />
--->
+	<property equn='forall i (q[i] != rem)' type='safety' />
+
 	<property equn='forall i (q[i] != test)' type='safety' />
 	<property equn='forall i (q[i] != set)' type='safety' />
 	<property equn='forall i (q[i] != check)' type='safety' />
@@ -102,7 +102,9 @@
 	<property equn='forall i ((q[i] == set) implies (x[i] &lt;= last[i]))' type='safety' />
 	<property equn='forall i j ((q[i] == check and g == i and q[j] == set) implies (first[i] &gt; last[j]))' type='safety' />
 	<property equn='forall i j ((q[i] == crit) implies (g == i and q[j] != set))' type='safety' />
-<!-- -->
+-->
+	
+
 	<property equn='forall i j (x[i] == x[j])' type='safety' />
 	<property equn='forall i j ((i != j) implies (q[i] != crit or q[j] != crit))' type='safety' />
 	

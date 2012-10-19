@@ -461,7 +461,23 @@ namespace passel.controller.parsing.math.ast
                     }
 
                 case guardLexer.BOOLEAN:
-                    switch (Boolean.Parse(ast.Text))
+                    String tmp = ast.Text;
+                    // parsed as a real
+                    if (tmp.Contains("."))
+                    {
+                        tmp = tmp.Substring(0, 1);
+                    }
+
+                    if (tmp == "1")
+                    {
+                        tmp = "true";
+                    }
+                    else if (tmp == "0")
+                    {
+                        tmp = "false";
+                    }
+
+                    switch (Boolean.Parse(tmp))
                     {
                         case true:
                             {

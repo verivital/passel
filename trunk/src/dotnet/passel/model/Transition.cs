@@ -25,6 +25,8 @@ namespace passel.model
 
         public BoolExpr TransitionTerm;
 
+        public List<String> Indices = new List<string>();
+
         public ConcreteLocation Parent
         {
             get { return this._parent; }

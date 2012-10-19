@@ -105,6 +105,7 @@ namespace passel.controller.parsing
     {
         destination,
         source,
+        processes,
     };
 
     public enum ActionAttributes
@@ -404,6 +405,8 @@ namespace passel.controller.parsing
                 }
 
                 String loc = reachset.Substring(0, start - 1);
+                loc = loc.Trim();
+                loc = loc.Trim('{', '}', ',');
                 // assume 1st state is for global automaton
 
                 String[] locs = loc.Split('~');
@@ -414,12 +417,21 @@ namespace passel.controller.parsing
 
                 bool locsame = true;
 
+                int globals = 0;
+                if (locs.Contains("default"))
+                {
+                    globals++; // todo: use predicate
+                }
+
                 for (uint i = 0; i < Controller.Instance.IndexNValue; i++)
                 {
                     uint idx = 'i' + i;
+                    locs[i + globals] = locs[i + globals].Replace("{", "");
+                    locs[i + globals] = locs[i + globals].Replace("}", "");
+                    locs[i + globals] = locs[i + globals].Trim();
 
                     //string locstr = "#b" +  Convert.ToString(Controller.Instance.LocationNameToNum[locs[i + 1]], 2).PadLeft((int)Controller.Instance.LocSize, '0'); // convert integer to bitvector string
-                    string locstr = "#b" + Controller.Instance.LocationNameToNum[locs[i + 1]];
+                    string locstr = "#b" + Controller.Instance.LocationNameToNum[locs[i + globals]];
                     if (replaceIndices)
                     {
                         loc += "(q[" + (char)idx + "] == " + locstr + ") && "; // i + 1 to skip global arbiter automaton's state (always listed first)
@@ -433,7 +445,7 @@ namespace passel.controller.parsing
                     exists += (char)idx + " ";
                     if (i >= 1)
                     {
-                        locsame &= locs[i] == locs[i + 1];
+                        locsame &= locs[i] == locs[i + globals];
                     }
                 }
                 loc = loc.Substring(0, loc.Length - 4); // remove last and
@@ -997,9 +1009,11 @@ namespace passel.controller.parsing
                                             {
                                                 String des = reader.GetAttribute(TransitionAttributes.destination.ToString());
                                                 String src = reader.GetAttribute(TransitionAttributes.source.ToString());
+                                                String prs = reader.GetAttribute(TransitionAttributes.processes.ToString());
 
                                                 List<String> dess = new List<String>();
                                                 List<String> srcs = new List<String>();
+                                                List<String> processes = new List<string>();
 
                                                 if (!src.Contains(","))
                                                 {
@@ -1029,6 +1043,9 @@ namespace passel.controller.parsing
                                                     dess = srcs;
                                                 }
 
+                                                t.Indices.Add("h"); // do not have to include h by default, as it is always the process moving
+                                                t.Indices.AddRange(processes); // assume process h always included
+                                                t.Indices = t.Indices.Distinct().ToList(); // ensure distinct
 
                                                 List<AState> from = new List<AState>(); // have to find the frome state as well, because in hyxml syntax, transitions are not associated with locations
                                                 foreach (AState s in h.Locations)
