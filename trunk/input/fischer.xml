@@ -16,7 +16,7 @@
 		<variable name='x[i]' type='real' update_type='Continuous' />
 		
 		<initial equn='(forall i (x[i] = 0.0)) and g = 0' />
-<!-- q[i] = sleeping and  -->
+
 		<mode id='0' name='idle' initial='True'>
 			<dai variable='x[i]' equn='x[i]_dot = 1.0'/>
 		</mode>
