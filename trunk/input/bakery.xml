@@ -1,0 +1,52 @@
+<?xml version="1.0"?>
+
+<holism>
+	<parameter name='N' type='index' comment='' />
+	
+	<variable name='counter' type='integer' update_type='discrete' />
+	
+	<assumption equn='N &gt;= 2' comment='' />
+
+	<automaton name='bakery'>
+		<variable name='ticket[i]' type='index' update_type='Discrete' />
+		
+		<initial equn='(forall i (ticket[i] = 0)) and counter = 0' />
+
+		<mode id='0' name='sleep' initial='True'>
+		</mode>
+		
+		<mode id='1' name='wait' initial='False'>
+		</mode>
+
+		<mode id='2' name='cs' initial='False'>
+		</mode>
+
+
+		<transition source='sleep' destination='wait'>
+			<action equn='ticket[i]&apos; = counter and counter&apos; = counter + 1' />
+		</transition>
+		
+		<transition source='wait' destination='cs'>
+			<!-- j != i in next guard is necessary -->
+			<guard equn='forall j (j != i and (ticket[j] == 0 or ticket[j] &gt; ticket[i]))' />
+			<action equn='ticket[i]&apos; = counter + 1 and counter&apos; = counter + 1' />
+		</transition>
+		
+		<transition source='cs' destination='sleep'>
+			<action equn='ticket[i]&apos; = 0' />
+		</transition>
+
+
+	</automaton>
+	
+<!--
+	<property equn='forall i (q[i] == sleep)' type='safety' comment='' />
+	<property equn='forall i (q[i] == wait)' type='safety' comment='' />
+	<property equn='forall i (q[i] == cs)' type='safety' comment='' />
+
+	<property equn='forall i j (q[i] == wait and q[j] == wait)' type='safety' comment='' />
+-->
+	<property equn='forall i j ((i != j) implies (q[i] != cs or q[j] != cs))' type='safety' comment='' />
+	
+
+</holism>

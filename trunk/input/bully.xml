@@ -1,0 +1,65 @@
+<?xml version="1.0"?>
+
+<holism>
+	<parameter name='N' type='index' comment='' />
+	
+	<parameter name='Tcoord' type='real' />
+	<parameter name='Tdelay' type='real' />
+	<parameter name='Twait' type='real' />
+
+	<assumption equn='N &gt;= 2' comment='' />
+	<assumption equn='Tdelay &lt; Tcoord and Tdelay &lt; Twait and Tcoord &gt; Twait' />
+	<assumption equn='Tdelay &gt; 0.0 and Tcoord &gt; 0.0 and Twait &gt; 0.0' />
+
+	<automaton name='default_automaton'>
+		<variable name='x[i]' type='nnreal' update_type='Continuous' />
+		<variable name='leader[i]' type='index' update_type='discrete' />
+		
+		<initial equn='(forall i (x[i] = 0.0 and leader[i] == 0))' />
+
+		<mode id='0' name='init' initial='True'>
+			<dai variable='x[i]' equn='x[i]_dot = 1.0'/>
+		</mode>
+
+		<mode id='1' name='started' initial='False'>
+			<dai variable='x[i]' equn='x[i]_dot = 1.0'/>
+			<invariant equn='x[i] &lt;= Tcoord'/>
+			<stop equn='x[i] &gt;= Tcoord'/>
+		</mode>
+		
+		<mode id='2' name='waitForCoord' initial='False'>
+			<dai variable='x[i]' equn='x[i]_dot = 1.0'/>
+			<invariant equn='x[i] &lt;= Twait'/>
+			<stop equn='x[i] &gt;= Twait'/>
+		</mode>
+		
+		<mode id='3' name='coord' initial='False'>
+			<dai variable='x[i]' equn='x[i]_dot = 1.0'/>
+		</mode>
+
+		<transition source='init' destination='started'>
+			<action equn='x[i]&apos; = 0.0'/>
+			<uguard equn='((j &gt; i and q[j] == init) implies (q[j]&apos; = started)) and ((j &lt; i and q[j] == started) implies (q[j]&apos; = waitForCoord))' />
+		</transition>
+		
+		<transition source='started' destination='coord'>
+			<action equn='x[i]&apos; = 0.0 and leader[i]&apos; = i'/>
+			<guard equn='x[i] &gt;= Tcoord'/>
+			<uguard equn='leader[j]&apos; = i'/>
+		</transition>
+		
+		<transition source='waitForCoord' destination='started'>
+			<action equn='x[i]&apos; = 0.0'/>
+			<guard equn='x[i] &gt;= Twait'/>
+			<uguard equn='((j &gt; i and q[j] == init) implies (q[j]&apos; = started)) and ((j &lt; i and q[j] == started) implies (q[j]&apos; = waitForCoord))' />
+		</transition>
+		
+	</automaton>
+	
+	
+	<property equn='forall i j ((i != j) implies (q[i] != coord or q[j] != coord))' type='safety' />
+	<property equn='forall i j (leader[i] == leader[j])' type='safety' />
+	<property equn='forall i (leader[i] == 0)' type='safety' />
+
+	
+</holism>

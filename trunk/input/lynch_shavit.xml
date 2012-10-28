@@ -1,0 +1,187 @@
+<?xml version="1.0"?>
+
+<holism>
+	<parameter name='N' type='index' comment='number of processes in the system' />
+	<parameter name='L' type='real' comment='smaller constant' />
+	<parameter name='E' type='real' comment='larger constant' />
+	<parameter name='F' type='real' comment='' />
+	<parameter name='G' type='real' comment='' />
+	
+	<variable name='v' type='index' update_type='Discrete' comment='lock' />
+	<variable name='b' type='integer' update_type='Discrete' comment='lock' />
+	
+	<assumption equn='L &lt;= E and F &lt;= G and L &gt; 0.0 and F &gt;= E' comment='' />
+	<assumption equn='N &gt;= 2 and N &lt;= 4' comment='' />
+
+	<automaton name='default_automaton'>
+		<variable name='x[i]' type='nnreal' update_type='Continuous' />
+		
+		<initial equn='(forall i (x[i] == 0.0)) and v == 0 and b == 0' />
+
+		<mode id='0' name='rem' initial='True'>
+			<dai variable='x[i]' equn='x[i]_dot = 1.0'/>
+		</mode>
+
+		<mode id='1' name='test' initial='False'>
+			<dai variable='x[i]' equn='x[i]_dot = 1.0'/>
+		</mode>
+		
+		<mode id='2' name='set' initial='False'>
+			<dai variable='x[i]' equn='x[i]_dot = 1.0'/>
+		</mode>
+		
+		<mode id='3' name='check' initial='False'>
+			<dai variable='x[i]' equn='x[i]_dot = 1.0'/>
+		</mode>
+		
+		<mode id='4' name='leavetry' initial='False'>
+			<dai variable='x[i]' equn='x[i]_dot = 1.0'/>
+		</mode>
+		
+		<mode id='5' name='crit' initial='False'>
+			<dai variable='x[i]' equn='x[i]_dot = 1.0'/>
+		</mode>
+		
+		<mode id='6' name='' initial='False'>
+			<dai variable='x[i]' equn='x[i]_dot = 1.0'/>
+		</mode>
+		
+		<mode id='7' name='' initial='False'>
+			<dai variable='x[i]' equn='x[i]_dot = 1.0'/>
+		</mode>
+		
+		<mode id='8' name='cs1' initial='False'>
+			<dai variable='x[i]' equn='x[i]_dot = 1.0'/>
+		</mode>
+		
+		<mode id='9' name='cs2' initial='False'>
+			<dai variable='x[i]' equn='x[i]_dot = 1.0'/>
+		</mode>
+		
+		<mode id='10' name='' initial='False'>
+			<dai variable='x[i]' equn='x[i]_dot = 1.0'/>
+		</mode>
+		
+		<mode id='11' name='' initial='False'>
+			<dai variable='x[i]' equn='x[i]_dot = 1.0'/>
+		</mode>
+		
+		<mode id='12' name='' initial='False'>
+			<dai variable='x[i]' equn='x[i]_dot = 1.0'/>
+		</mode>
+		
+		<mode id='13' name='' initial='False'>
+			<dai variable='x[i]' equn='x[i]_dot = 1.0'/>
+		</mode>
+		
+
+		
+		
+		<transition source='0' destination='1'>
+			<action equn='x[i]&apos; = 0.0'/>
+		</transition>
+
+
+		<transition source='1' destination='1'>
+			<guard equn='x[i] &gt;= L and v != 0' />
+			<action equn='x[i]&apos; = 0.0'/>
+		</transition>
+		
+		<transition source='1' destination='2'>
+			<guard equn='x[i] &gt;= L and v == 0' />
+			<action equn='x[i]&apos; = 0.0'/>
+		</transition>
+		
+		<transition source='2' destination='3'>
+			<guard equn='x[i] &gt;= L' />
+			<action equn='x[i]&apos; = 0.0 and v == i'/>
+		</transition>
+
+		<transition source='3' destination='4'>
+			<guard equn='x[i] &gt;= F' />
+			<action equn='x[i]&apos; = 0.0'/>
+		</transition>
+		
+		<transition source='4' destination='1'>
+			<guard equn='x[i] &gt;= L and v != i' />
+			<action equn='x[i]&apos; = 0.0'/>
+		</transition>
+		
+		<transition source='4' destination='5'>
+			<guard equn='x[i] &gt;= L and v == i' />
+			<action equn='x[i]&apos; = 0.0'/>
+		</transition>
+		
+		<transition source='5' destination='1'>
+			<guard equn='x[i] &gt;= L and b == 1' />
+			<action equn='x[i]&apos; = 0.0'/>
+		</transition>
+		
+		<transition source='5' destination='6'>
+			<guard equn='x[i] &gt;= L and b == 0' />
+			<action equn='x[i]&apos; = 0.0'/>
+		</transition>
+		
+		<transition source='6' destination='7'>
+			<guard equn='x[i] &gt;= L' />
+			<action equn='x[i]&apos; = 0.0 and b&apos; = 1'/>
+		</transition>
+		
+		<transition source='7' destination='1'>
+			<guard equn='x[i] &gt;= L and v != i' />
+			<action equn='x[i]&apos; = 0.0'/>
+		</transition>
+		
+		<transition source='7' destination='8'>
+			<guard equn='x[i] &gt;= L and v == i' />
+			<action equn='x[i]&apos; = 0.0'/>
+		</transition>
+		
+		<transition source='8' destination='9'>
+			<action equn='x[i]&apos; = 0.0'/>
+		</transition>
+		
+		<transition source='9' destination='10'>
+			<guard equn='x[i] &gt;= L' />
+			<action equn='x[i]&apos; = 0.0'/>
+		</transition>
+		
+		<transition source='10' destination='11'>
+			<guard equn='x[i] &gt;= L' />
+			<action equn='x[i]&apos; = 0.0 and b&apos; == 0'/>
+		</transition>
+		
+		<transition source='11' destination='12'>
+			<guard equn='x[i] &gt;= L' />
+			<action equn='x[i]&apos; = 0.0 and v&apos; = 0'/>
+		</transition>
+		
+		<transition source='12' destination='1'>
+		</transition>
+
+
+
+	</automaton>
+	
+
+	<property equn='(forall i ((q[i] == 11))) implies (b == 0)' type='safety' />
+	<property equn='(forall i ((q[i] != 0 and q[i] != 12 and q[i] == 11))) implies (b == 0)' type='safety' />
+
+	<property equn='forall i ((q[i] == 11) implies (b == 0))' type='safety' />
+	<property equn='forall i ((q[i] != 0 and q[i] != 12 and q[i] == 11) implies (b == 0))' type='safety' />
+
+
+	<property equn='(forall i ((q[i] == 12))) implies (v == 0 and b == 0)' type='safety' />
+
+
+
+	<property equn='(forall i ((q[i] == 0 or q[i] == 12))) implies (v == 0 and b == 0)' type='safety' />
+	
+	
+	<property equn='forall i ((q[i] != 7 and q[i] != 8 and q[i] != 9 and q[i] != 10) implies (b == 0))' type='safety' />
+
+
+	<property equn='forall i j ((i != j) implies ((q[i] != cs1 and q[i] != cs2) or (q[j] != cs1 and q[j] != cs2)))' type='safety' />
+	
+
+</holism>

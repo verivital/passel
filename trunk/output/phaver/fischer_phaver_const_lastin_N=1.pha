@@ -1,0 +1,53 @@
+REACH_USE_CONVEX_HULL = false; // not possible because of global variables
+REACH_MAX_ITER = 0; 
+REACH_USE_BBOX = false;
+COMPOSE_USE_CONVEX_HULL_FOR_REACH = false;
+COMPOSE_WITH_REACH_MIN = true;
+CHEAP_CONTAIN_RETURN_OTHERS = false;
+
+N := 1;
+a := 11;
+b := 131;
+c := 3;
+d := 3;
+
+automaton agent1
+contr_var : x_1;
+input_var : g,last;
+synclabs :  tau, idlestart1, startcheck1, checkCS1, checkidle1, CSidle1;
+loc idle: while  true  wait {  True  }
+	 when g == 0 sync idlestart1  do {x_1' == 0 }  goto start;
+	 when true sync tau do {g' == g & last' == last & x_1' == x_1} goto idle;
+loc start: while x_1 <= a wait { x_1' >= c & x_1' <= d }
+	 when  true  sync startcheck1  do {g' == 1 & x_1' == 0 }  goto check;
+	 when true sync tau do {g' == g & last' == last & x_1' == x_1} goto start;
+loc check: while  true  wait { x_1' >= c & x_1' <= d }
+	 when g == 1 & x_1 >= b sync checkCS1  do {last' == 1 }  goto CS;
+	 when  ! (g == 1) & x_1 >= b sync checkidle1  do {x_1' == 0 }  goto idle;
+	 when true sync tau do {g' == g & last' == last & x_1' == x_1} goto check;
+loc CS: while  true  wait {  True  }
+	 when  true  sync CSidle1  do {g' == 0 & x_1' == 0 }  goto idle;
+	 when true sync tau do {g' == g & last' == last & x_1' == x_1} goto CS;
+
+initially idle & x_1 == 0;
+
+end
+
+
+automaton global
+contr_var : g,last;
+synclabs: tau, startcheck1, CSidle1;
+loc default: while True wait { g' == 0 & last' == 0}
+	 when True sync tau do { g' == g & last' == last } goto default;
+	 when True sync startcheck1 do { true } goto default;
+	 when True sync CSidle1 do { true } goto default;
+
+initially default & g == 0 & last == 0;
+
+end
+
+sys =  global &  agent1;
+
+sys.print("fischer_phaver_const_lastin_ii_sys_N1", 0);
+reg = sys.reachable;
+reg.print("fischer_phaver_const_lastin_ii_reach_N1", 0);

@@ -32,7 +32,7 @@
 
 	<variable name='last'  type='index' update_type='discrete' comment='global tail pointer variable, where tail is defined as the plane that is last to land' />
 
-	<assumption equn='a = 1.0 and b = 1.0' comment='xdot in [a, b]' />
+	<assumption equn='a = 90.0 and b = 120.0' comment='xdot in [a, b]' />
 	
 <!--
 	<assumption equn='LS &gt; 0.0 and LS == 7.0' comment='the safety spacing is positive' />

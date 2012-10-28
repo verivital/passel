@@ -1,0 +1,109 @@
+<?xml version="1.0"?>
+
+<holism>
+	<parameter name='N' type='index' comment='number of processes in the system' />
+	
+	<variable name='x' type='integer' update_type='Discrete' comment='shared bit' />
+	<variable name='last' type='index' update_type='Discrete' comment='last process to enter critical section' />
+	
+	<assumption equn='N &gt;= 2' comment='' />
+
+	<automaton name='mux-sem-lastin'>
+		<initial equn='x == 1 and last == 0' />
+
+		<mode id='0' name='I' initial='True'>
+		</mode>
+
+		<mode id='1' name='T' initial='False'>
+		</mode>
+		
+		<mode id='2' name='C' initial='False'>
+		</mode>
+		
+		<mode id='3' name='E' initial='False'>
+		</mode>
+		
+		<transition source='I' destination='T'>
+		</transition>
+		
+		<transition source='T' destination='C'>
+			<guard equn='x == 1' />
+			<action equn='x&apos; = 0 and last&apos; = i'/>
+		</transition>
+		
+		<transition source='C' destination='E'>
+		</transition>
+		
+		<transition source='E' destination='I'>
+			<action equn='x&apos; = 1'/>
+		</transition>
+	</automaton>
+
+
+	<property equn='true' type='safety' />
+
+	<!-- <property equn='forall i ((q[i] == C or q[i] == E) iff (x == 0 and last == i))' type='safety' comment='inductive invariant that implies mutual exclusion' /> -->
+	
+	
+	<!-- <property equn='forall i ((q[i] == C or q[i] == E) implies (x == 0 and last == i))' type='safety' comment='smaller inductive invariant that implies mutual exclusion' /> -->
+	
+	<!-- <property equn='forall i (((q[i] == C) implies (x == 0 and last == i)) and ((q[i] == E) implies (x == 0 and last == i)))' type='safety' comment='inductive' /> -->
+	
+	<!-- <property equn='forall i (q[i] == I or q[i] == T or ((q[i] == C) and (x == 0 and last == i)) or ((q[i] == E) and (x == 0 and last == i)))' type='safety' comment='inductive' /> -->
+	
+	<!-- <property equn='forall i (q[i] == I or q[i] == T or ((q[i] == C) and (x == 0 and last == i)) or ((q[i] == E) and (x == 0 and last == i)))' type='safety' comment='inductive' /> -->
+	
+	
+	
+	<!-- <property equn='forall i ((q[i] == I and x == 0) or (q[i] == I and x == 1) or (q[i] == T and x == 0) or (q[i] == T and x == 1) or ((q[i] == C) and (x == 0 and last == i)) or ((q[i] == E) and (x == 0 and last == i)))' type='safety' comment='inductive' /> -->
+	
+	
+	
+	<!-- <property equn='forall i ((q[i] == I and x == 0 and last != i) or (q[i] == I and x == 1 and last != i) or (q[i] == T and x == 0 and last != i) or (q[i] == T and x == 1 and last != i) or ((q[i] == C) and (x == 0 and last == i)) or ((q[i] == E) and (x == 0 and last == i)))' type='safety' comment='NOT inductive' /> -->
+
+	
+	<!-- <property equn='forall i ((x == 0 and last == i) implies (q[i] == C or q[i] == E))' type='safety' comment='unnecessary for mutual exclusion' /> -->
+
+	
+	<!--
+	<property equn='forall i (((q[i] == I) and (x == 1 or x == 0) and (last != i)) or ((q[i] == T) and (x == 1 or x == 0) and (last != i)) or ((q[i] == E) and (x == 0) and (last == i)) or ((q[i] == C) and (x == 0) and (last == i)))' type='safety' comment='inductive invariant that implies mutual exclusion' />
+	
+	<property equn='forall i (((q[i] == I) and (last != i)) or ((q[i] == T) and (last != i)) or ((q[i] == E) and (x == 0) and (last == i)) or ((q[i] == C) and (x == 0) and (last == i)))' type='safety' comment='inductive invariant that implies mutual exclusion' />
+		
+	
+	<property equn='forall i (((q[i] == I) implies (last != i)) and ((q[i] == T) implies (last != i)) and ((q[i] == E) implies ((x == 0) and (last == i))) and ((q[i] == C) implies ((x == 0) and (last == i))))' type='safety' comment='inductive invariant that implies mutual exclusion' />
+	-->
+	
+	
+	<!-- <property equn='forall i (((q[i] == I) and (x == 1) and (last != i)) or ((q[i] == T) and (x == 1) and (last != i)) or ((q[i] == I) and (x == 0) and (last != i)) or ((q[i] == T) and (x == 0) and (last != i)) or ((q[i] == E) and (x == 0) and (last == i)) or ((q[i] == C) and (x == 0) and (last == i)))' type='safety' comment='inductive invariant that implies mutual exclusion' />
+	-->
+<!--
+(q[i] == I and x == 1 and last != i) or
+(q[i] == T and x == 1 and last != i) or
+(q[i] == I and x == 0 and last != i) or
+(q[i] == T and x == 0 and last != i) or
+(q[i] == E and x == 0 and last == i) or
+(q[i] == C and x == 0 and last == i)
+
+
+
+(forall ((i Int))
+  (let ((a!1 (or (and (= x 1) (not (= last 0))) (and (= last 0) (= x 1)))))
+    (or (not (and (>= i 1) (<= i N)))
+        (and (= (q i) #b000) (= last 2) (= x 0))
+        (and (= (q i) #b001) (= last 2) (= x 0))
+        (and (= (q i) #b000) a!1)
+        (and (= (q i) #b001) a!1)
+        (and (= (q i) #b010) (= last 1) (= x 0))
+        (and (= (q i) #b011) (= last 1) (= x 0)))))
+-->
+
+	<property equn='forall i j ((i != j) implies (q[i] != C or q[j] != C))' type='safety' />
+	
+	<property equn='forall i j ((i != j and q[i] == C) implies (q[j] != C))' type='safety' />
+	
+	<property equn='false' type='safety' />
+
+
+
+</holism>

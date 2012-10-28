@@ -1,0 +1,109 @@
+REACH_USE_CONVEX_HULL = false; // not possible because of global variables
+REACH_MAX_ITER = 0; 
+REACH_USE_BBOX = false;
+COMPOSE_USE_CONVEX_HULL_FOR_REACH = false;
+COMPOSE_WITH_REACH_MIN = true;
+CHEAP_CONTAIN_RETURN_OTHERS = false;
+
+N := 3;
+a := 11;
+b := 131;
+c := 3;
+d := 3;
+
+automaton agent1
+contr_var : x_1;
+input_var : g,last;
+synclabs :  tau, idlestart1, startcheck1, checkCS1, checkidle1, CSidle1;
+loc idle: while  true  wait {  True  }
+	 when g == 0 sync idlestart1  do {x_1' == 0 }  goto start;
+	 when true sync tau do {g' == g & last' == last & x_1' == x_1} goto idle;
+loc start: while x_1 <= a wait { x_1' >= c & x_1' <= d }
+	 when  true  sync startcheck1  do {g' == 1 & x_1' == 0 }  goto check;
+	 when true sync tau do {g' == g & last' == last & x_1' == x_1} goto start;
+loc check: while  true  wait { x_1' >= c & x_1' <= d }
+	 when g == 1 & x_1 >= b sync checkCS1  do {last' == 1 }  goto CS;
+	 when  ! (g == 1) & x_1 >= b sync checkidle1  do {x_1' == 0 }  goto idle;
+	 when true sync tau do {g' == g & last' == last & x_1' == x_1} goto check;
+loc CS: while  true  wait {  True  }
+	 when  true  sync CSidle1  do {g' == 0 & x_1' == 0 }  goto idle;
+	 when true sync tau do {g' == g & last' == last & x_1' == x_1} goto CS;
+
+initially idle & x_1 == 0;
+
+end
+
+automaton agent2
+contr_var : x_2;
+input_var : g,last;
+synclabs :  tau, idlestart2, startcheck2, checkCS2, checkidle2, CSidle2;
+loc idle: while  true  wait {  True  }
+	 when g == 0 sync idlestart2  do {x_2' == 0 }  goto start;
+	 when true sync tau do {g' == g & last' == last & x_2' == x_2} goto idle;
+loc start: while x_2 <= a wait { x_2' >= c & x_2' <= d }
+	 when  true  sync startcheck2  do {g' == 2 & x_2' == 0 }  goto check;
+	 when true sync tau do {g' == g & last' == last & x_2' == x_2} goto start;
+loc check: while  true  wait { x_2' >= c & x_2' <= d }
+	 when g == 2 & x_2 >= b sync checkCS2  do {last' == 2 }  goto CS;
+	 when  ! (g == 2) & x_2 >= b sync checkidle2  do {x_2' == 0 }  goto idle;
+	 when true sync tau do {g' == g & last' == last & x_2' == x_2} goto check;
+loc CS: while  true  wait {  True  }
+	 when  true  sync CSidle2  do {g' == 0 & x_2' == 0 }  goto idle;
+	 when true sync tau do {g' == g & last' == last & x_2' == x_2} goto CS;
+
+initially idle & x_2 == 0;
+
+end
+
+automaton agent3
+contr_var : x_3;
+input_var : g,last;
+synclabs :  tau, idlestart3, startcheck3, checkCS3, checkidle3, CSidle3;
+loc idle: while  true  wait {  True  }
+	 when g == 0 sync idlestart3  do {x_3' == 0 }  goto start;
+	 when true sync tau do {g' == g & last' == last & x_3' == x_3} goto idle;
+loc start: while x_3 <= a wait { x_3' >= c & x_3' <= d }
+	 when  true  sync startcheck3  do {g' == 3 & x_3' == 0 }  goto check;
+	 when true sync tau do {g' == g & last' == last & x_3' == x_3} goto start;
+loc check: while  true  wait { x_3' >= c & x_3' <= d }
+	 when g == 3 & x_3 >= b sync checkCS3  do {last' == 3 }  goto CS;
+	 when  ! (g == 3) & x_3 >= b sync checkidle3  do {x_3' == 0 }  goto idle;
+	 when true sync tau do {g' == g & last' == last & x_3' == x_3} goto check;
+loc CS: while  true  wait {  True  }
+	 when  true  sync CSidle3  do {g' == 0 & x_3' == 0 }  goto idle;
+	 when true sync tau do {g' == g & last' == last & x_3' == x_3} goto CS;
+
+initially idle & x_3 == 0;
+
+end
+
+automaton global
+contr_var : g,last;
+synclabs: tau, startcheck1, startcheck2, startcheck3, CSidle1, CSidle2, CSidle3;
+loc default: while True wait { g' == 0 & last' == 0}
+	 when True sync tau do { g' == g & last' == last } goto default;
+	 when True sync startcheck1 do { true } goto default;
+	 when True sync startcheck2 do { true } goto default;
+	 when True sync startcheck3 do { true } goto default;
+	 when True sync CSidle1 do { true } goto default;
+	 when True sync CSidle2 do { true } goto default;
+	 when True sync CSidle3 do { true } goto default;
+
+
+initially default & g == 0 & last == 0;
+
+end
+
+sys =  global &  agent1 &  agent2 & agent3;
+
+sys.print("fischer_phaver_const_lastin_ii_sys_N3", 0);
+reg = sys.reachable;
+reg.print("fischer_phaver_const_lastin_ii_reach_N3", 0);
+forbidden = sys.{$~CS~CS~$ & True, $~CS~$~CS & True, $~$~CS~CS & True};
+reg.intersection_assign(forbidden);
+echo "";
+echo "Reachable forbidden states:";
+reg.print("fischer_phaver_const_lastin_ii_reach_bad", 0);
+echo "";
+echo "Reachable forbidden states empty?";
+reg.is_empty;

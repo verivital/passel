@@ -1,0 +1,116 @@
+<?xml version="1.0"?>
+
+<!--
+Source: Arons et al, 2001 CAV
+
+Notes: The version described in the citation is actually antisymmetric (apparently) and would assume initially token = i, for some arbitrary process i (e.g., token = 1 initially).
+The version described here is symmetric and assumes token = \bot initially, and uses modified transitions (particularly, from idle to waiting, token may either be \bot (0) or i, not just i, as in the citation).
+If the antisymmetric version is used, our implementation of the invisible invariants method fails, because the set of reachable states is NOT symmetric (e.g., it is always the case that when all states are in the idle state, that token = 1, assuming the initial condition was token = 1).
+-->
+
+<holism>
+	<parameter name='N' type='index' comment='number of processes in the system' />
+
+	<variable name='token' type='index' update_type='Discrete' comment='process index that has the token; must be equal to an arbitrary process id initially' />
+	
+	<assumption equn='N &gt;= 2' comment='' />
+
+	<automaton name='token-ring'>		
+		<initial equn='token == 0' />
+
+		<mode id='0' name='idle' initial='True'>
+		</mode>
+
+		<mode id='1' name='waiting' initial='False'>
+		</mode>
+		
+		<mode id='2' name='cs' initial='False'>
+		</mode>
+		
+		<!-- version using mod (incompatible with PHAVer) -->
+		<transition source='idle' destination='waiting'>
+			<guard equn='token == 0 or token == i' />
+			<action equn='token&apos; = (i % N) + 1'/>
+		</transition>
+		
+		
+		<!-- version using two transitions instead of mod (needed for compatibility with PHAVer)
+		<transition source='idle' destination='waiting'>
+			<guard equn='(token == 0 or token == i) and i &gt;= N' />
+			<action equn='token&apos; = 1'/>
+		</transition>
+		
+		<transition source='idle' destination='waiting'>
+			<guard equn='(token == 0 or token == i) and i &lt; N' />
+			<action equn='token&apos; = i + 1'/>
+		</transition>
+		-->
+		
+		<transition source='waiting' destination='cs'>
+			<guard equn='token == i' />
+		</transition>
+		
+		<transition source='cs' destination='idle'>
+		</transition>
+
+	</automaton>
+
+
+	<property equn='true' type='safety' />
+
+	<!-- <property equn='forall i ((q[i] == cs) implies (token == i))' type='safety' comment='inductive invariant that implies mutual exclusion' /> -->
+
+	<property equn='forall i j ((i != j) implies (q[i] != cs or q[j] != cs))' type='safety' />
+	
+	<property equn='forall i j ((i != j and q[i] == cs) implies (q[j] != cs))' type='safety' />
+	
+	<property equn='false' type='safety' />
+
+	
+	
+	<!--
+	<property equn='forall i j ((i != j) implies ((q[i] == waiting and q[j] == waiting) or   (q[i] == idle and q[j] == idle) or  (q[i] == idle and q[j] == idle and token == i) or  (q[i] == idle and q[j] == waiting and token == i) or  (q[i] == cs and q[j] == idle and token == i) or  (q[i] == waiting and q[j] == cs and token == j) or  (q[i] == cs and q[j] == waiting and token == i) or  (q[i] == waiting and q[j] == idle and (token == i or token == j))))' type='safety' />
+	-->
+	
+<!--
+
+	<property equn='forall i j ((i != j) implies () )
+      (q[i] == waiting and q[j] == waiting) or
+      (q[i] == idle and q[j] == idle) or
+      (q[i] == idle and q[j] == idle and token == i) or
+      (q[i] == idle and q[j] == waiting and token == i) or
+      (q[i] == cs and q[j] == idle and token == i) or
+      (q[i] == waiting and q[j] == cs and token == j) or
+      (q[i] == cs and q[j] == waiting and token == i) or
+      (q[i] == waiting and q[j] == idle and (token == i or token == j))' type='safety' />
+
+
+
+(forall ((i Int) (j Int))
+  (or (not (and (>= i 1) (<= i N) (>= j 1) (<= j N) (not (= i j))))
+      (and (= (q i) waiting) (= (q j) waiting))
+      
+      
+      
+      
+      (and (= (q i) idle) (= (q j) idle))
+      (and (= (q i) idle) (= (q j) idle) (= token i))
+      
+      
+      
+      
+      (and (= (q i) waiting) (= (q j) idle) (or (= token j) (= token i)))
+      (and (= (q i) waiting) (= (q j) idle) (= token j))
+      
+      (and (= (q i) idle) (= (q j) waiting) (= token i))
+
+      
+      (and (= (q i) cs) (= (q j) idle) (= token i))
+
+      
+      (and (= (q i) waiting) (= (q j) cs) (= token j))
+      (and (= (q i) cs) (= (q j) waiting) (= token i))))
+-->
+      
+
+</holism>

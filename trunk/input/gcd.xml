@@ -1,0 +1,31 @@
+<?xml version="1.0"?>
+
+<holism>
+	<parameter name='N' type='index' comment='number of processes in the system' />
+	
+	<variable name='y1' type='integer' update_type='Discrete' comment='' />
+	<variable name='y2' type='integer' update_type='Discrete' comment='' />
+
+	<assumption equn='N &gt;= 2 and N &lt;= 100' comment='' />
+
+	<automaton name='default_automaton'>
+		<initial equn='y1 &gt;= 1 and y2 &gt;= 1' />
+
+		<mode id='0' name='dummy' initial='false'>
+		</mode>
+		
+		
+		<transition source='dummy' destination='dummy'>
+			<guard equn='y1 &gt;= y2 + 1' />
+			<action equn='y1&apos; = y1 - y2'/>
+		</transition>
+		
+		<transition source='dummy' destination='dummy'>
+			<guard equn='y2 &gt;= y1 + 1' />
+			<action equn='y2&apos; = y2 - y1'/>
+		</transition>
+	</automaton>
+	
+	<property type='termination' template='affine' />
+
+</holism>

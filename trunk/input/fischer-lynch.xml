@@ -1,0 +1,55 @@
+<?xml version="1.0"?>
+
+<!-- Source: Lynch book, p. 777: bisimilar discrete version of Fischer -->
+
+<holism>
+	<parameter name='N' type='index' comment='number of processes in the system' />
+	
+	<variable name='turn' type='index' update_type='Discrete' comment='lock' />
+	
+	<assumption equn='N &gt;= 2' comment='' />
+
+	<automaton name='fischer-lynch'>		
+		<initial equn='turn = 0' />
+
+
+		<mode id='0' name='rem' initial='True'>
+		</mode>
+
+		<mode id='1' name='set' initial='False'>
+		</mode>
+		
+		<mode id='2' name='check' initial='False'>
+		</mode>
+		
+		<mode id='3' name='crit' initial='False'>
+		</mode>
+		
+		<transition source='rem' destination='start'>
+			<guard equn='turn == 0' />
+		</transition>
+		
+		<transition source='set' destination='check'>
+			<action equn='turn&apos; = i'/>
+		</transition>
+		
+		<transition source='check' destination='rem'>
+			<guard equn='turn != i' />
+		</transition>
+		
+		<transition source='check' destination='crit'>
+			<guard equn='turn == i' />
+		</transition>
+		
+		<transition source='crit' destination='rem'>
+			<action equn='turn&apos; = 0'/>
+		</transition>
+
+
+	</automaton>
+
+
+	<property equn='forall i j ((i != j) implies (q[i] != crit or q[j] != crit))' type='safety' />
+	
+
+</holism>

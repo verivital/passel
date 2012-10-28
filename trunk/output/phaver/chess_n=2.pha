@@ -1,0 +1,101 @@
+REACH_USE_CONVEX_HULL = false; // not possible because of global variables
+REACH_MAX_ITER = 0; 
+REACH_USE_BBOX = false;
+COMPOSE_USE_CONVEX_HULL_FOR_REACH = false;
+COMPOSE_WITH_REACH_MIN = true;
+CHEAP_CONTAIN_RETURN_OTHERS = false;
+
+N := 2;
+
+//number of slots within one frame
+C := 6;
+
+//number of active slots within one frame; we assume N <= n <= C
+n := 4;
+
+//number of clock cycles per slot
+k0 := 21; // was 21
+
+//guard time; we assume 0 < g and 2g < k0
+g := 10; // was 10
+
+//tail time; we assume t>0 and g+t+2 <= k0
+t := 2;
+
+//minimal time  between two clock ticks; we assume 0< min
+min := 30; // was 30
+
+//maximal time  between two clock ticks; we assume min<= max
+max := 31;
+
+//transmission slot number; we assume each node has unique active slot tsn[i] in which it transmits
+// const int[0,n-1] tsn[Nodes] = {0,1,2};
+tsn0 = 0;
+tsn1 = 1;
+
+, clk_1, csn_1
+
+automaton clock1
+contr_var : x_1;
+//hardware clock of a node; to keep state space tractable: we assume clocks are reset at the end of each slot
+// int[0,k0-1] clk[Nodes];
+//current slot number of a node
+// int[0,C-1] csn[Nodes]; 
+input_var : clk_1, csn_1;
+synclabs :  tau;
+loc X0: while x_1 <= max wait { x_1' == 1 }
+	 when x_1 >= min sync tick1  do {x_1' == 0 & clk_1 == clk_1 + 1 }  goto X0;
+	 when true sync tau do {x_1' == x_1 & clk_1' == clk_1 & csn_1' == csn_1} goto X0;
+
+initially X0 & x_1 == 0;
+
+end
+
+automaton agent2
+contr_var : x_2;
+input_var : g;
+synclabs :  tau, IT2, TC2, CE2, EI2;
+loc I: while true wait { x_2' == 1 }
+	 when g == 0 & x_2 >= 1 sync IT2  do {g' == 2 & x_2' == 0 }  goto T;
+	 when true sync tau do {g' == g & x_2' == x_2} goto I;
+loc T: while true wait {  x_2' == 1  }
+	 when g == 2 & x_2 >= 1 sync TC2  do {x_2' == 0 }  goto C;
+	 when true sync tau do {g' == g & x_2' == x_2} goto T;
+loc C: while true wait {  x_2' == 1  }
+	 when x_2 >= 1 sync CE2  do {x_2' == 0 }  goto E;
+	 when true sync tau do {g' == g & x_2' == x_2} goto C;
+loc E: while true wait {  x_2' == 1  }
+	 when x_2 >= 1 sync EI2  do {g' == 0 & x_2' == 0 }  goto I;
+	 when true sync tau do {g' == g & x_2' == x_2} goto E;
+
+initially I & x_2 == 0;
+
+end
+
+automaton global
+contr_var : g;
+synclabs: tau,IT1,EI1,IT2,EI2;
+loc default: while True wait { g' == 0}
+	 when True sync tau do { g' == g } goto default;
+	 when True sync IT1 do { true } goto default;
+	 when True sync EI1 do { true } goto default;
+	 when True sync IT2 do { true } goto default;
+	 when True sync EI2 do { true } goto default;
+
+initially default & g == 0;
+
+end
+
+sys =  global &  agent1 &  agent2;
+
+sys.print("mux-index-ta_ii_sys_N2", 0);
+reg = sys.reachable;
+reg.print("mux-index-ta_ii_reach_N2", 0);
+forbidden = sys.{$~crit~crit & True};
+reg.intersection_assign(forbidden);
+echo "";
+echo "Reachable forbidden states:";
+reg.print("mux-index-ta_ii_reach_bad_N2", 0);
+echo "";
+echo "Reachable forbidden states empty?";
+reg.is_empty;

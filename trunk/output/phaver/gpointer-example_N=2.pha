@@ -1,0 +1,82 @@
+REACH_USE_CONVEX_HULL = false; // not possible because of global variables
+REACH_MAX_ITER = 0; 
+REACH_USE_BBOX = false;
+COMPOSE_USE_CONVEX_HULL_FOR_REACH = false;
+COMPOSE_WITH_REACH_MIN = true;
+CHEAP_CONTAIN_RETURN_OTHERS = false;
+
+N := 1;
+a := 1;
+b := 2;
+L := 5;
+H := 30;
+
+automaton agent1
+contr_var : x_1;
+input_var : g;
+synclabs :  tau, offon1, onoff1, onoff11;
+loc off: while  true  wait { x_1' == 0 }
+	 when  true  sync offon1  do {x_1' == L & g' == 1 }  goto on;
+	 when true sync tau do {g' == g & x_1' == x_1} goto off;
+loc on: while x_1 < H wait { x_1' >= a & x_1' <= b }
+	 when (x_1 >= H) & (g == 1) &  ! (H <= x_1) sync onoff1  do {x_1' == 0 & g' == 0 }  goto off;
+	 when (x_1 >= H) &  ! (g == 1) &  ! (H <= x_1) sync onoff11  do {x_1' == 0 & g' == g }  goto off;
+	 when true sync tau do {g' == g & x_1' == x_1} goto on;
+
+initially off & x_1 == 0;
+
+end
+
+automaton agent2
+contr_var : x_2;
+input_var : g;
+synclabs :  tau, offon2, onoff2, onoff21;
+loc off: while  true  wait { x_2' == 0 }
+	 when  true  sync offon2  do {x_2' == L & g' == 2 }  goto on;
+	 when true sync tau do {g' == g & x_2' == x_2} goto off;
+loc on: while x_2 < H wait { x_2' >= a & x_2' <= b }
+	 when (x_2 >= H) & (g == 2) &  ! (H <= x_2) sync onoff2  do {x_2' == 0 & g' == 0 }  goto off;
+	 when (x_2 >= H) &  ! (g == 2) &  ! (H <= x_2) sync onoff21  do {x_2' == 0 & g' == g }  goto off;
+	 when true sync tau do {g' == g & x_2' == x_2} goto on;
+
+initially off & x_2 == 0;
+
+end
+
+automaton global
+contr_var : g;
+synclabs: tau,offon1,onoff1,offon2,onoff2;
+loc default: while True wait { g' == 0}
+	 when True sync tau do { g' == g } goto default;
+	 when True sync offon1 do { true } goto default;
+	 when True sync onoff1 do { true } goto default;
+	 when True sync offon2 do { true } goto default;
+	 when True sync onoff2 do { true } goto default;
+
+initially default & g == 0;
+
+end
+
+sys =  global &  agent1 &  agent2;
+
+sys.print("gpointer-example_ii_sys_N2", 0);
+reg = sys.reachable;
+reg.print("gpointer-example_ii_reach_N2", 0);
+regm11 = reg;
+regm11.project_to(x_1,g);
+regm11.print("gpointer-example_ii_reach_N2projected11", 0);
+regm12 = reg;
+regm12.project_to(x_1,x_2,g);
+regm12.print("gpointer-example_ii_reach_N2projected12", 0);
+regm21 = reg;
+regm21.project_to(x_2,g);
+regm21.print("gpointer-example_ii_reach_N2projected21", 0);
+reg.print("gpointer-example_ii_reach_N2", 0);
+forbidden = sys.{$~crit~crit & True};
+reg.intersection_assign(forbidden);
+echo "";
+echo "Reachable forbidden states:";
+reg.print("gpointer-example_ii_reach_bad", 0);
+echo "";
+echo "Reachable forbidden states empty?";
+reg.is_empty;

@@ -442,7 +442,7 @@ namespace passel.controller.smt.z3
         /**
          * abstract global indexed variables
          */
-        public Expr abstractGlobals(Expr f, int N, int projectN, int i, int j)
+        public Expr abstractGlobals(Expr f, uint N, uint projectN, uint i, uint j)
         {
             // TODO: SPECIAL CARE MUST BE TAKEN DEFINITELY FOR INDEX-VALUED GLOBAL VARIABLES, AND POSSIBLY ALSO FOR INDEXED CONTROL LOCATION VARIABLES....
 
@@ -661,7 +661,7 @@ namespace passel.controller.smt.z3
          * 
          * Assumes original term has already been projected onto a small instance
          */
-        public void generalizeAllVariables(ref Expr origReplaced, int N)
+        public void generalizeAllVariables(ref Expr origReplaced, uint N)
         {/*
             if (origReplaced.IsOr)
             {
@@ -1324,7 +1324,7 @@ namespace passel.controller.smt.z3
          * Print a term as a latex string
          */
         
-        public String ToStringFormatted(Expr t, PrintFormatMode o)
+        public String ToStringFormatted(Expr t, PrintFormatMode o, bool paren = false)
         {
             if (t == null)
             {
@@ -1382,7 +1382,16 @@ namespace passel.controller.smt.z3
                         //s += " : " + this.ToStringFormatted(q.Body.GetAppArgs()[1], o); // hack to avoid printing the indexing assumption
                         if (b.Args.Length >= 2)
                         {
-                            s += " : " + this.ToStringFormatted(b.Args[1], o);
+                            s += " : ";
+                            if (paren)
+                            {
+                                s += "(";
+                            }
+                            s += this.ToStringFormatted(b.Args[1], o, paren);
+                            if (paren)
+                            {
+                                s += ")"; // todo: parenthesis based on arg
+                            }
                         }
                         break;
                     }
@@ -1415,7 +1424,7 @@ namespace passel.controller.smt.z3
                                     case Z3_decl_kind.Z3_OP_UNINTERPRETED:
                                         {
                                             tmp = t.FuncDecl.Name.ToString();
-                                            tmp += "[" + this.ToStringFormatted(args[0], o) + "]"; // we do a string replace using brackets for phaver output
+                                            tmp += "[" + this.ToStringFormatted(args[0], o, paren) + "]"; // we do a string replace using brackets for phaver output
                                             // todo: check generality
                                             if (tmp.Contains(Controller.PRIME_SUFFIX))
                                             {
@@ -1432,13 +1441,31 @@ namespace passel.controller.smt.z3
                                             {
                                                 case PrintFormatMode.phaver:
                                                     {
-                                                        s += " ! (" + this.ToStringFormatted(args[0], o) + ")";
+                                                        s += " ! ";
+                                                        if (paren)
+                                                        {
+                                                            s += "(";
+                                                        }
+                                                        s += this.ToStringFormatted(args[0], o, paren);
+                                                        if (paren)
+                                                        {
+                                                            s += ")";
+                                                        }
                                                         break;
                                                     }
                                                 case PrintFormatMode.latex: // pass through
                                                 default:
                                                     {
-                                                        s += " \\neg " + this.ToStringFormatted(args[0], o);
+                                                        s += " \\neg";
+                                                        if (paren)
+                                                        {
+                                                            s += "(";
+                                                        }
+                                                        s += this.ToStringFormatted(args[0], o, paren);
+                                                        if (paren)
+                                                        {
+                                                            s += ")";
+                                                        }
                                                         break;
                                                     }
                                             }
@@ -1448,12 +1475,12 @@ namespace passel.controller.smt.z3
                                     case Z3_decl_kind.Z3_OP_UMINUS:
                                     case Z3_decl_kind.Z3_OP_SUB:
                                         {
-                                            s += " - " + this.ToStringFormatted(args[0], o);
+                                            s += " - (" + this.ToStringFormatted(args[0], o, paren) + ")";
                                             break;
                                         }
                                     default:
                                         {
-                                            s += this.ToStringFormatted(args[0], o);
+                                            s += this.ToStringFormatted(args[0], o, paren);
                                             break;
                                         }
                                 }
@@ -1472,7 +1499,14 @@ namespace passel.controller.smt.z3
                                     }
                                     else
                                     {
-                                        s += this.ToStringFormatted(args[i], o);
+                                        if (args[i].NumArgs > 1 && paren)
+                                        {
+                                            s += "(" + this.ToStringFormatted(args[i], o, paren) + ")";
+                                        }
+                                        else
+                                        {
+                                            s += this.ToStringFormatted(args[i], o, paren);
+                                        }
                                     }
 
                                     if (i < args.Length - 1)

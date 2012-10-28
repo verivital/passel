@@ -1,0 +1,165 @@
+REACH_USE_CONVEX_HULL = false; // not possible because of global variables
+REACH_MAX_ITER = 0; 
+REACH_USE_BBOX = false;
+COMPOSE_USE_CONVEX_HULL_FOR_REACH = false;
+COMPOSE_WITH_REACH_MIN = true;
+CHEAP_CONTAIN_RETURN_OTHERS = false;
+
+N := 2;
+LB := 5 + 10 + 13;
+LS := 7;
+a := 90;
+b := 120;
+LGUARD := LS + (b - a) * ((LB - LS) / a);
+
+
+automaton agent1
+contr_var : x_1,next_1;
+input_var : last,x_2,next_2;
+synclabs :  tau, FlyHolding1, HoldingBase1, BaseHolding1, BaseLand1;
+loc Fly: while  true  wait { x_1' == 0 & next_1' == 0 }
+	 when next_1 == 0 sync FlyHolding1  do {x_1' == 0 & next_1' == last & last' == 1 }  goto Holding;
+	 when true sync tau do {last' == last & x_1' == x_1 & next_1' == next_1} goto Fly;
+loc Holding: while  true  wait { x_1' == 0 & next_1' == 0 }
+	 when next_1 == 0  sync HoldingBase1  do {x_1' == 0 & last' == last & next_1' == next_1 }  goto Base;
+	 when !(next_1 == 0) & next_1 == 2 & x_2 >= LGUARD sync HoldingBase1  do {x_1' == 0 & last' == last & next_1' == next_1 }  goto Base;
+	 when true sync tau do {last' == last & x_1' == x_1 & next_1' == next_1} goto Holding;
+loc Base: while x_1 <= LB wait { x_1' >= a & x_1' <= b & next_1' == 0 }
+	 //not possible: when x_1 >= LB & next_1 == 0 & last == 1 & next_2 == 1 sync BaseHolding1  do {x_1' == 0 & next_1' == 0 & last' == 1 & next_2' == 0}  goto Holding;
+	 when x_1 >= LB & next_1 == 0 & last == 1 sync BaseHolding1  do {x_1' == 0 & next_1' == 0 & last' == 1}  goto Holding;
+	 
+	 when x_1 >= LB & next_1 == 0 & !(last == 1) & !(next_2 == 1)  sync BaseHolding1  do {x_1' == 0 & next_1' == last & last' == 1 & next_2' == next_2}  goto Holding;
+	 when x_1 >= LB & next_1 == 0 & !(last == 1) & next_2 == 1     sync BaseHolding1  do {x_1' == 0 & next_1' == last & last' == 1 & next_2' == 0}  goto Holding;
+	 
+	 
+	 when x_1 >= LB & next_1 == 0 & !(last == 1) & !(next_2 == 1)  sync BaseLand1  do {x_1' == 0 & next_1' == 0 & last' == last & next_2' == next_2 }  goto Land;
+	 when x_1 >= LB & next_1 == 0 & !(last == 1) & next_2 == 1     sync BaseLand1  do {x_1' == 0 & next_1' == 0 & last' == last & next_2' == 0 }  goto Land;
+	 
+	 
+	 when x_1 >= LB & next_1 == 0 & (last == 1) sync BaseLand1  do {x_1' == 0 & next_1' == 0 & last' == 0 }  goto Land;
+	 
+	 when true sync tau do {last' == last & x_1' == x_1 & next_1' == next_1} goto Base;
+loc Land: while  true  wait { x_1' == 0 & next_1' == 0 };
+
+initially Fly & x_1 == 0 & next_1 == 0;
+
+end
+
+automaton agent2
+contr_var : x_2,next_2;
+input_var : last,x_1,next_1;
+synclabs :  tau, FlyHolding2, HoldingBase2, BaseHolding2, BaseLand2;
+loc Fly: while  true  wait { x_2' == 0 & next_2' == 0 }
+	 when next_2 == 0 sync FlyHolding2  do {x_2' == 0 & next_2' == last & last' == 2 }  goto Holding;
+	 when true sync tau do {last' == last & x_2' == x_2 & next_2' == next_2} goto Fly;
+loc Holding: while  true  wait { x_2' == 0 & next_2' == 0 }
+	 when next_2 == 0  sync HoldingBase2  do {x_2' == 0 & last' == last & next_2' == next_2 }  goto Base;
+	 when !(next_2 == 0) & next_2 == 1 & x_1 >= LGUARD sync HoldingBase2  do {x_2' == 0 & last' == last & next_2' == next_2 }  goto Base;
+	 when true sync tau do {last' == last & x_2' == x_2 & next_2' == next_2} goto Holding;
+loc Base: while x_2 <= LB wait { x_2' >= a & x_2' <= b & next_2' == 0 }
+	 //when x_2 >= LB & next_2 == 0 sync BaseHolding2  do {x_2' == 0 & last == 2 ite next_2' == 0 ite next_2' == last & last' == 2 }  goto Holding;
+	 //when x_2 >= LB & next_2 == 0 sync BaseLand2  do {x_2' == 0 & next_2' == 0 & last == 2 ite last' == 0 ite last' == last }  goto Land;
+	 //when true sync tau do {last' == last & x_2' == x_2 & next_2' == next_2} goto Base;
+	 
+	 when x_2 >= LB & next_2 == 0 & last == 2 sync BaseHolding2  do {x_2' == 0 & next_2' == 0 & last' == 2}  goto Holding;
+	 
+	 when x_2 >= LB & next_2 == 0 & !(last == 2) & !(next_1 == 2)  sync BaseHolding2  do {x_2' == 0 & next_2' == last & last' == 2 & next_1' == next_1}  goto Holding;
+	 when x_2 >= LB & next_2 == 0 & !(last == 2) & next_1 == 2     sync BaseHolding2  do {x_2' == 0 & next_2' == last & last' == 2 & next_1' == 0}  goto Holding;
+	 
+	 
+	 when x_2 >= LB & next_2 == 0 & !(last == 2) & !(next_1 == 2)  sync BaseLand2  do {x_2' == 0 & next_2' == 0 & last' == last & next_1' == next_1 }  goto Land;
+	 when x_2 >= LB & next_2 == 0 & !(last == 2) & next_1 == 2     sync BaseLand2  do {x_2' == 0 & next_2' == 0 & last' == last & next_1' == 0 }  goto Land;
+	 
+	 
+	 when x_2 >= LB & next_2 == 0 & (last == 2) sync BaseLand2  do {x_2' == 0 & next_2' == 0 & last' == 0 }  goto Land;
+	 
+	 
+	 
+loc Land: while  true  wait { x_2' == 0 & next_2' == 0 };
+
+initially Fly & x_2 == 0 & next_2 == 0;
+
+end
+
+automaton global
+contr_var : last;
+synclabs: tau,FlyHolding1,BaseHolding1,BaseLand1,FlyHolding2,BaseHolding2,BaseLand2;
+loc default: while True wait { last' == 0}
+	 when True sync tau do { last' == last } goto default;
+	 when True sync FlyHolding1 do { true } goto default;
+	 when True sync BaseHolding1 do { true } goto default;
+	 when True sync BaseLand1 do { true } goto default;
+	 when True sync FlyHolding2 do { true } goto default;
+	 when True sync BaseHolding2 do { true } goto default;
+	 when True sync BaseLand2 do { true } goto default;
+
+initially default & last == 0;
+//initially default & (last == 1 or last == 2);
+
+end
+
+sys =  global &  agent1 &  agent2;
+
+
+//sys.reverse;
+
+
+
+sys.print("sats_ii_sys_N2", 0);
+
+
+reg = sys.reachable;
+regc = reg;
+reg.print("sats_ii_reach_N2", 0);
+
+forbidden = sys.{$~Base~Base & True};
+reg.intersection_assign(forbidden);
+echo "";
+echo "Reachable forbidden states:";
+reg.print("sats_ii_reach_bad", 0);
+echo "";
+echo "1,2 base?";
+reg.is_empty;
+
+reg = regc;
+
+
+forbidden = sys.{$~$~$ & (next_1 > 0 | next_2 > 0) & ( (next_1 == next_2) )};
+reg.intersection_assign(forbidden);
+echo "";
+echo "Reachable forbidden states:";
+reg.print("sats_ii_reach_bad", 0);
+echo "";
+echo "cycle found?";
+reg.is_empty;
+
+reg = regc;
+
+
+
+forbidden = sys.{$~Base~Base & ( (next_2 == 1 & (x_1 - x_2 < LS)) | (next_1 == 2 & (x_2 - x_1 < LS)) )};
+
+/*
+bad_states = sys.{$~Base~Base & ( (next_2 == 1 & (x_1 - x_2 < LS)) | (next_1 == 2 & (x_2 - x_1 < LS)) )};
+
+init_states = sys.initial_states;
+
+sys.initial_states(bad_states); // change to start from bad
+*/
+
+
+
+
+//reg.print("sats_ii_reach_N2", 0);
+
+
+reg.intersection_assign(forbidden);
+
+//reg.intersection_assign(init_states);
+
+echo "";
+echo "Reachable forbidden states:";
+reg.print("sats_ii_reach_bad", 0);
+echo "";
+echo "Reachable forbidden states empty?";
+reg.is_empty;

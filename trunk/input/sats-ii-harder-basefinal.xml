@@ -1,0 +1,80 @@
+<?xml version="1.0"?>
+
+<holism>
+	<parameter name='N' assumption='N &gt;= 1' type='index' comment='number of processes in the system' />
+	<parameter name='LB' assumption='LB == (5.0)' type='real' comment='' />
+	<parameter name='LF' assumption='LF == (10.0 + 13.0)' type='real' comment='smaller constant' />
+	<parameter name='LTOTAL' assumption='LTOTAL = LB + LF' type='real' comment='' />
+	<parameter name='LS' assumption='LS == 7.0' type='real' comment='larger constant' />
+	<parameter name='a' assumption='a == 90.0' type='real' comment='lower bound on rectangular dynamics' />
+	<parameter name='b' assumption='b == 120.0' type='real' comment='upper bound on rectangular dynamics' />	
+	<parameter name='LGUARD' assumption='LGUARD == LS + (b - a) * ((LTOTAL - LS) / a)' type='real' comment='larger constant' />
+
+	<automaton name='sats-ii-harder-basefinal'>
+		<variable name='x[i]' type='nnreal' update_type='Continuous' />
+		<variable name='b[i]' type='integer' update_type='Discrete' />
+		
+		<initial equn='(forall i (x[i] == 0.0 and b[i] == 0))' />
+
+		<mode id='0' name='fly' initial='True'>
+			<dai variable='x[i]' equn='x[i]_dot = 0.0'/>
+		</mode>
+
+		<mode id='1' name='base' initial='False'>
+			<invariant equn='x[i] &lt;= LB' />
+			<stop equn='x[i] &gt;= LB' />
+			<dai variable='x[i]' equn='x[i]_dot &gt;= a and x[i]_dot &lt;= b'/>
+		</mode>
+		
+		<mode id='2' name='final' initial='False'>
+			<invariant equn='x[i] &lt;= LB + LF' />
+			<stop equn='x[i] &gt;= LB + LF' />
+			<dai variable='x[i]' equn='x[i]_dot &gt;= a and x[i]_dot &lt;= b'/>
+		</mode>
+		
+		<mode id='3' name='landed' initial='False'>
+			<dai variable='x[i]' equn='x[i]_dot = 0.0'/>
+		</mode>
+		
+		<transition source='fly' destination='base'>
+			<action equn='x[i]&apos; = 0.0 and b[i]&apos; = 1'/>
+			<uguard equn='(b[j] != 1) or (x[j] &gt;= LGUARD)' />
+		</transition>
+		
+		<transition source='base' destination='final'>
+			<guard equn='x[i] &gt;= LB' />
+		</transition>
+		
+		<transition source='final' destination='fly'>
+			<guard equn='x[i] &gt;= LB + LF' />
+			<action equn='x[i]&apos; = 0.0 and b[i]&apos; = 0'/>
+		</transition>
+		
+		<transition source='final' destination='landed'>
+			<guard equn='x[i] &gt;= LB + LF' />
+			<action equn='x[i]&apos; = 0.0 and b[i]&apos; = 0'/>
+		</transition>
+	</automaton>
+
+	<property equn='true' type='safety' />
+	
+<!--
+	<property equn='forall i (q[i] == fly or q[i] == landed)' type='safety' />
+	<property equn='forall i j ((i != j) implies ((q[i] == fly or q[i] == landed) and (q[j] == fly or q[j] == landed)))' type='safety' />
+	<property equn='forall i j ((i != j and x[i] &gt; x[j]) implies (x[i] &gt;= x[j] + LS))' type='safety' />
+-->
+<!--
+	<property equn='forall i ((q[i] == base) implies (x[i] &lt;= LB))' type='safety' comment='' />
+	<property equn='forall i ((x[i] &lt;= LTOTAL))' type='safety' comment='' />
+-->
+
+
+
+	<property equn='forall i j (((q[i] == base or q[i] == final) and (q[j] == base or q[j] == final) and x[i] &gt; x[j] and b[i] == 1 and b[j] == 1) implies (x[i] &gt;= (LTOTAL - x[j]) / (a) * (b - a)))' type='safety' comment='inductive invariant of safety' />
+	<property equn='forall i j ((i != j and (q[i] == base or q[i] == final) and (q[j] == base or q[j] == final) and x[i] &gt; x[j] and b[i] == 1 and b[j] == 1) implies (x[i] &gt;= x[j] + LS))' type='safety' />
+
+	
+	
+	<property equn='false' type='safety' />
+
+</holism>

@@ -1,0 +1,76 @@
+<?xml version="1.0"?>
+
+<holism>
+	<parameter name='N' type='index' comment='number of processes in the system' />
+	
+	<parameter name='A' type='real' comment='' />
+	<parameter name='B' type='real' comment='' />
+	<parameter name='C' type='real' comment='' />
+	<parameter name='D' type='real' comment='' />
+	
+	<variable name='token' type='index' update_type='Discrete' comment='lock' />
+	
+	
+	<assumption equn='N &gt;= 2' comment='' />
+	
+	<assumption equn='A == 3.0' />
+	<assumption equn='B == 5.0' />
+	<assumption equn='C == 7.0' />
+	<assumption equn='D == 11.0' />
+
+	<automaton name='ta-general'>
+		<variable name='x[i]' type='nnreal' update_type='Continuous' />
+
+		<initial equn='(forall i (x[i] == 0.0)) and token = 0' />
+
+		<mode id='0' name='rem' initial='True'>
+			<dai variable='x[i]' equn='x[i]_dot = 1.0'/>
+			<invariant equn='x[i] &lt;= A' />
+		</mode>
+
+		<mode id='1' name='try' initial='False'>
+			<dai variable='x[i]' equn='x[i]_dot = 1.0'/>
+			<invariant equn='x[i] &lt;= B' />
+			<stop equn='x[i] &gt; B' />
+		</mode>
+		
+		<mode id='2' name='crit' initial='False'>
+			<dai variable='x[i]' equn='x[i]_dot = 1.0'/>
+		</mode>
+		
+		<mode id='3' name='exit' initial='False'>
+			<dai variable='x[i]' equn='x[i]_dot = 1.0'/>
+			<invariant equn='x[i] &lt;= C' />
+		</mode>
+		
+		<transition source='rem' destination='try'>
+			<guard equn='token == 0 and x[i] &gt;= 1.0' />
+			<action equn='token&apos; = i and x[i]&apos; = 0.0'/>
+		</transition>
+		
+		<transition source='try' destination='crit'>
+			<guard equn='token == i and x[i] &gt;= 1.0' />
+			<action equn='x[i]&apos; = 0.0'/>
+		</transition>
+		
+		<transition source='crit' destination='exit'>
+			<guard equn='x[i] &gt;= D' />
+			<action equn='x[i]&apos; = 0.0'/>
+		</transition>
+		
+		<transition source='exit' destination='rem'>
+			<guard equn='x[i] &gt;= 1.0' />
+			<action equn='token&apos; = 0  and x[i]&apos; = 0.0'/>
+		</transition>
+	</automaton>
+
+
+	<property equn='true' type='safety' />
+
+	<property equn='forall i j ((i != j) implies (q[i] != crit or q[j] != crit))' type='safety' />
+	
+	<property equn='forall i j ((i != j and q[i] == crit) implies (q[j] != crit))' type='safety' />
+	
+	<property equn='false' type='safety' />
+
+</holism>

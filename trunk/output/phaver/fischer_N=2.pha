@@ -1,0 +1,94 @@
+REACH_USE_CONVEX_HULL = false; // not possible because of global variables
+REACH_MAX_ITER = 0; 
+REACH_USE_BBOX = false;
+COMPOSE_USE_CONVEX_HULL_FOR_REACH = false;
+COMPOSE_WITH_REACH_MIN = true;
+CHEAP_CONTAIN_RETURN_OTHERS = false;
+
+N := 2;
+A := 5;
+B := 7;
+
+automaton agent1
+contr_var : x_1;
+input_var : g;
+synclabs :  tau, sleepingsleeping1, sleepingwaiting1, waitingtrying1, tryingsleeping1, tryingcs1, cssleeping1;
+loc sleeping: while  true  wait { x_1' == 1 }
+	 when  ! (g == 1) sync sleepingsleeping1  do {x_1' == 0 & g' == g }  goto sleeping;
+	 when g == 0 sync sleepingwaiting1  do {x_1' == 0 & g' == g }  goto waiting;
+	 when true sync tau do {g' == g & x_1' == x_1} goto sleeping;
+loc waiting: while x_1 <= A wait { x_1' == 1 }
+	 when x_1 <= A sync waitingtrying1  do {g' == 1 & x_1' == 0 }  goto trying;
+	 when true sync tau do {g' == g & x_1' == x_1} goto waiting;
+loc trying: while x_1 <= B wait { x_1' == 1 }
+	 when x_1 >= B &  ! (g == 1) sync tryingsleeping1  do {x_1' == 0 & g' == g }  goto sleeping;
+	 when x_1 >= B & g == 1 sync tryingcs1  goto cs;
+	 when true sync tau do {g' == g & x_1' == x_1} goto trying;
+loc cs: while  true  wait { x_1' == 1 }
+	 when  true  sync cssleeping1  do {g' == 0 & x_1' == 0 }  goto sleeping;
+	 when true sync tau do {g' == g & x_1' == x_1} goto cs;
+
+initially sleeping & x_1 == 0;
+
+end
+
+automaton agent2
+contr_var : x_2;
+input_var : g;
+synclabs :  tau, sleepingsleeping2, sleepingwaiting2, waitingtrying2, tryingsleeping2, tryingcs2, cssleeping2;
+loc sleeping: while  true  wait { x_2' == 1 }
+	 when  ! (g == 2) sync sleepingsleeping2  do {x_2' == 0 & g' == g }  goto sleeping;
+	 when g == 0 sync sleepingwaiting2  do {x_2' == 0 & g' == g }  goto waiting;
+	 when true sync tau do {g' == g & x_2' == x_2} goto sleeping;
+loc waiting: while x_2 <= A wait { x_2' == 1 }
+	 when x_2 <= A sync waitingtrying2  do {g' == 2 & x_2' == 0 }  goto trying;
+	 when true sync tau do {g' == g & x_2' == x_2} goto waiting;
+loc trying: while x_2 <= B wait { x_2' == 1 }
+	 when x_2 >= B &  ! (g == 2) sync tryingsleeping2  do {x_2' == 0 & g' == g }  goto sleeping;
+	 when x_2 >= B & g == 2 sync tryingcs2  goto cs;
+	 when true sync tau do {g' == g & x_2' == x_2} goto trying;
+loc cs: while  true  wait { x_2' == 1 }
+	 when  true  sync cssleeping2  do {g' == 0 & x_2' == 0 }  goto sleeping;
+	 when true sync tau do {g' == g & x_2' == x_2} goto cs;
+
+initially sleeping & x_2 == 0;
+
+end
+
+automaton global
+contr_var : g;
+synclabs: tau,waitingtrying1,cssleeping1,waitingtrying2,cssleeping2;
+loc default: while True wait { g' == 0}
+	 when True sync tau do { g' == g } goto default;
+	 when True sync waitingtrying1 do { true } goto default;
+	 when True sync cssleeping1 do { true } goto default;
+	 when True sync waitingtrying2 do { true } goto default;
+	 when True sync cssleeping2 do { true } goto default;
+
+initially default & g == 0;
+
+end
+
+sys =  global &  agent1 &  agent2;
+
+sys.print("fischer_ii_sys_N2", 0);
+reg = sys.reachable;
+reg.print("fischer_ii_reach_N2", 0);
+regm11 = reg;
+regm11.project_to(x_1,g);
+regm11.print("fischer_ii_reach_N2projected11", 0);
+regm12 = reg;
+regm12.project_to(x_1,x_2,g);
+regm12.print("fischer_ii_reach_N2projected12", 0);
+regm21 = reg;
+regm21.project_to(x_2,g);
+regm21.print("fischer_ii_reach_N2projected21", 0);
+reg.print("fischer_ii_reach_N2", 0);
+forbidden = sys.{$~cs~cs & True};
+reg.intersection_assign(forbidden);
+echo "";
+echo "Reachable forbidden states:";
+reg.print("fischer_ii_reach_bad", 0);
+echo "";
+echo "Reachable forbidden states empty?";
+reg.is_empty;

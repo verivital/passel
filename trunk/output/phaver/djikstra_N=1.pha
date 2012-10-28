@@ -1,0 +1,43 @@
+REACH_USE_CONVEX_HULL = false; // not possible because of global variables
+REACH_MAX_ITER = 0; 
+REACH_USE_BBOX = false;
+COMPOSE_USE_CONVEX_HULL_FOR_REACH = false;
+COMPOSE_WITH_REACH_MIN = true;
+CHEAP_CONTAIN_RETURN_OTHERS = false;
+
+N := 1;
+
+automaton agent1
+contr_var : flag_1;
+input_var : turn;
+synclabs :  tau, remtry1, trytry1, trycrit1, critrem1;
+loc rem: while  true  wait { flag_1' == 0 }
+	 when  true  sync remtry1  do {flag_1' == 1 & turn' == turn }  goto try;
+	 when true sync tau do {turn' == turn & flag_1' == flag_1} goto rem;
+loc try: while  true  wait { flag_1' == 0 }
+	 when  ! (turn == 1) sync trycrit1  do {turn' == 1 & flag_1' == 2 }  goto crit;
+	 when true sync tau do {turn' == turn & flag_1' == flag_1} goto try;
+loc crit: while  true  wait { flag_1' == 0 }
+	 when  true  sync critrem1  do {flag_1' == 0 & turn' == turn }  goto rem;
+	 when true sync tau do {turn' == turn & flag_1' == flag_1} goto crit;
+
+initially rem & flag_1 == 0;
+
+end
+
+automaton global
+contr_var : turn;
+synclabs: tau,trycrit1;
+loc default: while True wait { turn' == 0}
+	 when True sync tau do { turn' == turn } goto default;
+	 when True sync trycrit1 do { true } goto default;
+
+initially default & True;
+
+end
+
+sys =  global &  agent1;
+
+sys.print("djikstra_ii_sys_N1", 0);
+reg = sys.reachable;
+reg.print("djikstra_ii_reach_N1", 0);

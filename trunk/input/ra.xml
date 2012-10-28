@@ -1,0 +1,181 @@
+<?xml version="1.0"?>
+
+<!--
+This is a baseline rectangular hybrid automata example to check basic functionality of our method, particularly making sure invariants and stopping conditions operate as intended.
+
+In the example:
+* the location 'a' is initial but is never returned to (all outgoing transitions)
+* the location 'e' is unreachable (no transitions to it)
+* in locations a, b, c the clock should not grow beyond the value high
+* in location d, the clock should not grow beyond the value 2*high
+-->
+
+
+<holism>
+	<parameter name='N' type='index' comment='' />
+	
+	<parameter name='zero' type='real' />
+	<parameter name='low' type='real' />
+	<parameter name='high' type='real' />
+	<parameter name='vmin' type='real' />
+	<parameter name='vmax' type='real' />
+
+	<assumption equn='N &gt;= 4' comment='' />
+	<assumption equn='zero == 0.0' />
+	<assumption equn='low == 5.0' />
+	<assumption equn='high == 43.0' />
+	<assumption equn='vmin == 1.0' />
+	<assumption equn='vmax == 50.0' />
+
+	<automaton name='default_automaton'>
+		<variable name='x[i]' type='nnreal' update_type='Continuous' />
+		
+		<initial equn='(forall i (x[i] = 0.0))' />
+
+		<mode id='0' name='a' initial='True'>
+			<dai variable='x[i]' equn='x[i]_dot &gt;= vmin and x[i]_dot &lt;= vmax'/>
+			<invariant equn='x[i] &gt;= zero and x[i] &lt;= high'/>
+			<stop equn='x[i] &gt;= high'/>
+		</mode>
+
+		<mode id='1' name='b' initial='False'>
+			<dai variable='x[i]' equn='x[i]_dot &gt;= vmin and x[i]_dot &lt;= vmax'/>
+			<invariant equn='x[i] &gt;= zero and x[i] &lt;= high'/>
+			<stop equn='x[i] &gt;= high'/>
+		</mode>
+		
+		<mode id='2' name='c' initial='False'>
+			<dai variable='x[i]' equn='x[i]_dot &gt;= vmin and x[i]_dot &lt;= vmax'/>
+			<invariant equn='x[i] &gt;= zero and x[i] &lt;= high'/>
+			<stop equn='x[i] &gt;= high'/>
+		</mode>
+		
+		<mode id='3' name='d' initial='False'>
+			<dai variable='x[i]' equn='x[i]_dot &gt;= vmin and x[i]_dot &lt;= vmax'/>
+			<invariant equn='x[i] &gt;= zero and x[i] &lt;= 2.0*high'/>
+			<stop equn='x[i] &gt;= 2.0*high'/>
+		</mode>
+		
+		<mode id='4' name='e' initial='False'>
+			<dai variable='x[i]' equn='x[i]_dot = 0.0'/>
+			<invariant equn='x[i] &lt;= 2.0*high'/>
+		</mode>
+
+		<transition source='a' destination='b'>
+			<action equn='x[i]&apos; = 0.0'/>
+		</transition>
+		
+		<transition source='b' destination='b'>
+			<action equn='x[i]&apos; = 0.0'/>
+		</transition>
+
+		<transition source='b' destination='c'>
+			<action equn='x[i]&apos; = 0.0'/>
+		</transition>
+		
+ 		<transition source='b' destination='d'>
+ 			<action equn='x[i]&apos; = 0.0'/>
+		</transition>
+		
+		<transition source='c' destination='c'>
+			<action equn='x[i]&apos; = 0.0'/>
+		</transition>
+		
+		<transition source='c' destination='d'>
+			<action equn='x[i]&apos; = 0.0'/>
+		</transition>
+		
+		<transition source='d' destination='b'>
+			<guard equn='x[i] &lt;= high'/>
+		</transition>
+
+		<transition source='d' destination='c'>
+			<guard equn='x[i] &lt;= high'/>
+		</transition>
+
+		<transition source='d' destination='d'>
+			<action equn='x[i]&apos; = 0.0'/>
+		</transition>
+	</automaton>
+	
+	
+	<property equn='forall i j (((q[i] == a or q[i] == b or q[i] == c or q[i] == d) and (q[j] == a or q[j] == b or q[j] == c or q[j] == d)) implies (x[i] &lt;= high     and x[j] &lt;= high))' type='safety' expectation='false' />
+	<property equn='forall i j (((q[i] == a or q[i] == b or q[i] == c or q[i] == d) and (q[j] == a or q[j] == b or q[j] == c or q[j] == d)) implies (x[i] &lt; high      and x[j] &lt; high))' type='safety' expectation='false' />
+	<property equn='forall i j (((q[i] == a or q[i] == b or q[i] == c or q[i] == d) and (q[j] == a or q[j] == b or q[j] == c or q[j] == d)) implies (x[i] &lt;= 2.0*high and x[j] &lt;= 2.0*high))' type='safety' expectation='true' />
+	<property equn='forall i j (((q[i] == a or q[i] == b or q[i] == c or q[i] == d) and (q[j] == a or q[j] == b or q[j] == c or q[j] == d)) implies (x[i] &lt; 2.0*high  and x[j] &lt; 2.0*high))' type='safety' expectation='false' />
+	
+	<property equn='forall i j (((q[i] == a or q[i] == b or q[i] == c) and (q[j] == a or q[j] == b or q[j] == c)) implies (x[i] &lt;= high     and x[j] &lt;= high))' type='safety' expectation='true' />
+	<property equn='forall i j (((q[i] == a or q[i] == b or q[i] == c) and (q[j] == a or q[j] == b or q[j] == c)) implies (x[i] &lt; high      and x[j] &lt; high))' type='safety' expectation='false' />
+	<property equn='forall i j (((q[i] == a or q[i] == b or q[i] == c) and (q[j] == a or q[j] == b or q[j] == c)) implies (x[i] &lt;= 2.0*high and x[j] &lt;= 2.0*high))' type='safety' expectation='true' />
+	<property equn='forall i j (((q[i] == a or q[i] == b or q[i] == c) and (q[j] == a or q[j] == b or q[j] == c)) implies (x[i] &lt; 2.0*high  and x[j] &lt; 2.0*high))' type='safety' expectation='true' />
+
+	
+	<property equn='forall i ((q[i] == a or q[i] == b or q[i] == c or q[i] == d) implies (x[i] &lt;= high))' type='safety' expectation='false' />
+	<property equn='forall i ((q[i] == a or q[i] == b or q[i] == c or q[i] == d) implies (x[i] &lt; high))' type='safety' expectation='false' />
+	<property equn='forall i ((q[i] == a or q[i] == b or q[i] == c or q[i] == d) implies (x[i] &lt;= 2.0*high))' type='safety' expectation='true' />
+	<property equn='forall i ((q[i] == a or q[i] == b or q[i] == c or q[i] == d) implies (x[i] &lt; 2.0*high))' type='safety' expectation='false' />
+	<property equn='forall i ((q[i] == a or q[i] == b or q[i] == c) implies (x[i] &lt;= high))' type='safety' />
+	
+	
+	<property equn='forall i ((x[i] &lt;= 2.0*high))' type='safety' expectation='true' />
+	<property equn='forall i ((x[i] &gt; 2.0*high))' type='safety' expectation='false' />
+	
+	<property equn='forall i ((x[i] = 0.0))' type='safety' expectation='false' />
+	<property equn='forall i ((x[i] != 0.0))' type='safety' expectation='false' />
+	<property equn='forall i ((x[i] &gt;= 0.0))' type='safety' expectation='true' />
+	<property equn='forall i ((x[i] &lt;= 0.0))' type='safety' expectation='false' />
+	<property equn='forall i ((x[i] &gt; 0.0))' type='safety' expectation='false' />
+	<property equn='forall i ((x[i] &lt; 0.0))' type='safety' expectation='false' />
+	
+	<property equn='forall i ((x[i] &lt; 2.0*high))' type='safety' expectation='false' />
+	<property equn='forall i ((x[i] &lt; high))' type='safety' expectation='false' />
+	<property equn='forall i ((x[i] &gt; 2.0*high))' type='safety' expectation='false' />
+	<property equn='forall i ((x[i] &gt; high))' type='safety' expectation='false' />
+	
+	<property equn='forall i ((x[i] &gt; high - 0.001))' type='safety' expectation='false' />
+	<property equn='forall i ((x[i] &gt; high / 2.0))' type='safety' expectation='false' />
+	
+	<property equn='forall i ((x[i] &gt; 2.0*high - 0.001))' type='safety' expectation='false' />
+	<property equn='forall i ((x[i] &gt; 2.0*high / 3.0))' type='safety' expectation='false' />
+
+
+
+	
+	<property equn='forall i ((q[i] == a))' type='safety' expectation='false' />
+	<property equn='forall i ((q[i] == b))' type='safety' expectation='false' />
+	<property equn='forall i ((q[i] == c))' type='safety' expectation='false' />
+	<property equn='forall i ((q[i] == d))' type='safety' expectation='false' />
+	<property equn='forall i ((q[i] == e))' type='safety' expectation='true' />
+	
+	<property equn='forall i ((q[i] != a))' type='safety' expectation='false' />
+	<property equn='forall i ((q[i] != b))' type='safety' expectation='false' />
+	<property equn='forall i ((q[i] != c))' type='safety' expectation='false' />
+	<property equn='forall i ((q[i] != d))' type='safety' expectation='false' />
+	<property equn='forall i ((q[i] != e))' type='safety' expectation='true' />
+
+
+
+
+	<property equn='forall i ((q[i] == b) implies (x[i] &lt;= high))' type='safety' expectation='true' />
+	<property equn='forall i ((q[i] == b) implies (x[i] &lt; high))' type='safety' expectation='false' />
+
+	
+	
+	<property equn='forall i ((q[i] == b) implies (true))' type='safety' expectation='true' />
+	<property equn='forall i ((q[i] == b) implies (false))' type='safety' expectation='false' />
+	<property equn='forall i ((q[i] == b) implies (q[i] == b))' type='safety' expectation='true' />
+	
+	<property equn='forall i (false)' type='safety' expectation='false' />
+	<property equn='forall i (true)' type='safety' expectation='true' />
+	<property equn='false' type='safety' expectation='false' />
+	<property equn='true' type='safety' expectation='true' />
+	
+	
+	<property equn='forall i ((q[i] == a or q[i] == b or q[i] == c || q[i] == d))' type='safety' expectation='true' />
+	
+<!-- todo next: ind vs ind inv -->
+	<property equn='forall i j ((q[i] == b or q[i] == c || q[i] == d) and (q[j] == b or q[j] == c || q[j] == d))' type='invariant' expectation='true' comment='this property is inductive, but not an inductive invariant since it does not intersect initial' />
+	
+	<property equn='forall i j ((q[i] == a or q[i] == b or q[i] == c || q[i] == d) and (q[j] == a or q[j] == b or q[j] == c || q[j] == d))' type='safety' expectation='true' />
+
+</holism>

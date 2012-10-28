@@ -1,0 +1,39 @@
+<?xml version="1.0"?>
+
+<holism>
+	<parameter name='N' type='index' comment='number of processes in the system' />
+	<parameter name='a' assumption='a == 1.0' type='real' comment='lower bound on rectangular dynamics' />
+	<parameter name='b' assumption='b == 2.0' type='real' comment='upper bound on rectangular dynamics' />	
+	<parameter name='finish' assumption='finish == 30.0' type='real' comment='smaller constant' />
+
+	<variable name='last' type='index' update_type='discrete' />
+
+	<assumption equn='N == 4' comment='' />
+
+	<automaton name='hscc-example'>
+		<variable name='x[i]' type='nnreal' update_type='Continuous' />
+		<variable name='p[i]' type='index' update_type='Discrete' />
+		
+		<initial equn='(forall i (x[i] == 0.0 and p[i] == 0)) and last == 0' />
+
+
+		<mode id='0' name='default' initial='True'>
+			<invariant equn='x[i] &lt;= finish' />
+			<stop equn='x[i] &gt;= finish' />
+			<dai variable='x[i]' equn='x[i]_dot &gt;= a and x[i]_dot &lt;= b'/>
+		</mode>
+		
+		<transition source='default' destination='default'>
+			<guard equn='x[i] &gt;= finish and last != i' />
+			<action equn='x[i]&apos; = 0.0 and p[i]&apos; = last and last&apos; = i'/>
+		</transition>
+		
+	</automaton>
+
+	<property equn='true' type='safety' />
+
+	<property equn='forall i (p[i] != i)' type='safety' />
+	
+	<property equn='false' type='safety' />
+
+</holism>

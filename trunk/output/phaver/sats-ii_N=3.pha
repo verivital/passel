@@ -1,0 +1,85 @@
+REACH_USE_CONVEX_HULL = false; // not possible because of global variables
+REACH_MAX_ITER = 0; 
+REACH_USE_BBOX = false;
+COMPOSE_USE_CONVEX_HULL_FOR_REACH = false;
+COMPOSE_WITH_REACH_MIN = true;
+CHEAP_CONTAIN_RETURN_OTHERS = false;
+
+N := 3;
+S := 5;
+L := 5001;
+
+
+
+
+
+automaton agent1
+contr_var : x_1,b_1;
+input_var : x_2,b_2,x_3,b_3;
+synclabs :  tau, flylanding1, landingfly1;
+loc fly: while  true  wait {  x_1' == 0  & b_1' == 0 }
+	 when (b_2 == 0 & b_3 == 0) sync flylanding1  do {x_1' == 0 & b_1' == 1 }  goto landing;
+	 when (b_2 == 1 & b_3 == 0 & x_2 >= S) sync flylanding1  do {x_1' == 0 & b_1' == 1 }  goto landing;
+	 when (b_2 == 0 & b_3 == 1 & x_3 >= S) sync flylanding1  do {x_1' == 0 & b_1' == 1 }  goto landing;
+	 when (b_2 == 1 & b_3 == 1 & x_2 >= S & x_3 >= S) sync flylanding1  do {x_1' == 0 & b_1' == 1 }  goto landing;
+	 when true sync tau do {x_1' == x_1 & b_1' == b_1} goto fly;
+loc landing: while x_1 <= L wait { x_1' >= a & x_1' <= b  & b_1' == 0 }
+	 when x_1 <= L sync landingfly1  do {x_1' == 0 & b_1' == 0 }  goto fly;
+	 when true sync tau do {x_1' == x_1 & b_1' == b_1} goto landing;
+
+initially fly & x_1 == 0 & b_1 == 0;
+
+end
+
+automaton agent2
+contr_var : x_2,b_2;
+input_var : x_1,b_1,x_3,b_3;
+synclabs :  tau, flylanding2, landingfly2;
+loc fly: while  true  wait {  x_2' == 0 & b_2' == 0 }
+	 when (b_1 == 0 & b_3 == 0) sync flylanding2  do {x_2' == 0 & b_2' == 1 }  goto landing;
+	 when (b_1 == 1 & b_3 == 0 & x_1 >= S) sync flylanding2  do {x_2' == 0 & b_2' == 1 }  goto landing;
+	 when (b_1 == 0 & b_3 == 1 & x_3 >= S) sync flylanding2  do {x_2' == 0 & b_2' == 1 }  goto landing;
+	 when (b_1 == 1 & b_3 == 1 & x_1 >= S & x_3 >= S) sync flylanding2  do {x_2' == 0 & b_2' == 1 }  goto landing;
+	 when true sync tau do {x_2' == x_2 & b_2' == b_2} goto fly;
+loc landing: while x_2 <= L wait { x_2' == 1  & b_2' == 0 }
+	 when x_2 <= L sync landingfly2  do {x_2' == 0 & b_2' == 0}  goto fly;
+	 when true sync tau do {x_2' == x_2 & b_2' == b_2} goto landing;
+
+initially fly & x_2 == 0 & b_2 == 0;
+
+end
+
+automaton agent3
+contr_var : x_3,b_3;
+input_var : x_1,b_1,x_2,b_2;
+synclabs :  tau, flylanding3, landingfly3;
+loc fly: while  true  wait {  x_3' == 0 & b_3' == 0 }
+	 when (b_1 == 0 & b_2 == 0) sync flylanding3  do {x_3' == 0 & b_3' == 1 }  goto landing;
+	 when (b_1 == 1 & b_2 == 0 & x_1 >= S) sync flylanding3  do {x_3' == 0 & b_3' == 1 }  goto landing;
+	 when (b_1 == 0 & b_2 == 1 & x_2 >= S) sync flylanding3  do {x_3' == 0 & b_3' == 1 }  goto landing;
+	 when (b_1 == 1 & b_2 == 1 & x_1 >= S & x_2 >= S) sync flylanding3  do {x_3' == 0 & b_3' == 1 }  goto landing;
+	 when true sync tau do {x_3' == x_3 & b_3' == b_3} goto fly;
+loc landing: while x_3 <= L wait { x_3' == 1  & b_3' == 0 }
+	 when x_3 <= L sync landingfly3  do {x_3' == 0 & b_3' == 0}  goto fly;
+	 when true sync tau do {x_3' == x_3 & b_3' == b_3} goto landing;
+
+initially fly & x_3 == 0 & b_3 == 0;
+
+end
+
+sys =  agent1 &  agent2 & agent3;
+
+sys.print("sats-ii_ii_sys_N3", 0);
+reg = sys.reachable;
+reg.print("sats-ii_ii_reach_N3", 0);
+
+forbidden = sys.{landing~landing~$ & x_1 > x_2 & x_1 - x_2 < S, landing~landing~$ & x_2 > x_1 & x_2 - x_1 < S,
+                 $~landing~landing & x_2 > x_3 & x_2 - x_3 < S, $~landing~landing & x_3 > x_2 & x_3 - x_2 < S,
+                 landing~$~landing & x_1 > x_3 & x_1 - x_3 < S, landing~$~landing & x_3 > x_1 & x_3 - x_1 < S};
+reg.intersection_assign(forbidden);
+echo "";
+echo "Reachable forbidden states:";
+reg.print("sats-ii_ii_reach_bad", 0);
+echo "";
+echo "Reachable forbidden states empty?";
+reg.is_empty;

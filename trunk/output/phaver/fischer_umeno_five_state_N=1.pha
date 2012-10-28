@@ -1,0 +1,58 @@
+REACH_USE_CONVEX_HULL = false; // not possible because of global variables
+REACH_MAX_ITER = 0; 
+REACH_USE_BBOX = false;
+COMPOSE_USE_CONVEX_HULL_FOR_REACH = false;
+COMPOSE_WITH_REACH_MIN = true;
+CHEAP_CONTAIN_RETURN_OTHERS = false;
+//USE_HIOA_AUTOMATA = true;
+
+N := 1;
+A := 3;
+B := 19;
+
+automaton global
+contr_var : g;
+synclabs: tau,setcheck1,critrem1;
+loc default: while True wait { g' == 0}
+	 when True sync tau do { g'==g } goto default;
+	 when True sync setcheck1 do { true } goto default;
+	 when True sync critrem1 do { true } goto default;
+
+	 
+
+initially default & g == 0;
+
+end
+
+automaton agent1
+contr_var : x_1,last_1,first_1;
+input_var : g;
+synclabs :  tau, remtest1, testtest1, testset1, setcheck1, checktest1, checkcrit1, critrem1;
+loc rem: while  true  wait { x_1' == 1 & last_1' == 0 & first_1' == 0 & g' == 0}
+	 when  true  sync remtest1 do { g' == g & x_1' == x_1 & last_1' == last_1 & first_1' == first_1 } goto test;
+	 when true sync tau do {g' == g & x_1' == x_1 & last_1' == last_1 & first_1' == first_1} goto rem;
+loc test: while  true  wait { x_1' == 1 & last_1' == 0 & first_1' == 0 & g' == 0 }
+	 when  ! (g == 0) sync testtest1 do { g' == g & x_1' == x_1 & last_1' == last_1 & first_1' == first_1 } goto test;
+	 when g == 0 sync testset1  do { g' == g & x_1' == x_1 & last_1' == x_1 + A & first_1' == first_1 }  goto set;
+	 when true sync tau do {g' == g & x_1' == x_1 & last_1' == last_1 & first_1' == first_1} goto test;
+loc set: while x_1 <= last_1 wait { x_1' == 1 & last_1' == 0 & first_1' == 0 & g' == 0 }
+	 when  true  sync setcheck1 do {g' == 1 & x_1' == x_1 & last_1' == last_1 & first_1' ==  x_1 + B}   goto check;
+	 when true sync tau do {g' == g & x_1' == x_1 & last_1' == last_1 & first_1' == first_1} goto set;
+loc check: while  true  wait { x_1' == 1 & last_1' == 0 & first_1' == 0 & g' == 0 }
+	 when  ! (g == 1) & x_1 >= first_1 sync checktest1  do {g' == g & x_1' == x_1 & last_1' == last_1 & first_1' == 0}  goto test;
+	 when g == 1 & x_1 >= first_1 sync checkcrit1 do {g' == g & x_1' == x_1 & last_1' == last_1 & first_1' == first_1}  goto crit;
+	 when true sync tau do {g' == g & x_1' == x_1 & last_1' == last_1 & first_1' == first_1} goto check;
+loc crit: while  True  wait { x_1' == 1 & last_1' == 0 & first_1' == 0 & g' == 0 }
+	 when  true  sync critrem1 do {g' == 0 & x_1' == x_1 & last_1' == last_1 & first_1' == first_1}  goto rem;
+	 when true sync tau do {g' == g & x_1' == x_1 & last_1' == last_1 & first_1' == first_1} goto crit;
+
+initially rem & x_1 == 0 & last_1 == A & first_1 == 0;
+
+end
+
+
+sys =  global &  agent1;
+
+sys.print("fischer_umeno_five_state_ii_sys_N1", 0);
+reg = sys.reachable;
+reg.print("fischer_umeno_five_state_ii_reach_N1", 0);

@@ -1,0 +1,108 @@
+REACH_USE_CONVEX_HULL = false; // not possible because of global variables
+REACH_MAX_ITER = 0; 
+REACH_USE_BBOX = false;
+COMPOSE_USE_CONVEX_HULL_FOR_REACH = false;
+COMPOSE_WITH_REACH_MIN = true;
+CHEAP_CONTAIN_RETURN_OTHERS = false;
+
+N := 3;
+A := 3;
+B := 19;
+
+automaton agent1
+contr_var : x_1,last_1,first_1;
+input_var : g;
+synclabs :  tau, idlestart1, startcheck1, checkidle1, checkcs1, csidle1;
+loc idle: while  true  wait { x_1' == 1 & last_1' == 0 & first_1' == 0 }
+	 when g == 0 sync idlestart1  do {last_1' == x_1 + A & g' == g & x_1' == x_1 & first_1' == first_1 }  goto start;
+	 when true sync tau do {g' == g & x_1' == x_1 & last_1' == last_1 & first_1' == first_1} goto idle;
+loc start: while x_1 <= last_1 wait { x_1' == 1 & last_1' == 0 & first_1' == 0 }
+	 when x_1 <= last_1 sync startcheck1  do {g' == 1 & first_1' == x_1 + B & x_1' == x_1 & last_1' == last_1 }  goto check;
+	 when true sync tau do {g' == g & x_1' == x_1 & last_1' == last_1 & first_1' == first_1} goto start;
+loc check: while  true  wait { x_1' == 1 & last_1' == 0 & first_1' == 0 }
+	 when  ! (g == 1) & (x_1 >= first_1) sync checkidle1  do {first_1' == 0 & g' == g & x_1' == x_1 & last_1' == last_1 }  goto idle;
+	 when (g == 1) & (x_1 >= first_1) sync checkcs1  do {g' == g & x_1' == x_1 & last_1' == last_1 & first_1' == first_1}  goto cs;
+	 when true sync tau do {g' == g & x_1' == x_1 & last_1' == last_1 & first_1' == first_1} goto check;
+loc cs: while  true  wait { x_1' == 1 & last_1' == 0 & first_1' == 0 }
+	 when  true  sync csidle1  do {g' == 0 & x_1' == x_1 & last_1' == last_1 & first_1' == first_1 }  goto idle;
+	 when true sync tau do {g' == g & x_1' == x_1 & last_1' == last_1 & first_1' == first_1} goto cs;
+
+initially idle & (x_1 == 0) & (last_1 == A) & (first_1 == 0);
+
+end
+
+automaton agent2
+contr_var : x_2,last_2,first_2;
+input_var : g;
+synclabs :  tau, idlestart2, startcheck2, checkidle2, checkcs2, csidle2;
+loc idle: while  true  wait { x_2' == 1 & last_2' == 0 & first_2' == 0 }
+	 when g == 0 sync idlestart2  do {last_2' == x_2 + A & g' == g & x_2' == x_2 & first_2' == first_2 }  goto start;
+	 when true sync tau do {g' == g & x_2' == x_2 & last_2' == last_2 & first_2' == first_2} goto idle;
+loc start: while x_2 <= last_2 wait { x_2' == 1 & last_2' == 0 & first_2' == 0 }
+	 when x_2 <= last_2 sync startcheck2  do {g' == 2 & first_2' == x_2 + B & x_2' == x_2 & last_2' == last_2 }  goto check;
+	 when true sync tau do {g' == g & x_2' == x_2 & last_2' == last_2 & first_2' == first_2} goto start;
+loc check: while  true  wait { x_2' == 1 & last_2' == 0 & first_2' == 0 }
+	 when  ! (g == 2) & (x_2 >= first_2) sync checkidle2  do {first_2' == 0 & g' == g & x_2' == x_2 & last_2' == last_2 }  goto idle;
+	 when (g == 2) & (x_2 >= first_2) sync checkcs2  do {g' == g & x_2' == x_2 & last_2' == last_2 & first_2' == first_2}  goto cs;
+	 when true sync tau do {g' == g & x_2' == x_2 & last_2' == last_2 & first_2' == first_2} goto check;
+loc cs: while  true  wait { x_2' == 1 & last_2' == 0 & first_2' == 0 }
+	 when  true  sync csidle2  do {g' == 0 & x_2' == x_2 & last_2' == last_2 & first_2' == first_2 }  goto idle;
+	 when true sync tau do {g' == g & x_2' == x_2 & last_2' == last_2 & first_2' == first_2} goto cs;
+
+initially idle & (x_2 == 0) & (last_2 == A) & (first_2 == 0);
+
+end
+
+automaton agent3
+contr_var : x_3,last_3,first_3;
+input_var : g;
+synclabs :  tau, idlestart3, startcheck3, checkidle3, checkcs3, csidle3;
+loc idle: while  true  wait { x_3' == 1 & last_3' == 0 & first_3' == 0 }
+	 when g == 0 sync idlestart3  do {last_3' == x_3 + A & g' == g & x_3' == x_3 & first_3' == first_3 }  goto start;
+	 when true sync tau do {g' == g & x_3' == x_3 & last_3' == last_3 & first_3' == first_3} goto idle;
+loc start: while x_3 <= last_3 wait { x_3' == 1 & last_3' == 0 & first_3' == 0 }
+	 when x_3 <= last_3 sync startcheck3  do {g' == 3 & first_3' == x_3 + B & x_3' == x_3 & last_3' == last_3 }  goto check;
+	 when true sync tau do {g' == g & x_3' == x_3 & last_3' == last_3 & first_3' == first_3} goto start;
+loc check: while  true  wait { x_3' == 1 & last_3' == 0 & first_3' == 0 }
+	 when  ! (g == 3) & (x_3 >= first_3) sync checkidle3  do {first_3' == 0 & g' == g & x_3' == x_3 & last_3' == last_3 }  goto idle;
+	 when (g == 3) & (x_3 >= first_3) sync checkcs3  do {g' == g & x_3' == x_3 & last_3' == last_3 & first_3' == first_3}  goto cs;
+	 when true sync tau do {g' == g & x_3' == x_3 & last_3' == last_3 & first_3' == first_3} goto check;
+loc cs: while  true  wait { x_3' == 1 & last_3' == 0 & first_3' == 0 }
+	 when  true  sync csidle3  do {g' == 0 & x_3' == x_3 & last_3' == last_3 & first_3' == first_3 }  goto idle;
+	 when true sync tau do {g' == g & x_3' == x_3 & last_3' == last_3 & first_3' == first_3} goto cs;
+
+initially idle & (x_3 == 0) & (last_3 == A) & (first_3 == 0);
+
+end
+
+automaton global
+contr_var : g;
+synclabs: tau,startcheck1,csidle1,startcheck2,csidle2,startcheck3,csidle3;
+loc default: while True wait { g' == 0}
+	 when True sync tau do { g' == g } goto default;
+	 when True sync startcheck1 do { true } goto default;
+	 when True sync csidle1 do { true } goto default;
+	 when True sync startcheck2 do { true } goto default;
+	 when True sync csidle2 do { true } goto default;
+	 when True sync startcheck3 do { true } goto default;
+	 when True sync csidle3 do { true } goto default;
+
+initially default & g == 0;
+
+end
+
+sys =  global &  agent1 &  agent2 &  agent3;
+
+sys.print("fischer_aux_ii_sys_N3", 0);
+reg = sys.reachable;
+reg.print("fischer_aux_ii_reach_N3", 0);
+forbidden = sys.{$~cs~cs~$ & True,
+$~cs~$~cs & True,
+$~$~cs~cs & True};
+reg.intersection_assign(forbidden);
+echo "";
+echo "Reachable forbidden states:";
+reg.print("fischer_aux_ii_reach_bad", 0);
+echo "";
+echo "Reachable forbidden states empty?";
+reg.is_empty;

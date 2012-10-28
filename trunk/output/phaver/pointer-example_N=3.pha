@@ -1,0 +1,119 @@
+REACH_USE_CONVEX_HULL = false; // not possible because of global variables
+REACH_MAX_ITER = 0; 
+REACH_USE_BBOX = false;
+COMPOSE_USE_CONVEX_HULL_FOR_REACH = false;
+COMPOSE_WITH_REACH_MIN = true;
+CHEAP_CONTAIN_RETURN_OTHERS = false;
+
+N := 1;
+a := 1;
+b := 2;
+finish := 30;
+
+automaton agent1
+contr_var : x_1,p_1;
+input_var : last,x_2,p_2,x_3,p_3;
+synclabs :  tau, offon1, offon11, onoff1, onoff11;
+loc off: while  true  wait { p_1' == 0 }
+	 when last == 0 sync offon1  do {x_1' == 0 & p_1' == 1 & last' == 1 }  goto on;
+	 when  ! (last == 0) sync offon11  do {x_1' == 0 & p_1' == last & last' == 1 }  goto on;
+	 when true sync tau do {last' == last & x_1' == x_1 & p_1' == p_1} goto off;
+loc on: while x_1 <= finish wait { x_1' >= a & x_1' <= b & p_1' == 0 }
+	 when (x_1 >= finish) & (last == 1) & x_1 <= finish sync onoff1  do {x_1' == 0 & p_1' == 0 & last' == 0 }  goto off;
+	 when (x_1 >= finish) &  ! (last == 1) & x_1 <= finish sync onoff11  do {x_1' == 0 & p_1' == 0 & last' == last }  goto off;
+	 when true sync tau do {last' == last & x_1' == x_1 & p_1' == p_1} goto on;
+
+initially off & (x_1 == 0) & (p_1 == 0);
+
+end
+
+automaton agent2
+contr_var : x_2,p_2;
+input_var : last,x_1,p_1,x_3,p_3;
+synclabs :  tau, offon2, offon21, onoff2, onoff21;
+loc off: while  true  wait { p_2' == 0 }
+	 when last == 0 sync offon2  do {x_2' == 0 & p_2' == 2 & last' == 2 }  goto on;
+	 when  ! (last == 0) sync offon21  do {x_2' == 0 & p_2' == last & last' == 2 }  goto on;
+	 when true sync tau do {last' == last & x_2' == x_2 & p_2' == p_2} goto off;
+loc on: while x_2 <= finish wait { x_2' >= a & x_2' <= b & p_2' == 0 }
+	 when (x_2 >= finish) & (last == 2) & x_2 <= finish sync onoff2  do {x_2' == 0 & p_2' == 0 & last' == 0 }  goto off;
+	 when (x_2 >= finish) &  ! (last == 2) & x_2 <= finish sync onoff21  do {x_2' == 0 & p_2' == 0 & last' == last }  goto off;
+	 when true sync tau do {last' == last & x_2' == x_2 & p_2' == p_2} goto on;
+
+initially off & (x_2 == 0) & (p_2 == 0);
+
+end
+
+automaton agent3
+contr_var : x_3,p_3;
+input_var : last,x_1,p_1,x_2,p_2;
+synclabs :  tau, offon3, offon31, onoff3, onoff31;
+loc off: while  true  wait { p_3' == 0 }
+	 when last == 0 sync offon3  do {x_3' == 0 & p_3' == 3 & last' == 3 }  goto on;
+	 when  ! (last == 0) sync offon31  do {x_3' == 0 & p_3' == last & last' == 3 }  goto on;
+	 when true sync tau do {last' == last & x_3' == x_3 & p_3' == p_3} goto off;
+loc on: while x_3 <= finish wait { x_3' >= a & x_3' <= b & p_3' == 0 }
+	 when (x_3 >= finish) & (last == 3) & x_3 <= finish sync onoff3  do {x_3' == 0 & p_3' == 0 & last' == 0 }  goto off;
+	 when (x_3 >= finish) &  ! (last == 3) & x_3 <= finish sync onoff31  do {x_3' == 0 & p_3' == 0 & last' == last }  goto off;
+	 when true sync tau do {last' == last & x_3' == x_3 & p_3' == p_3} goto on;
+
+initially off & (x_3 == 0) & (p_3 == 0);
+
+end
+
+automaton global
+contr_var : last;
+synclabs: tau,offon1,offon11,onoff1,offon2,offon21,onoff2,offon3,offon31,onoff3;
+loc default: while True wait { last' == 0}
+	 when True sync tau do { last' == last } goto default;
+	 when True sync offon1 do { true } goto default;
+	 when True sync offon11 do { true } goto default;
+	 when True sync onoff1 do { true } goto default;
+	 when True sync offon2 do { true } goto default;
+	 when True sync offon21 do { true } goto default;
+	 when True sync onoff2 do { true } goto default;
+	 when True sync offon3 do { true } goto default;
+	 when True sync offon31 do { true } goto default;
+	 when True sync onoff3 do { true } goto default;
+
+initially default & last == 0;
+
+end
+
+sys =  global &  agent1 &  agent2 &  agent3;
+
+sys.print("pointer-example_ii_sys_N3", 0);
+reg = sys.reachable;
+reg.print("pointer-example_ii_reach_N3", 0);
+regm11 = reg;
+regm11.project_to(x_1,last);
+regm11.print("pointer-example_ii_reach_N3projected11", 0);
+regm12 = reg;
+regm12.project_to(x_1,x_2,last);
+regm12.print("pointer-example_ii_reach_N3projected12", 0);
+regm13 = reg;
+regm13.project_to(x_1,x_3,last);
+regm13.print("pointer-example_ii_reach_N3projected13", 0);
+regm21 = reg;
+regm21.project_to(x_2,last);
+regm21.print("pointer-example_ii_reach_N3projected21", 0);
+regm23 = reg;
+regm23.project_to(x_2,x_3,last);
+regm23.print("pointer-example_ii_reach_N3projected23", 0);
+regm31 = reg;
+regm31.project_to(x_3,last);
+regm31.print("pointer-example_ii_reach_N3projected31", 0);
+regm32 = reg;
+regm32.project_to(x_3,x_2,last);
+regm32.print("pointer-example_ii_reach_N3projected32", 0);
+reg.print("pointer-example_ii_reach_N3", 0);
+forbidden = sys.{$~crit~crit~$ & True,
+$~crit~$~crit & True,
+$~$~crit~crit & True};
+reg.intersection_assign(forbidden);
+echo "";
+echo "Reachable forbidden states:";
+reg.print("pointer-example_ii_reach_bad", 0);
+echo "";
+echo "Reachable forbidden states empty?";
+reg.is_empty;
