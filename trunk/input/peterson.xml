@@ -1,0 +1,58 @@
+<?xml version="1.0"?>
+
+<holism>
+	<parameter name='N' type='index' comment='number of processes in the system' />
+	
+	
+	<variable name='lock' type='index' update_type='Discrete' comment='lock' />
+
+	<assumption equn='N &gt;= 2' comment='' />
+
+	<automaton name='mux-index'>
+		<variable name='y[i]' type='index' update_type='Discrete' />
+		<variable name='s[i]' type='index' update_type='Discrete' />
+	
+		<initial equn='forall i (y[i] == 0 and s[i] == 1 and lock == 0)' />
+
+		<mode id='0' name='idle' initial='True'>
+		</mode>
+
+		<mode id='1' name='try' initial='False'>
+		</mode>
+		
+		<mode id='2' name='crit' initial='False'>
+		</mode>
+		
+		<mode id='3' name='exit' initial='False'>
+		</mode>
+		
+		<transition source='idle' destination='try'>
+			<action equn='y[i]&apos; = 1 and lock&apos; = i'/>
+		</transition>
+		
+		<transition source='try' destination='try'>
+			<guard equn='y[i] &lt; N and s[y[i]] != i or (forall j ((j != i) implies (y[j] &lt; y[i])))' />
+			<action equn='(y[i]&apos; = y[i] + 1) and s[y[i] + 1]&apos; = i' />
+		</transition>
+		
+		<transition source='try' destination='crit'>
+			<guard equn='y[i] == N' />
+		</transition>
+		
+		<transition source='crit' destination='idle'>
+			<action equn='y[i]&apos; = 0'/>
+		</transition>
+	</automaton>
+
+
+	<property equn='true' type='safety' />
+
+	<property equn='forall i j ((i != j) implies (q[i] != crit or q[j] != crit))' type='safety' />
+	
+	<property equn='forall i j ((i != j and q[i] == crit) implies (q[j] != crit))' type='safety' />
+	
+	<property equn='false' type='safety' />
+
+
+
+</holism>

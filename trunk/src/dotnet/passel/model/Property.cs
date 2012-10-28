@@ -48,8 +48,8 @@ namespace passel.model
 
         public TimeSpan Time;
 
-        public int Project = -1; // N projected onto (abstract)
-        public int ProjectedFrom = -1; // N projected from (concrete)
+        public uint Project = 0; // N projected onto (abstract)
+        public uint ProjectedFrom = 0; // N projected from (concrete)
 
         public void addInductiveInvariant(Expr ii)
         {

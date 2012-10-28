@@ -1,0 +1,66 @@
+<?xml version="1.0"?>
+
+<holism>
+	<parameter name='N' type='index' comment='number of processes in the system' />
+	<parameter name='a' type='real' comment='smaller constant' />
+	<parameter name='b' type='real' comment='larger constant' />
+	
+	<variable name='k' type='index' update_type='Discrete' comment='lock' />
+	
+	<assumption equn='a &gt; 0.0 and b &gt; 0.0 and a &lt; b' comment='a *stictly less than* b for mutual exclusion' />
+	<assumption equn='a == 1 and b == 2' comment='need actual values for phaver' />
+	
+	<assumption equn='N &gt;= 2' comment='' />
+
+	<automaton name='fischer_phaver'>
+		<variable name='x[i]' type='nnreal' update_type='Continuous' />
+		<variable name='c[i]' type='nnreal' update_type='Discrete' />
+		<variable name='d[i]' type='nnreal' update_type='Discrete' />
+		
+		<initial equn='(forall i (x[i] == 0.0 and c[i] == 1 and d[i] == 2)) and k = 0' />
+
+
+		<mode id='0' name='idle' initial='True'>
+			<dai variable='x[i]' equn='x[i]_dot = 0.0'/>
+		</mode>
+
+		<mode id='1' name='start' initial='False'>
+			<invariant equn='x[i] &lt;= a' />
+			<dai variable='x[i]' equn='x[i]_dot &gt;= c[i] and x[i]_dot &lt;= d[i]'/>
+		</mode>
+		
+		<mode id='2' name='check' initial='False'>
+			<dai variable='x[i]' equn='x[i]_dot &gt;= c[i] and x[i]_dot &lt;= d[i]'/>
+		</mode>
+		
+		<mode id='3' name='CS' initial='False'>
+			<dai variable='x[i]' equn='x[i]_dot = 0.0'/>
+		</mode>
+		
+		<transition source='idle' destination='start'>
+			<guard equn='k == 0' />
+			<action equn='x[i]&apos; = 0.0'/>
+		</transition>
+
+		<transition source='start' destination='check'>
+			<action equn='k&apos; = i and x[i]&apos; = 0.0'/>
+		</transition>
+
+		<transition source='check' destination='CS'>
+			<guard equn='k == i and x[i] &gt;= b' />
+		</transition>
+		
+		<transition source='check' destination='idle'>
+			<guard equn='k != i and x[i] &gt;= b' />
+		</transition>
+		
+		<transition source='CS' destination='idle'>
+			<action equn='k&apos; = 0'/>
+		</transition>
+	</automaton>
+
+
+	<property equn='forall i j ((i != j) implies (q[i] != CS or q[j] != CS))' type='safety' />
+	
+
+</holism>

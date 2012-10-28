@@ -1,0 +1,99 @@
+REACH_USE_CONVEX_HULL = false; // not possible because of global variables
+REACH_MAX_ITER = 0; 
+REACH_USE_BBOX = false;
+COMPOSE_USE_CONVEX_HULL_FOR_REACH = false;
+COMPOSE_WITH_REACH_MIN = true;
+CHEAP_CONTAIN_RETURN_OTHERS = false;
+
+N := 1;
+LB := 5;
+LF := 10;
+LM := 13;
+LTOTAL := (LB + LF) + LM;
+LS := 7;
+a := 90;
+b := 120;
+LGUARD := LS + ((b - a) * ((LTOTAL - LS) / a));
+
+automaton agent1
+contr_var : x_1,b_1;
+input_var : x_2,b_2;
+synclabs :  tau, flybaseR1, flybaseL1, baseRfinal1, baseLfinal1, finalmissL1, finalmissR1, finallanded1, missRfly1, missLfly1;
+loc fly: while  true  wait { b_1' == 0 }
+	 when ( ! (b_2 == 1) | (x_2 >= LGUARD)) sync flybaseR1  do {x_1' == 0 & b_1' == 1 }  goto baseR;
+	 when ( ! (b_2 == 1) | (x_2 >= LGUARD)) sync flybaseL1  do {x_1' == 0 & b_1' == 1 }  goto baseL;
+	 when true sync tau do {x_1' == x_1 & b_1' == b_1} goto fly;
+loc baseR: while x_1 <= LB wait { x_1' >= a & x_1' <= b & b_1' == 0 }
+	 when x_1 >= LB & x_1 <= LB sync baseRfinal1  do {x_1' == x_1 & b_1' == b_1}  goto final;
+	 when true sync tau do {x_1' == x_1 & b_1' == b_1} goto baseR;
+loc baseL: while x_1 <= LB wait { x_1' >= a & x_1' <= b & b_1' == 0 }
+	 when x_1 >= LB & x_1 <= LB sync baseLfinal1  do {x_1' == x_1 & b_1' == b_1}  goto final;
+	 when true sync tau do {x_1' == x_1 & b_1' == b_1} goto baseL;
+loc final: while x_1 <= LB + LF wait { x_1' >= a & x_1' <= b & b_1' == 0 }
+	 when x_1 >= (LB + LF) & x_1 <= (LB + LF) sync finalmissL1  do {x_1' == x_1 & b_1' == b_1}  goto missL;
+	 when x_1 >= (LB + LF) & x_1 <= (LB + LF) sync finalmissR1  do {x_1' == x_1 & b_1' == b_1}  goto missR;
+	 when x_1 >= (LB + LF) & x_1 <= (LB + LF) sync finallanded1  do {x_1' == 0 & b_1' == 0 }  goto landed;
+	 when true sync tau do {x_1' == x_1 & b_1' == b_1} goto final;
+loc missR: while x_1 <= LB + LF + LM wait { x_1' >= a & x_1' <= b & b_1' == 0 }
+	 when x_1 >= (LB + LF + LM) & x_1 <= (LB + LF + LM) sync missRfly1  do {x_1' == 0 & b_1' == 0 }  goto fly;
+	 when true sync tau do {x_1' == x_1 & b_1' == b_1} goto missR;
+loc missL: while x_1 <= LB + LF + LM wait { x_1' >= a & x_1' <= b & b_1' == 0 }
+	 when x_1 >= (LB + LF + LM) & x_1 <= (LB + LF + LM) sync missLfly1  do {x_1' == 0 & b_1' == 0 }  goto fly;
+	 when true sync tau do {x_1' == x_1 & b_1' == b_1} goto missL;
+loc landed: while  true  wait { b_1' == 0 }
+ ;
+
+initially fly & (x_1 == 0) & (b_1 == 0);
+
+end
+
+automaton agent2
+contr_var : x_2,b_2;
+input_var : x_1,b_1;
+synclabs :  tau, flybaseR2, flybaseL2, baseRfinal2, baseLfinal2, finalmissL2, finalmissR2, finallanded2, missRfly2, missLfly2;
+loc fly: while  true  wait { b_2' == 0 }
+	 when ( ! (b_1 == 1) | (x_1 >= LGUARD)) sync flybaseR2  do {x_2' == 0 & b_2' == 1 }  goto baseR;
+	 when ( ! (b_1 == 1) | (x_1 >= LGUARD)) sync flybaseL2  do {x_2' == 0 & b_2' == 1 }  goto baseL;
+	 when true sync tau do {x_2' == x_2 & b_2' == b_2} goto fly;
+loc baseR: while x_2 <= LB wait { x_2' >= a & x_2' <= b & b_2' == 0 }
+	 when x_2 >= LB & x_2 <= LB sync baseRfinal2  do {x_2' == x_2 & b_2' == b_2}  goto final;
+	 when true sync tau do {x_2' == x_2 & b_2' == b_2} goto baseR;
+loc baseL: while x_2 <= LB wait { x_2' >= a & x_2' <= b & b_2' == 0 }
+	 when x_2 >= LB & x_2 <= LB sync baseLfinal2  do {x_2' == x_2 & b_2' == b_2}  goto final;
+	 when true sync tau do {x_2' == x_2 & b_2' == b_2} goto baseL;
+loc final: while x_2 <= LB + LF wait { x_2' >= a & x_2' <= b & b_2' == 0 }
+	 when x_2 >= (LB + LF) & x_2 <= (LB + LF) sync finalmissL2  do {x_2' == x_2 & b_2' == b_2}  goto missL;
+	 when x_2 >= (LB + LF) & x_2 <= (LB + LF) sync finalmissR2  do {x_2' == x_2 & b_2' == b_2}  goto missR;
+	 when x_2 >= (LB + LF) & x_2 <= (LB + LF) sync finallanded2  do {x_2' == 0 & b_2' == 0 }  goto landed;
+	 when true sync tau do {x_2' == x_2 & b_2' == b_2} goto final;
+loc missR: while x_2 <= LB + LF + LM wait { x_2' >= a & x_2' <= b & b_2' == 0 }
+	 when x_2 >= (LB + LF + LM) & x_2 <= (LB + LF + LM) sync missRfly2  do {x_2' == 0 & b_2' == 0 }  goto fly;
+	 when true sync tau do {x_2' == x_2 & b_2' == b_2} goto missR;
+loc missL: while x_2 <= LB + LF + LM wait { x_2' >= a & x_2' <= b & b_2' == 0 }
+	 when x_2 >= (LB + LF + LM) & x_2 <= (LB + LF + LM) sync missLfly2  do {x_2' == 0 & b_2' == 0 }  goto fly;
+	 when true sync tau do {x_2' == x_2 & b_2' == b_2} goto missL;
+loc landed: while  true  wait { b_2' == 0 }
+ ;
+
+initially fly & (x_2 == 0) & (b_2 == 0);
+
+end
+
+sys =  agent1 &  agent2;
+
+sys.print("sats-ii-harder-sides-miss_ii_sys_N2", 0);
+reg = sys.reachable;
+reg.print("sats-ii-harder-sides-miss_ii_reach_N2", 0);
+forbidden = sys.{baseR~baseR & x_1 > x_2 & x_1 - x_2 < LS, baseR~baseR & x_2 > x_1 & x_2 - x_1 < LS,
+		baseL~baseR & x_1 > x_2 & x_1 - x_2 < LS, baseL~baseR & x_2 > x_1 & x_2 - x_1 < LS,
+		baseR~baseL & x_1 > x_2 & x_1 - x_2 < LS, baseR~baseL & x_2 > x_1 & x_2 - x_1 < LS,
+		final~baseR & x_1 > x_2 & x_1 - x_2 < LS, final~baseR & x_2 > x_1 & x_2 - x_1 < LS,
+		baseR~final & x_1 > x_2 & x_1 - x_2 < LS, baseR~final & x_2 > x_1 & x_2 - x_1 < LS,
+		baseL~final & x_1 > x_2 & x_1 - x_2 < LS, baseL~final & x_2 > x_1 & x_2 - x_1 < LS,
+		final~baseL & x_1 > x_2 & x_1 - x_2 < LS, final~baseL & x_2 > x_1 & x_2 - x_1 < LS};
+echo "";
+echo "Reachable forbidden states:";
+reg.print("sats-ii-harder-sides-miss_ii_reach_bad", 0);
+echo "";
+echo "Reachable forbidden states empty?";
+reg.is_empty;

@@ -1,0 +1,49 @@
+<?xml version="1.0"?>
+
+<holism>
+	<parameter name='N' type='index' comment='number of processes in the system' />
+	<parameter name='a' assumption='a == 1.0' type='real' comment='lower bound on rectangular dynamics' />
+	<parameter name='b' assumption='b == 2.0' type='real' comment='upper bound on rectangular dynamics' />
+	<parameter name='L' assumption='L == 5.0' type='real' comment='smaller constant' />
+	<parameter name='H' assumption='H == 30.0' type='real' comment='smaller constant' />
+
+	<variable name='g' type='index' update_type='discrete' />
+
+	<assumption equn='N &gt;= 2' comment='' />
+
+	<automaton name='gpointer-example-guard'>
+		<variable name='x[i]' type='nnreal' update_type='Continuous' />
+		
+		<initial equn='(forall i (x[i] == 0.0)) and g == 0' />
+
+		<mode id='0' name='off' initial='True'>
+			<dai variable='x[i]' equn='x[i]_dot = 0.0'/>
+		</mode>
+
+		<mode id='1' name='on' initial='False'>
+			<invariant equn='x[i] &lt;= H' />
+			<stop equn='x[i] &gt;= H' />
+			<dai variable='x[i]' equn='x[i]_dot &gt;= a and x[i]_dot &lt;= b'/>
+		</mode>
+		
+		<transition source='off' destination='on'>
+			<action equn='x[i]&apos; = L and g&apos; = i'/>
+		</transition>
+		
+		<transition source='on' destination='off'>
+			<guard equn='x[i] &gt;= H and g == i' />
+			<action equn='x[i]&apos; = 0.0 and g&apos; = 0'/>
+		</transition>
+		
+		<transition source='on' destination='off'>
+			<guard equn='x[i] &gt;= H and g != i' />
+			<action equn='x[i]&apos; = 0.0'/>
+		</transition>
+	</automaton>
+
+	<property equn='true' type='safety' />
+	
+	
+	<property equn='false' type='safety' />
+
+</holism>

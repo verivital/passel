@@ -1,0 +1,60 @@
+<?xml version="1.0"?>
+
+<!-- source: Lynch book, p. 297 -->
+
+<holism>
+	<parameter name='N' type='index' comment='' />
+	
+	<variable name='largest' type='integer' update_type='Discrete' />
+	
+	<assumption equn='N &gt;= 2' comment='' />
+
+	<automaton name='bakery-lynch'>
+		<variable name='choosing[i]' type='integer' update_type='Discrete' />
+		<variable name='number[i]' type='integer' update_type='Discrete' />
+		
+		<initial equn='(forall i (choosing[i] == 0 and number[i] == 0 and largest == 0))' />
+
+		<mode id='0' name='try' initial='True'>
+		</mode>
+		
+		<mode id='1' name='choose' initial='False'>
+		</mode>
+
+		<mode id='2' name='check' initial='False'>
+		</mode>
+		
+		<mode id='3' name='crit' initial='False'>
+		</mode>
+
+
+		<transition source='try' destination='choose'>
+			<action equn='choosing[i]&apos; = 1 and number[i]&apos; = 1 + largest and largest&apos; = largest + 1' />
+		</transition>
+		
+		<transition source='choose' destination='check'>
+			<action equn='choosing[i]&apos; = 0' />
+		</transition>
+		
+		<transition source='check' destination='crit'>
+			<uguard equn='choosing[j] == 0 and (number[j] == 0 or ((number[i] &lt; number[j]) or (number[i] &lt;= number[j] and i &lt; j)))' />
+		</transition>
+		
+		<transition source='crit' destination='exit'>
+			<action equn='number[i]&apos; = 0' />
+		</transition>
+
+
+	</automaton>
+	
+<!--
+	<property equn='forall i (q[i] == sleep)' type='safety' comment='' />
+	<property equn='forall i (q[i] == wait)' type='safety' comment='' />
+	<property equn='forall i (q[i] == crit)' type='safety' comment='' />
+
+	<property equn='forall i j (q[i] == wait and q[j] == wait)' type='safety' comment='' />
+-->
+	<property equn='forall i j ((i != j) implies (q[i] != crit or q[j] != crit))' type='safety' comment='' />
+	
+
+</holism>

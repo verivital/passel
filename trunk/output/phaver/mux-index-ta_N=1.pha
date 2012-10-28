@@ -1,0 +1,47 @@
+REACH_USE_CONVEX_HULL = false; // not possible because of global variables
+REACH_MAX_ITER = 0; 
+REACH_USE_BBOX = false;
+COMPOSE_USE_CONVEX_HULL_FOR_REACH = false;
+COMPOSE_WITH_REACH_MIN = true;
+CHEAP_CONTAIN_RETURN_OTHERS = false;
+
+N := 1;
+
+automaton agent1
+contr_var : x_1;
+input_var : g;
+synclabs :  tau, IT1, TC1, CE1, EI1;
+loc I: while true wait { x_1' == 1 }
+	 when g == 0 & x_1 >= 1 sync IT1  do {g' == 1 & x_1' == 0 }  goto T;
+	 when true sync tau do {g' == g & x_1' == x_1} goto I;
+loc T: while true wait {  x_1' == 1  }
+	 when g == 1 & x_1 >= 1 sync TC1  do {x_1' == 0 }  goto C;
+	 when true sync tau do {g' == g & x_1' == x_1} goto T;
+loc C: while true wait {  x_1' == 1  }
+	 when x_1 >= 1 sync CE1  do {x_1' == 0 }  goto E;
+	 when true sync tau do {g' == g & x_1' == x_1} goto C;
+loc E: while true wait {  x_1' == 1  }
+	 when x_1 >= 1 sync EI1  do {g' == 0 & x_1' == 0 }  goto I;
+	 when true sync tau do {g' == g & x_1' == x_1} goto E;
+
+initially I & x_1 == 0;
+
+end
+
+automaton global
+contr_var : g;
+synclabs: tau,IT1,EI1;
+loc default: while True wait { g' == 0}
+	 when True sync tau do { g' == g } goto default;
+	 when True sync IT1 do { true } goto default;
+	 when True sync EI1 do { true } goto default;
+
+initially default & g == 0;
+
+end
+
+sys =  global &  agent1;
+
+sys.print("mux-index-ta_ii_sys_N1", 0);
+reg = sys.reachable;
+reg.print("mux-index-ta_ii_reach_N1", 0);

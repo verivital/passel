@@ -75,6 +75,8 @@ namespace passel.controller.parsing
         type,
         post,
         template,   // for synthesis
+        format, // our syntax or smtlib
+        assumed,
     };
 
     public enum AssumptionTypes
@@ -123,6 +125,7 @@ namespace passel.controller.parsing
         comment,
         name,
         type,
+        assumption,
     };
 
     public enum ParameterTypes
@@ -247,6 +250,8 @@ namespace passel.controller.parsing
                 reachstate = reachstate.Replace("\r", "");
                 reachstate = reachstate.Replace("&", "&&");
                 reachstate = reachstate.Replace("|", "||");
+                //reachstate = reachstate.Replace(" < ", " <= "); // TODO: HUGE HACK: THIS IS THE "CLOSURE" OPERATOR
+                //reachstate = reachstate.Replace(" > ", " >= "); // TODO: HUGE HACK: THIS IS THE "CLOSURE" OPERATOR
                 reachstate = reachstate.Trim();
                 reachstate = reachstate.TrimStart('(', ',', '}', '{'); // strip parentheses and commas
                 reachstate = reachstate.TrimEnd(')', ',', '}', '{');
@@ -582,6 +587,7 @@ namespace passel.controller.parsing
                                         String name = reader.GetAttribute(ParameterAttributes.name.ToString());
                                         String type = reader.GetAttribute(ParameterAttributes.type.ToString());
                                         String comment = reader.GetAttribute(ParameterAttributes.comment.ToString());
+                                        String assumption = reader.GetAttribute(ParameterAttributes.assumption.ToString());
 
                                         Expr param = null;
                                         Expr paramPrime = null;
@@ -598,6 +604,18 @@ namespace passel.controller.parsing
                                             case ParameterTypes.real:
                                                 param = Controller.Instance.Z3.MkRealConst(name);
                                                 break;
+                                        }
+
+                                        if (assumption != null && assumption.Length > 0)
+                                        {
+                                            Antlr.Runtime.Tree.CommonTree tmptree = passel.controller.parsing.math.Expression.Parse(assumption);
+                                            //Expression.FixTypes(ref tmptree);
+                                            Expr passump = LogicalExpression.CreateTerm(tmptree);
+                                            if (!Controller.Instance.ParamsAssumps.ContainsKey(name))
+                                            {
+                                                Controller.Instance.ParamsAssumps.Add(name, passump);
+                                                z3.Assumptions.Add((BoolExpr)passump);
+                                            }
                                         }
 
                                         if (param != null)
@@ -629,14 +647,93 @@ namespace passel.controller.parsing
                                         String type = reader.GetAttribute(PropertyAttributes.type.ToString());
                                         String template = reader.GetAttribute(PropertyAttributes.template.ToString());
                                         String post = reader.GetAttribute(PropertyAttributes.post.ToString());
+                                        String format = reader.GetAttribute(PropertyAttributes.format.ToString());
+                                        String assumed = reader.GetAttribute(PropertyAttributes.assumed.ToString());
 
                                         Property.PropertyType pt;
 
                                         // todo: make parsing consistent: either handle it all here, or handle it all in the object (makes more sense)
                                         if (Enum.TryParse<Property.PropertyType>(type, true, out pt))
                                         {
-                                            Property p = new Property(pstr, pt, post, template);
+                                            Property p;
+                                            if (format == "smt")
+                                            {
+                                                //BoolExpr prop = z3.ParseSMTLIB2String( "(benchmark tst :formula" + pstr + ")");
+                                                //pstr = pstr.Replace("\n", "").Replace("\r", "");
+                                                //new Sort[] { Controller.Instance.LocType }
+                                                //foreach (var decl in Controller.Instance.DataU.IndexedVariableDecl.Values)
+                                                //{
+                                                //    decl.
+                                                //}
+                                                pstr = "(assert " + pstr + ")";
+
+
+                                                //BoolExpr prop = z3.ParseSMTLIB2String(pstr, null, null, null, null);
+                                                //BoolExpr prop = z3.ParseSMTLIB2String("(assert " + pstr + ")", null, null, null, Controller.Instance.DataU.IndexedVariableDecl.Values.ToArray());
+                                                //BoolExpr prop = z3.ParseSMTLIB2String("(declare-fun a () (_ BitVec 8)) (assert (bvuge a #x10)) (assert (bvule a #xf0))");
+
+                                                
+                                                // set up declarations and names (doesn't use existing context information)
+                                                List<FuncDecl> decls = new List<FuncDecl>();
+                                                List<Symbol> names = new List<Symbol>();
+                                                foreach (var decl in Controller.Instance.DataU.IndexedVariableDecl)
+                                                {
+                                                    decls.Add(decl.Value);
+                                                    names.Add(decl.Value.Name);
+                                                }
+
+                                                foreach (var decl in Controller.Instance.DataU.VariableDecl)
+                                                {
+                                                    decls.Add(decl.Value);
+                                                    names.Add(decl.Value.Name);
+                                                }
+
+                                                foreach (var decl in Controller.Instance.GlobalVariables)
+                                                {
+                                                    decls.Add(decl.Value.FuncDecl);
+                                                    names.Add(decl.Value.FuncDecl.Name);
+                                                }
+
+                                                foreach (var decl in Controller.Instance.Locations)
+                                                {
+                                                    decls.Add(decl.Value.FuncDecl);
+                                                    names.Add(decl.Value.FuncDecl.Name);
+                                                }
+
+                                                foreach (var decl in Controller.Instance.Indices)
+                                                {
+                                                    decls.Add(decl.Value.FuncDecl);
+                                                    names.Add(decl.Value.FuncDecl.Name);
+                                                }
+
+                                                foreach (var decl in Controller.Instance.Params)
+                                                {
+                                                    decls.Add(decl.Value.FuncDecl);
+                                                    names.Add(decl.Value.FuncDecl.Name);
+                                                }
+                                                
+                                                
+                                                // from params
+                                                //decls.Add(Controller.Instance.IndexN.FuncDecl);
+                                                //names.Add(Controller.Instance.IndexN.FuncDecl.Name);
+
+                                                BoolExpr prop = z3.ParseSMTLIB2String(pstr, null, null, names.ToArray(), decls.ToArray());
+                                                
+                                                //BoolExpr prop = z3.ParseSMTLIB2String(pstr);
+                                                p = new Property(prop);
+                                                p.makePost(); // update post expression
+                                                p.Type = Property.PropertyType.safety; // todo: generalize
+                                            }
+                                            else
+                                            {
+                                                p = new Property(pstr, pt, post, template);
+                                            }
                                             Controller.Instance.Sys.Properties.Add(p);
+
+                                            if (assumed == "1")
+                                            {
+                                                z3.Assumptions.Add((BoolExpr)p.Formula);
+                                            }
                                         }
                                         else
                                         {
@@ -770,17 +867,44 @@ namespace passel.controller.parsing
                                                 }
 
                                                 // todo: rewrite in more general form for timed vs. rectangular
-                                                if (constants.Count + pvars.Count <= 1)
+                                                if (constants.Count + pvars.Count < 1)
                                                 {
                                                     f.DynamicsType = Flow.DynamicsTypes.timed;
+                                                }
+                                                else if (constants.Count + pvars.Count == 1)
+                                                {
+                                                    f.DynamicsType = Flow.DynamicsTypes.timed;
+                                                    if (pvars.Count == 1)
+                                                    {
+                                                        f.RectRateA = Controller.Instance.Params[pvars[0]];
+                                                        f.RectRateB = Controller.Instance.Params[pvars[0]]; // \dot{x} \in [a,a]
+                                                    }
+                                                    if (constants.Count == 1)
+                                                    {
+                                                        f.RectRateA = z3.MkReal(constants[0]);
+                                                        f.RectRateB = z3.MkReal(constants[0]);
+                                                    }
                                                 }
                                                 else if (constants.Count + pvars.Count == 2)
                                                 {
                                                     f.DynamicsType = Flow.DynamicsTypes.rectangular;
-
                                                     // todo: generalize
-                                                    f.RectRateA = Controller.Instance.Params[pvars[0]];
-                                                    f.RectRateB = Controller.Instance.Params[pvars[1]];
+                                                    if (pvars.Count >= 1)
+                                                    {
+                                                        f.RectRateA = Controller.Instance.Params[pvars[0]];
+                                                    }
+                                                    if (pvars.Count >= 2)
+                                                    {
+                                                        f.RectRateB = Controller.Instance.Params[pvars[1]];
+                                                    }
+                                                    if (constants.Count >= 1)
+                                                    {
+                                                        f.RectRateA = z3.MkReal(constants[0]);
+                                                    }
+                                                    if (constants.Count >= 2)
+                                                    {
+                                                        f.RectRateB = z3.MkReal(constants[1]);
+                                                    }
                                                 }
 
                                                 if (pvars.Count > 0)
@@ -882,7 +1006,6 @@ namespace passel.controller.parsing
                                             if (!Controller.Instance.Z3.findTerm(expr, Controller.Instance.RealZero, true))
                                             {
                                                 f.Value = expr;
-                                                l.Flows.Add(f);
                                                 /*
                                                 // todo: move zero diffeq detection to this part, as currently we may be removing some actual diffeqs if any of them are 0
                                                 if (l.Flow != null)
@@ -897,6 +1020,14 @@ namespace passel.controller.parsing
                                                 }
                                                  */
                                             }
+                                            else
+                                            {
+                                                f.DynamicsType = Flow.DynamicsTypes.constant; // no change
+                                                f.RectRateA = Controller.Instance.RealZero;
+                                                f.RectRateB = Controller.Instance.RealZero;
+                                            }
+
+                                            l.Flows.Add(f);
                                         }
 
                                         break;

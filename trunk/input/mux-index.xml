@@ -1,0 +1,75 @@
+<?xml version="1.0"?>
+
+<holism>
+	<parameter name='N' type='index' comment='number of processes in the system' />
+	
+	<variable name='g' type='index' update_type='Discrete' comment='lock' />
+	
+	<assumption equn='N &gt;= 2' comment='' />
+
+	<automaton name='mux-index'>
+		<initial equn='g == 0' />
+
+		<mode id='0' name='I' initial='True'>
+		</mode>
+
+		<mode id='1' name='T' initial='False'>
+		</mode>
+		
+		<mode id='2' name='C' initial='False'>
+		</mode>
+		
+		<mode id='3' name='E' initial='False'>
+		</mode>
+		
+		<transition source='I' destination='T'>
+			<guard equn='g == 0' />
+			<action equn='g&apos; = i'/>
+		</transition>
+		
+		<transition source='T' destination='C'>
+			<guard equn='g == i' />
+		</transition>
+		
+		<transition source='C' destination='E'>
+		</transition>
+		
+		<transition source='E' destination='I'>
+			<action equn='g&apos; = 0'/>
+		</transition>
+	</automaton>
+
+
+	<property equn='true' type='safety' />
+
+
+<!--	<property equn='forall i j ((i != j) implies ( (q[i] == I and q[j] == I) or (q[i] == T and q[j] == I and g == i) or (q[i] == I and q[j] == T and g == j) or (q[i] == I and q[j] == C and g == j) or (q[i] == I and q[j] == E and g == j) or (q[i] == C and q[j] == I and g == i) or (q[i] == E and q[j] == I and g == i) ))' type='safety' />
+-->
+
+
+<!--	<property equn='forall i j (( (i == j) or (q[i] == I and q[j] == I) or (q[i] == T and q[j] == I and g == i) or (q[i] == I and q[j] == T and g == j) or (q[i] == I and q[j] == C and g == j) or (q[i] == I and q[j] == E and g == j) or (q[i] == C and q[j] == I and g == i) or (q[i] == E and q[j] == I and g == i) ))' type='safety' />
+-->
+
+
+<!--
+(forall ((i Int) (j Int))
+  (or (not (and (>= i 1) (<= i N) (>= j 1) (<= j N) (not (= i j))))
+      (and (= (q i) #b000) (= (q j) #b000))
+      (and (= (q i) #b001) (= (q j) #b000) (= g i))
+      
+      (and (= (q i) #b000) (= (q j) #b001) (= g j))
+      (and (= (q i) #b000) (= (q j) #b010) (= g j))
+      (and (= (q i) #b000) (= (q j) #b011) (= g j))
+      (and (= (q i) #b011) (= (q j) #b000) (= g i))
+      (and (= (q i) #b010) (= (q j) #b000) (= g i))))
+-->
+
+	<property equn='forall i j ((i != j) implies (q[i] != C or q[j] != C))' type='safety' />
+	
+	<property equn='forall i j ((i != j and q[i] == C) implies (q[j] != C))' type='safety' />
+	
+	<property equn='false' type='safety' />
+
+
+
+</holism>

@@ -1,0 +1,107 @@
+<?xml version="1.0"?>
+
+<!--
+Source: Lynch, book
+
+p. 265-266
+-->
+
+<holism>
+	<parameter name='N' type='index' comment='number of processes in the system' />
+
+	<variable name='turn' type='index' update_type='Discrete' comment='initially arbitrary' />
+	
+	<assumption equn='N &gt;= 2' comment='' />
+
+	<automaton name='djikstra'>		
+		<variable name='flag[i]' type='integer' update_type='Discrete' comment='range: 0, 1, 2, initially 0' />
+		
+		<initial equn='forall i (flag[i] == 0)' />
+
+		<mode id='0' name='rem' initial='True'>
+		</mode>
+
+		<mode id='1' name='try' initial='False'>
+		</mode>
+		
+		<mode id='2' name='crit' initial='False'>
+		</mode>
+		
+		<transition source='rem' destination='try'>
+			<action equn='flag[i]&apos; = 1'/>
+		</transition>
+		
+		<transition source='try' destination='try'>
+			<uguard equn='flag[j] == 2' />
+		</transition>
+		
+		<transition source='try' destination='crit'>
+			<guard equn='turn != i and flag[turn] == 0' />
+			<action equn='turn&apos; = i and flag[i]&apos; = 2'/>
+		</transition>
+		
+		<transition source='crit' destination='rem'>
+			<action equn='flag[i]&apos; = 0'/>
+		</transition>
+
+	</automaton>
+
+
+	<property equn='true' type='safety' />
+
+	<!-- <property equn='forall i ((q[i] == crit) implies (token == i))' type='safety' comment='inductive invariant that implies mutual exclusion' /> -->
+
+	<property equn='forall i j ((i != j) implies (q[i] != crit or q[j] != crit))' type='safety' />
+	
+	<property equn='forall i j ((i != j and q[i] == crit) implies (q[j] != crit))' type='safety' />
+	
+	<property equn='false' type='safety' />
+
+	
+	
+	<!--
+	<property equn='forall i j ((i != j) implies ((q[i] == waiting and q[j] == waiting) or   (q[i] == idle and q[j] == idle) or  (q[i] == idle and q[j] == idle and token == i) or  (q[i] == idle and q[j] == waiting and token == i) or  (q[i] == crit and q[j] == idle and token == i) or  (q[i] == waiting and q[j] == crit and token == j) or  (q[i] == crit and q[j] == waiting and token == i) or  (q[i] == waiting and q[j] == idle and (token == i or token == j))))' type='safety' />
+	-->
+	
+<!--
+
+	<property equn='forall i j ((i != j) implies () )
+      (q[i] == waiting and q[j] == waiting) or
+      (q[i] == idle and q[j] == idle) or
+      (q[i] == idle and q[j] == idle and token == i) or
+      (q[i] == idle and q[j] == waiting and token == i) or
+      (q[i] == crit and q[j] == idle and token == i) or
+      (q[i] == waiting and q[j] == crit and token == j) or
+      (q[i] == crit and q[j] == waiting and token == i) or
+      (q[i] == waiting and q[j] == idle and (token == i or token == j))' type='safety' />
+
+
+
+(forall ((i Int) (j Int))
+  (or (not (and (>= i 1) (<= i N) (>= j 1) (<= j N) (not (= i j))))
+      (and (= (q i) waiting) (= (q j) waiting))
+      
+      
+      
+      
+      (and (= (q i) idle) (= (q j) idle))
+      (and (= (q i) idle) (= (q j) idle) (= token i))
+      
+      
+      
+      
+      (and (= (q i) waiting) (= (q j) idle) (or (= token j) (= token i)))
+      (and (= (q i) waiting) (= (q j) idle) (= token j))
+      
+      (and (= (q i) idle) (= (q j) waiting) (= token i))
+
+      
+      (and (= (q i) crit) (= (q j) idle) (= token i))
+
+      
+      (and (= (q i) waiting) (= (q j) crit) (= token j))
+      (and (= (q i) crit) (= (q j) waiting) (= token i))))
+-->
+      
+
+</holism>

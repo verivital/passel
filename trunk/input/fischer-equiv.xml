@@ -1,0 +1,112 @@
+<?xml version="1.0"?>
+
+<holism>
+	<parameter name='N' type='index' comment='number of processes in the system' />
+	<parameter name='A' type='real' comment='smaller constant' />
+	<parameter name='B' type='real' comment='larger constant' />
+	
+	<variable name='indexSet' type='integer' update_type='Discrete' comment='is index set to some process id?' />
+	
+	<assumption equn='A &gt; 0.0 and B &gt; 0.0 and A &lt; B' comment='A *stictly less than* B for mutual exclusion' />
+	<assumption equn='A == 5.0 and B == 7.0' comment='need actual values for phaver' />
+	<assumption equn='c == 1.0 and d == 1.0' comment='need actual values for phaver' />
+	
+	<assumption equn='N &gt;= 1' comment='' />
+
+	<automaton name='fischer-equiv'>
+		<variable name='x[i]' type='nnreal' update_type='Continuous' />
+		<variable name='b[i]' type='integer' update_type='Discrete' />
+		
+		<initial equn='(forall i (x[i] == 0.0 and b[i] == 0)) and indexSet = 0' />
+
+
+		<mode id='0' name='idle' initial='True'>
+			<dai variable='x[i]' equn='x[i]_dot = 0.0'/>
+		</mode>
+
+		<mode id='1' name='start' initial='False'>
+			<invariant equn='x[i] &lt;= A' />
+			<stop equn='x[i] &gt;= A' />
+			<dai variable='x[i]' equn='x[i]_dot == 1.0'/>
+		</mode>
+		
+		<mode id='2' name='check' initial='False'>
+			<dai variable='x[i]' equn='x[i]_dot == 1.0'/>
+		</mode>
+		
+		<mode id='3' name='crit' initial='False'>
+			<dai variable='x[i]' equn='x[i]_dot = 0.0'/>
+		</mode>
+		
+		<transition source='idle' destination='start'>
+			<guard equn='indexSet == 0' />
+			<action equn='x[i]&apos; = 0.0'/>
+		</transition>
+		
+		<!-- start->check1 -->
+		<transition source='start' destination='check'>
+			<guard equn='indexSet == 0 and b[i] == 0' />
+			<action equn='indexSet&apos; = 1 and b[i]&apos; = 1 and x[i]&apos; = 0.0'/>
+		</transition>
+		
+		<!-- start->check2 -->
+		<transition source='start' destination='check'>
+			<guard equn='indexSet == 1 and b[i] == 1' />
+			<action equn='indexSet&apos; = 1 and b[i]&apos; = 1 and x[i]&apos; = 0.0'/>
+		</transition>
+		
+		<!-- start->check3 -->
+		<transition source='start' destination='check'>
+			<guard equn='indexSet == 1 and b[i] == 0' />
+			<action equn='indexSet&apos; = 1 and b[i]&apos; = 1 and x[i]&apos; = 0.0'/>
+			<!-- reset all other b[i] != 0 to 0 -->
+			<uguard equn='if (b[j] == 1) then (b[j]&apos; = 0) else (b[j]&apos; = b[j])' />
+		</transition>
+
+		<transition source='check' destination='crit'>
+			<guard equn='indexSet == 1 and b[i] == 1 and x[i] &gt;= B' />
+		</transition>
+		
+		<!-- check->idle1 -->
+		<transition source='check' destination='idle'>
+			<guard equn='indexSet == 0 and b[i] == 0 and x[i] &gt;= B' />
+			<action equn='x[i]&apos; = 0.0'/>
+		</transition>
+		
+		<!-- check->idle2 -->
+		<transition source='check' destination='idle'>
+			<guard equn='indexSet == 1 and b[i] == 0 and x[i] &gt;= B' />
+			<action equn='x[i]&apos; = 0.0'/>
+		</transition>
+		
+		<!-- crit->idle 1 -->
+		<transition source='crit' destination='idle'>
+			<guard equn='indexSet == 1 and b[i] == 1' />
+			<action equn='indexSet&apos; = 0 and b[i]&apos; = 0 and x[i]&apos; = 0.0'/>
+		</transition>
+		
+		<!-- crit->idle 2 -->
+		<transition source='crit' destination='idle'>
+			<guard equn='indexSet == 0 and b[i] == 0' />
+			<action equn='indexSet&apos; = 0 and b[i]&apos; = 0 and x[i]&apos; = 0.0'/>
+		</transition>
+		
+		<!-- crit->idle 3 -->
+		<transition source='crit' destination='idle'>
+			<guard equn='indexSet == 1 and b[i] == 0' />
+			<action equn='indexSet&apos; = 0 and b[i]&apos; = 0 and x[i]&apos; = 0.0'/>
+			<!-- reset all other b[i] != 0 to 0 -->
+			<uguard equn='if (b[j] == 1) then (b[j]&apos; = 0) else (b[j]&apos; = b[j])' />
+		</transition>
+	</automaton>
+
+	<property equn='true' type='safety' />
+	
+	<property equn='forall i (q[i] == idle or q[i] == start or q[i] == check or q[i] == crit)' type='safety' />
+	<property equn='forall i j ((i != j) implies ((q[i] == test or q[i] == set or q[i] == check or q[i] == crit) and (q[j] == test or q[j] == set or q[j] == check or q[j] == crit)))' type='safety' />
+	
+	<property equn='forall i j ((i != j and q[i] == crit) implies (q[j] != crit))' type='safety' />
+	
+	<property equn='false' type='safety' />
+
+</holism>

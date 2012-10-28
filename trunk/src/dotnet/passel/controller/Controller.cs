@@ -116,7 +116,7 @@ namespace passel.controller
         /**
          * Value selected for N (if any)
          */
-        public int IndexNValue;
+        public uint IndexNValue;
 
         public Expr RealInf;
 
@@ -202,6 +202,7 @@ namespace passel.controller
             this._ivars = new Dictionary<KeyValuePair<String, String>, Expr>();
             this._ivarsPrimed = new Dictionary<KeyValuePair<String, String>, Expr>();
             this._params = new Dictionary<String, Expr>();
+            this.ParamsAssumps = new Dictionary<String, Expr>();
             this._globalVariables = new Dictionary<String, Expr>();
             this._globalVariablesPrimed = new Dictionary<String, Expr>();
             this.UndefinedVariables = new Dictionary<String, Expr>();
@@ -576,6 +577,8 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
             set { this._params = value; }
         }
 
+        public IDictionary<String, Expr> ParamsAssumps; // TODO: refactor by adding a combined variable / parameter class, where params are variables with a "constant" / null update type, then has assumps be a member of this class
+
         /**
          * Global variables
          */
@@ -624,6 +627,20 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
             Instance.View.Show();
         }
 
+        enum PHAVER_INPUT_MODE { reachable_forward, reachable_backward };
+
+        public static Expr[] getNIndices(uint N)
+        {
+            List<Expr> ids = new List<Expr>();
+            for (uint i = 1; i <= N; i++)
+            {
+                uint idx = 'i' + i - 1;
+                string sidx = ((char)idx).ToString();
+                ids.Add(Instance.Indices[ sidx ]);
+            }
+            return ids.ToArray();
+        }
+
         /**
          * Main entry to program
          * Accepts console input
@@ -641,6 +658,8 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
             inputFiles.Add(inputFileCount++, "fischer_umeno_five_state_buggy.xml");
             inputFiles.Add(inputFileCount++, "fischer_umeno_global_clock.xml");
             inputFiles.Add(inputFileCount++, "fischer_umeno_global_clock_buggy.xml");
+
+            inputFiles.Add(inputFileCount++, "fischer_aux.xml");
 
             inputFiles.Add(inputFileCount++, "fischer_phaver.xml");
             inputFiles.Add(inputFileCount++, "fischer_phaver_const.xml");
@@ -665,6 +684,14 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
             inputFiles.Add(inputFileCount++, "sats_timed_counter.xml");
 
             inputFiles.Add(inputFileCount++, "sats-ii.xml");
+            inputFiles.Add(inputFileCount++, "sats-ii-harder.xml");
+            inputFiles.Add(inputFileCount++, "sats-ii-harder-3loc.xml");
+            inputFiles.Add(inputFileCount++, "sats-ii-harder-3loc-global-pointer.xml");
+            inputFiles.Add(inputFileCount++, "sats-ii-harder-basefinal.xml");
+            inputFiles.Add(inputFileCount++, "sats-ii-harder-sides.xml");
+            inputFiles.Add(inputFileCount++, "sats-ii-harder-sides-miss.xml");
+            inputFiles.Add(inputFileCount++, "sats-ii-harder-sides-miss-global.xml");
+            inputFiles.Add(inputFileCount++, "sats-ii-harder-sides-miss-global-pointer.xml");
             inputFiles.Add(inputFileCount++, "sats-ii-pointer.xml");
 
             inputFiles.Add(inputFileCount++, "mux-sem.xml");
@@ -707,6 +734,12 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
             inputFiles.Add(inputFileCount++, "gcd.xml");
 
             inputFiles.Add(inputFileCount++, "starl.xml");
+
+            inputFiles.Add(inputFileCount++, "pointer-example.xml");
+            inputFiles.Add(inputFileCount++, "gpointer-example.xml");
+
+
+            inputFiles.Add(inputFileCount++, "hscc-example.xml");
 
             inputFiles.Add(inputFileCount++, "prelim.xml");
 
@@ -825,7 +858,7 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
                             {
                                 if (choice != null)
                                 {
-                                    int io_n = int.Parse(choice);
+                                    uint io_n = uint.Parse(choice);
 
                                     if (io_n < 1)
                                     {
@@ -1212,11 +1245,13 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
                         {
                             //Instance.Sys.Properties = new List<Property>(); // clear all properties (todo: can add them back...)
 
-                            int tmpN = Controller.Instance.IndexNValue; // save copy, clobbering
+                            uint tmpN = Controller.Instance.IndexNValue; // save copy, clobbering
 
-                            int projectNMax = 2; // maximum number to project onto: will project onto 1, ..., projectNMax; usually choose 2
+                            uint projectNMax = 2; // maximum number to project onto: will project onto 1, ..., projectNMax; usually choose 2
 
-                            for (int N = 2; N <= tmpN; N++)
+                            PHAVER_INPUT_MODE input_mode = PHAVER_INPUT_MODE.reachable_forward;
+
+                            for (uint N = 2; N <= tmpN; N++)
                             {
                                 Controller.Instance.IndexNValue = N; // set global variable value
                                 //List<Expr> reachset = ParseHyXML.ParseReach("C:\\Users\\tjohnson\\Dropbox\\Research\\tools\\phaver\\ii_reach_N" + N); // parse reach set
@@ -1244,8 +1279,15 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
 
                                 //}
 
-                                for (int projectN = 1; projectN <= projectNMax && projectN < N; projectN++)  // assume 1 <= projectN < 10 (otherwise have to change regex below)
-                                {
+                                    uint Nmax = N;
+                                    if (input_mode == PHAVER_INPUT_MODE.reachable_backward)
+                                    {
+                                        Nmax++; // compute with 2
+                                    }
+                                    
+
+                                for (uint projectN = 1; projectN <= projectNMax && projectN < Nmax; projectN++)  // assume 1 <= projectN < 10 (otherwise have to change regex below)
+                                {   
                                     List<BoolExpr> prall = new List<BoolExpr>();
                                     foreach (var p in reachset)
                                     {
@@ -1255,11 +1297,17 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
                                         {
                                             Expr tmp_all = Instance.Z3.MkAnd((BoolExpr)pr.Formula.Args[0], (BoolExpr)pr.Formula.Args[1]);
                                             tmp_all = tmp_all.Simplify();
+
+                                            tmp_all = Instance.simplifyFormula(tmp_all);
+
+                                            //pr.Formula = tmp_all;
+                                            //pr.makePost();
+
                                             //tmp_all = Instance.Z3.MkAnd((BoolExpr)tmp_all, Instance.Z3.MkAnd(Instance.Z3.AssumptionsUniversal.ToArray()));
                                             prall.Add((BoolExpr)tmp_all); // add before modifying formula
                                         }
 
-                                        pr.Formula = pr.Formula.Simplify(); // simplify here vastly speeds removing redundancies later; note, do it after the previous isimplies
+                                        //pr.Formula = pr.Formula.Simplify(); // simplify here vastly speeds removing redundancies later; note, do it after the previous isimplies
 
                                         //pr.Formula = Instance.Z3.MkAnd((BoolExpr)pr.Formula, Instance.Z3.MkAnd(Instance.Z3.AssumptionsUniversal.ToArray())); // add data-type assumptions
 
@@ -1274,7 +1322,7 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
                                         }
 
                                         // do projection
-                                        if (bi.Count > 0 && projectN < N)
+                                        if (bi.Count > 0 && projectN < N && input_mode == PHAVER_INPUT_MODE.reachable_forward)
                                         {
                                             pr.Formula = Instance.Z3.MkExists(bi.ToArray(), pr.Formula);
                                             pr.Status = StatusTypes.toProject;
@@ -1293,24 +1341,34 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
                                             Expr idxi = Instance.Z3.MkIntConst("i");
                                             BoolExpr idxBounds = Instance.Z3.MkAnd(Instance.Z3.MkGe((ArithExpr)idxi, (ArithExpr)Instance.IndexOne), Instance.Z3.MkLe((ArithExpr)idxi, (ArithExpr)Instance.IndexN));
                                             List<BoolExpr> prabstr = new List<BoolExpr>();
-                                            for (int i = 1; i <= N; i++)
+                                            for (uint i = 1; i <= N; i++)
                                             {
                                                 BoolExpr tmp_abs = (BoolExpr)Instance.Z3.copyExpr(pr.Formula); // make a deep copy
-                                                tmp_abs = (BoolExpr)Instance.Z3.abstractGlobals(tmp_abs, N, projectN, i, -1); // j unused
+                                                tmp_abs = (BoolExpr)Instance.Z3.abstractGlobals(tmp_abs, N, projectN, i, 0); // j unused
                                                 prabstr.Add(tmp_abs);
                                             }
                                             pr.Formula = Instance.Z3.MkAnd(prabstr.ToArray());
-                                            pr.Formula = Instance.Z3.MkForall(new Expr[] { Instance.Indices["i"] }, Instance.Z3.MkImplies(idxBounds, (BoolExpr)pr.Formula));
+
+                                            switch (input_mode)
+                                            {
+                                                case PHAVER_INPUT_MODE.reachable_forward:
+                                                    {
+                                                        pr.Formula = Instance.Z3.MkForall(getNIndices(N), Instance.Z3.MkImplies(idxBounds, (BoolExpr)pr.Formula));
+                                                        break;
+                                                    }
+                                                case PHAVER_INPUT_MODE.reachable_backward:
+                                                    {
+                                                        pr.Formula = Instance.Z3.MkForall(getNIndices(N), Instance.Z3.MkImplies(idxBounds, Instance.Z3.MkNot((BoolExpr)pr.Formula)));
+                                                        break;
+                                                    }
+                                            }
                                             pr.makePost(); // update post-state formula
                                         }
 
                                         //Instance.Sys.Properties.Add(pr); // TODO: never seems to be satisfied: this won't be, it's the AND version that's the problem---the quantified invariant would need to be IMPLIES
                                     }
 
-                                    Instance.Sys.removeDuplicateProperties();
-
-
-
+                                    //Instance.Sys.removeDuplicateProperties();
 
 
 
@@ -1321,97 +1379,146 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
 
                                     List<BoolExpr> newallNoGlobal = new List<BoolExpr>();
                                     List<BoolExpr> newall = new List<BoolExpr>();
-                                    for (int i = 0; i < 2; i++)
+                                    switch (input_mode)
                                     {
-                                        foreach (var v in prall)
-                                        {
-                                            Expr vCopy = Instance.Z3.copyExpr(v); // deep copy
-                                            Goal g = Instance.Z3.MkGoal(true, true, false);
-                                            //g.Assert(Instance.Z3.AssumptionsUniversal.ToArray()); // data-type assumptions
-
-
-                                            List<Expr> bi = new List<Expr>();
-                                            foreach (var udf in Instance.UndefinedVariables)
+                                        case PHAVER_INPUT_MODE.reachable_forward:
                                             {
-                                                Regex projecting = new Regex("[" + (projectN + 1).ToString() + "-9]+[1-9]*"); // projectN followed by any number, have to change if we have projectN >= 10
-                                                if (projecting.IsMatch(udf.Key) && Instance.Z3.findTerm(vCopy, Instance.UndefinedVariables[udf.Key], true))
-                                                {
-                                                    bi.Add(udf.Value);
-                                                }
-                                            }
 
-                                            if (i == 0)
-                                            {
-                                                // add index variables to project away
-                                                foreach (var gv in Controller.Instance.Sys.Variables)
+                                                // PROJECTION
+                                                for (int i = 0; i < 2; i++)
                                                 {
-                                                    if (gv.Type == Variable.VarType.index)
+                                                    foreach (var v in prall)
                                                     {
-                                                        bi.Add(Controller.instance.GlobalVariables[gv.Name]);
+                                                        Expr vCopy = Instance.Z3.copyExpr(v); // deep copy
+                                                        Goal g = Instance.Z3.MkGoal(true, false, false);
+                                                        //g.Assert(Instance.Z3.AssumptionsUniversal.ToArray()); // data-type assumptions
+
+
+                                                        List<Expr> bi = new List<Expr>();
+                                                        foreach (var udf in Instance.UndefinedVariables)
+                                                        {
+                                                            Regex projecting = new Regex("[" + (projectN + 1).ToString() + "-9]+[1-9]*"); // projectN followed by any number, have to change if we have projectN >= 10
+                                                            if (projecting.IsMatch(udf.Key) && Instance.Z3.findTerm(vCopy, Instance.UndefinedVariables[udf.Key], true))
+                                                            {
+                                                                bi.Add(udf.Value);
+                                                            }
+                                                        }
+
+                                                        if (i == 0)
+                                                        {
+                                                            // add index variables to project away
+                                                            foreach (var gv in Controller.Instance.Sys.Variables)
+                                                            {
+                                                                if (gv.Type == Variable.VarType.index)
+                                                                {
+                                                                    bi.Add(Controller.instance.GlobalVariables[gv.Name]);
+                                                                }
+                                                            }
+                                                        }
+
+                                                        Expr newv = null;
+                                                        // do projection
+                                                        if (bi.Count > 0 && projectN < N)
+                                                        {
+                                                            newv = Instance.Z3.MkExists(bi.ToArray(), vCopy);
+                                                        }
+
+                                                        if (newv != null)
+                                                        {
+
+                                                            g.Assert((BoolExpr)newv);
+                                                            Tactic tac = Instance.Z3.MkTactic("qe"); // quantifier elimination for projection
+                                                            ApplyResult a;
+                                                            a = tac.Apply(g);
+                                                            a = a;
+
+                                                            foreach (var sg in a.Subgoals)
+                                                            {
+                                                                Expr e;
+                                                                if (sg.Formulas.Length > 1)
+                                                                {
+                                                                    e = Instance.Z3.MkAnd(sg.Formulas);
+                                                                }
+                                                                else
+                                                                {
+                                                                    e = sg.Formulas[0];
+                                                                }
+
+
+                                                                //if (e.IsOr)
+                                                                //{
+                                                                //    HashSet<Expr> tmp_args = new HashSet<Expr>();
+                                                                //    for (int arg = 0; arg < e.NumArgs; arg++)
+                                                                //    {
+                                                                //        if (!e.Args[arg].IsTrue)
+                                                                //        {
+                                                                //            tmp_args.Add(e.Args[arg]); // Expr.update requires same number of args, so we can't just delete the trues
+                                                                //        }
+                                                                //    }
+                                                                //    e.Update(tmp_args.ToArray());
+                                                                //}
+                                                                //uint oldnum = e.NumArgs;
+                                                                //oldnum = oldnum;
+                                                                //e.Update(e.Args.Distinct().ToArray()); // distinct terms
+                                                                //uint newnum = e.NumArgs;
+                                                                //newnum = newnum;
+
+                                                                Expr cp = Instance.Z3.copyExpr(e); // try deep copy...
+                                                                Instance.Z3.generalizeAllVariables(ref cp, N); // todo: set projection number
+                                                                if (i == 0)
+                                                                {
+                                                                    newallNoGlobal.Add((BoolExpr)cp);
+
+                                                                }
+                                                                else
+                                                                {
+                                                                    newall.Add((BoolExpr)cp);
+                                                                }
+
+                                                            }
+                                                        }
                                                     }
                                                 }
-                                            }
 
-                                            Expr newv = null;
-                                            // do projection
-                                            if (bi.Count > 0 && projectN < N)
+                                                Property prandNoGlobal = new Property(Instance.Z3.MkOr(newallNoGlobal.ToArray()));
+                                                prandNoGlobal.Formula = Instance.simplifyFormula(prandNoGlobal.Formula);
+                                                prandNoGlobal.makePost();
+
+
+
+                                                prandNoGlobal.Status = StatusTypes.toProcess;
+                                                prandNoGlobal.Type = Property.PropertyType.safety;
+                                                prandNoGlobal = Instance.GeneralizeProperty(prandNoGlobal, projectN, N);
+
+                                                Property prand = new Property(Instance.Z3.MkOr(newall.ToArray()));
+                                                prand.Formula = Instance.simplifyFormula(prand.Formula);
+                                                prand.makePost();
+
+
+                                                prand.Status = StatusTypes.toProcess;
+                                                prand.Type = Property.PropertyType.safety;
+                                                prand = Instance.GeneralizeProperty(prand, projectN, N);
+
+                                                Instance.Sys.Properties.Add(prand);
+                                                Instance.Sys.Properties.Add(prandNoGlobal);
+                                                break;
+                                            }
+                                        case PHAVER_INPUT_MODE.reachable_backward:
                                             {
-                                                newv = Instance.Z3.MkExists(bi.ToArray(), vCopy);
+                                                Property prand = new Property(Instance.Z3.MkOr(prall.ToArray()));
+                                                prand.Status = StatusTypes.toProcess;
+                                                prand.Type = Property.PropertyType.safety;
+                                                prand.Formula = Instance.Z3.MkNot((BoolExpr)prand.Formula); // backward reachable states
+                                                prand.makePost();
+
+                                                prand = Instance.GeneralizeProperty(prand, projectN, N);
+
+                                                Instance.Sys.Properties.Add(prand);
+                                                break;
                                             }
-
-
-                                            g.Assert((BoolExpr)newv);
-                                            Tactic tac = Instance.Z3.MkTactic("qe"); // quantifier elimination for projection
-                                            ApplyResult a;
-                                            a = tac.Apply(g);
-                                            a = a;
-
-                                            foreach (var sg in a.Subgoals)
-                                            {
-                                                Expr e;
-                                                if (sg.Formulas.Length > 1)
-                                                {
-                                                    e = Instance.Z3.MkAnd(sg.Formulas);
-                                                }
-                                                else
-                                                {
-                                                    e = sg.Formulas[0];
-                                                }
-
-
-                                                //if (e.IsOr)
-                                                //{
-                                                //    HashSet<Expr> tmp_args = new HashSet<Expr>();
-                                                //    for (int arg = 0; arg < e.NumArgs; arg++)
-                                                //    {
-                                                //        if (!e.Args[arg].IsTrue)
-                                                //        {
-                                                //            tmp_args.Add(e.Args[arg]); // Expr.update requires same number of args, so we can't just delete the trues
-                                                //        }
-                                                //    }
-                                                //    e.Update(tmp_args.ToArray());
-                                                //}
-                                                //uint oldnum = e.NumArgs;
-                                                //oldnum = oldnum;
-                                                //e.Update(e.Args.Distinct().ToArray()); // distinct terms
-                                                //uint newnum = e.NumArgs;
-                                                //newnum = newnum;
-
-                                                Expr cp = Instance.Z3.copyExpr(e); // try deep copy...
-                                                Instance.Z3.generalizeAllVariables(ref cp, N); // todo: set projection number
-                                                if (i == 0)
-                                                {
-                                                    newallNoGlobal.Add((BoolExpr)cp);
-                                                    
-                                                }
-                                                else
-                                                {
-                                                    newall.Add((BoolExpr)cp);
-                                                }
-
-                                            }
-                                        }
                                     }
+
+
 
                                     
 
@@ -1423,18 +1530,7 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
 
 
 
-                                    Property prandNoGlobal = new Property(Instance.Z3.MkOr(newallNoGlobal.ToArray()));
-                                    prandNoGlobal.Status = StatusTypes.toProcess;
-                                    prandNoGlobal.Type = Property.PropertyType.safety;
-                                    prandNoGlobal = Instance.GeneralizeProperty(prandNoGlobal, projectN, N);
-
-                                    Property prand = new Property(Instance.Z3.MkOr(newall.ToArray()));
-                                    prand.Status = StatusTypes.toProcess;
-                                    prand.Type = Property.PropertyType.safety;
-                                    prand = Instance.GeneralizeProperty(prand, projectN, N);
                                     
-                                    Instance.Sys.Properties.Add(prand);
-                                    Instance.Sys.Properties.Add(prandNoGlobal);
                                 }
                                 
                             }
@@ -1444,7 +1540,7 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
 
                             //Controller.Instance.Z3.Assumptions.Add(Controller.Instance.Z3.MkEq(Controller.Instance.IndexN, Controller.Instance.Z3.MkInt(1)));
 
-                            Instance.Sys.removeDuplicateProperties(); // remove duplicate properties
+                            //Instance.Sys.removeDuplicateProperties(); // remove duplicate properties
 
                             System.Console.WriteLine("Universal assumptions (data types, etc.):\n\r");
                             System.Console.WriteLine(Instance.Z3.ExprArrayToString(Instance.Z3.AssumptionsUniversal.ToArray()) + "\n\r\n\r");
@@ -1605,8 +1701,40 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
             }
         }
 
+        public Expr simplifyFormula(Expr f)
+        {
+            //Tactic otac = Instance.Z3.Repeat(Instance.Z3.Then(Instance.Z3.MkTactic("propagate-values"), Instance.Z3.MkTactic("propagate-ineqs"), Instance.Z3.MkTactic("max-bv-sharing"), Instance.Z3.MkTactic("ctx-simplify"), Instance.Z3.MkTactic("ctx-solver-simplify")));
+            Tactic otac = Instance.Z3.Repeat(Instance.Z3.Then(Instance.Z3.MkTactic("propagate-values"), Instance.Z3.MkTactic("propagate-ineqs"), Instance.Z3.MkTactic("max-bv-sharing"), Instance.Z3.MkTactic("ctx-simplify")));
+            Goal og = Instance.Z3.MkGoal(true, false, false);
+            og.Assert((BoolExpr)f);
+            ApplyResult oa;
+            oa = otac.Apply(og);
+            List<BoolExpr> otmpList = new List<BoolExpr>();
 
-        public Property GeneralizeProperty(Property p, int projectN, int N)
+            foreach (var sg in oa.Subgoals)
+            {
+                Expr e;
+                if (sg.Formulas.Length > 1)
+                {
+                    e = Instance.Z3.MkAnd(sg.Formulas);
+                }
+                else
+                {
+                    e = sg.Formulas[0];
+                }
+
+                Expr cp = Instance.Z3.copyExpr(e); // try deep copy...
+                otmpList.Add((BoolExpr)cp);
+            }
+            if (otmpList.Count > 1)
+            {
+                return Instance.Z3.MkAnd(otmpList.ToArray());
+            }
+            return otmpList[0];
+        }
+
+
+        public Property GeneralizeProperty(Property p, uint projectN, uint N)
         {
             List<Expr> bound = new List<Expr>();
             foreach (var v in Instance.UndefinedVariables)

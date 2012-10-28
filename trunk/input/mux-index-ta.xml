@@ -1,0 +1,62 @@
+<?xml version="1.0"?>
+
+<holism>
+	<parameter name='N' type='index' comment='number of processes in the system' />
+	
+	<variable name='g' type='index' update_type='Discrete' comment='lock' />
+	
+	<assumption equn='N &gt;= 2' comment='' />
+
+	<automaton name='mux-index-ta'>
+		<variable name='x[i]' type='nnreal' update_type='Continuous' />
+		<initial equn='(forall i (x[i] == 0.0)) and g = 0' />			
+
+		<mode id='0' name='I' initial='True'>
+			<dai variable='x[i]' equn='x[i]_dot = 1.0'/>
+		</mode>
+
+		<mode id='1' name='T' initial='False'>
+			<dai variable='x[i]' equn='x[i]_dot = 1.0'/>
+		</mode>
+		
+		<mode id='2' name='C' initial='False'>
+			<dai variable='x[i]' equn='x[i]_dot = 1.0'/>
+		</mode>
+		
+		<mode id='3' name='E' initial='False'>
+			<dai variable='x[i]' equn='x[i]_dot = 1.0'/>
+		</mode>
+		
+		<transition source='I' destination='T'>
+			<guard equn='g == 0 and x[i] &gt;= 1.0' />
+			<action equn='g&apos; = i and x[i]&apos; = 0.0'/>
+		</transition>
+		
+		<transition source='T' destination='C'>
+			<guard equn='g == i and x[i] &gt;= 1.0' />
+			<action equn='x[i]&apos; = 0.0'/>
+		</transition>
+		
+		<transition source='C' destination='E'>
+			<guard equn='x[i] &gt;= 1.0' />
+			<action equn='x[i]&apos; = 0.0'/>
+		</transition>
+		
+		<transition source='E' destination='I'>
+			<guard equn='x[i] &gt;= 1.0' />
+			<action equn='g&apos; = 0  and x[i]&apos; = 0.0'/>
+		</transition>
+	</automaton>
+
+
+	<property equn='true' type='safety' />
+
+	<property equn='forall i j ((i != j) implies (q[i] != C or q[j] != C))' type='safety' />
+	
+	<property equn='forall i j ((i != j and q[i] == C) implies (q[j] != C))' type='safety' />
+	
+	<property equn='false' type='safety' />
+
+
+
+</holism>

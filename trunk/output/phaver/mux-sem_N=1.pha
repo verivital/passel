@@ -1,0 +1,47 @@
+REACH_USE_CONVEX_HULL = false; // not possible because of global variables
+REACH_MAX_ITER = 0; 
+REACH_USE_BBOX = false;
+COMPOSE_USE_CONVEX_HULL_FOR_REACH = false;
+COMPOSE_WITH_REACH_MIN = true;
+CHEAP_CONTAIN_RETURN_OTHERS = false;
+
+N := 1;
+
+automaton agent1
+input_var : x;
+synclabs :  tau, IT1, TC1, CE1, EI1;
+loc I: while  true  wait {  True  }
+	 when  true  sync IT1  goto T;
+	 when true sync tau do {x' == x} goto I;
+loc T: while  true  wait {  True  }
+	 when x == 1 sync TC1  do {x' == 0 }  goto C;
+	 when true sync tau do {x' == x} goto T;
+loc C: while  true  wait {  True  }
+	 when  true  sync CE1  goto E;
+	 when true sync tau do {x' == x} goto C;
+loc E: while  true  wait {  True  }
+	 when  true  sync EI1  do {x' == 1 }  goto I;
+	 when true sync tau do {x' == x} goto E;
+
+initially I & true;
+
+end
+
+automaton global
+contr_var : x;
+synclabs: tau, TC1, EI1;
+loc default: while True wait { x' == 0}
+	 when True sync tau do { x' == x } goto default;
+	 when True sync TC1 do { true } goto default;
+	 when True sync EI1 do { true } goto default;
+	 
+initially default & x == 1;
+
+end
+
+sys =  global &  agent1;
+
+sys.print("mux-sem_ii_sys_N1", 0);
+reg = sys.reachable;
+reg.print("mux-sem_ii_reach_N1", 0);
+

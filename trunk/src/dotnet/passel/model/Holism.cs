@@ -125,7 +125,7 @@ namespace passel.model
 
                     // try proving them equal
                     Controller.Instance.Z3.slvr.Push(); // save original context
-                    BoolExpr p = Controller.Instance.Z3.MkEq(this.Properties[i].Formula, this.Properties[j].Formula); // prop_i = prop_j
+                    BoolExpr p = Controller.Instance.Z3.MkIff((BoolExpr)this.Properties[i].Formula, (BoolExpr)this.Properties[j].Formula); // prop_i = prop_j
                     Model m;
                     Expr[] core;
                     String stat;
@@ -572,7 +572,7 @@ namespace passel.model
                         //hidx = z3.MkConst("h", Controller.Instance.IndexType); // make fresh
                         hidx = z3.MkIntConst("h");
 
-                        if (l.Flows == null || l.Flows.Count == 0)
+                        if (l.Flows == null || l.Flows.Count == 0 || l.Flows[0].DynamicsType == Flow.DynamicsTypes.constant) // TODO: CHECK ALL FLOWS, THIS WORKS ONLY FOR ONE VAR
                         {
                             Expr tmpterm = z3.MkImplies((BoolExpr)l.StatePredicate, (BoolExpr)z3.timeNoFlowIdentity(hidx));
                             tmpterm = tmpterm.Substitute(Controller.Instance.Indices["i"], hidx); // replace i by h
@@ -642,6 +642,10 @@ namespace passel.model
                             {
                                 switch (f.DynamicsType)
                                 {
+                                    case Flow.DynamicsTypes.constant:
+                                        {
+                                            continue;
+                                        }
                                     case Flow.DynamicsTypes.rectangular:
                                         {
                                             Expr flow = f.Value;
@@ -1250,6 +1254,10 @@ namespace passel.model
                                 {
                                     switch (f.DynamicsType)
                                     {
+                                        case Flow.DynamicsTypes.constant:
+                                            {
+                                                continue;
+                                            }
                                         case Flow.DynamicsTypes.timed:
                                             {
                                                 Expr flowInv = f.Value;
@@ -1519,7 +1527,7 @@ namespace passel.model
         /**
          * Generate a specification of N (for a fixed natural number) automata for Phaver
          */
-        public String outputPhaverN(int N)
+        public String outputPhaverN(uint N)
         {
             String spec = "";
             String tmp = "";
@@ -1587,7 +1595,17 @@ namespace passel.model
             {
                 foreach (var p in Controller.Instance.Params)
                 {
-                    spec += p.Key + " := " + Controller.Instance.IndexNValue + ";" + newline; // todo: grab from assumptions / add a default value or something so this is easier to access
+                    spec += p.Key + " := ";
+                    if (Controller.Instance.ParamsAssumps.ContainsKey(p.Key))
+                    {
+                        spec += z3.ToStringFormatted(Controller.Instance.ParamsAssumps[p.Key].Args[1], controller.smt.z3.Z3Wrapper.PrintFormatMode.phaver, true);
+                        // TODO: HACK, ASSUMES ASSUMPTION IS OF THE FORM: PARAMNAME RELATION PARAMVALUE, e.g., N == 3
+                    }
+                    else
+                    {
+                        spec += "1";
+                    }
+                    spec += ";" + newline;
                 }
             }
             spec += newline;
@@ -1631,11 +1649,40 @@ namespace passel.model
                 yrl = yr - delta_rate;
                 yru = yr + delta_rate;
                  */
+
+                bool hasUguard = false;
+                bool hasPointer = false;
+
+                foreach (var l in h.Locations)
+                {
+                    foreach (var t in l.Transitions)
+                    {
+                        if (t.UGuard != null)
+                        {
+                            hasUguard = true;
+                            break;
+                        }
+                    }
+                    if (hasUguard)
+                    {
+                        break;
+                    }
+                }
+
+                foreach (var v in h.Variables)
+                {
+                    if (v.Type == Variable.VarType.index)
+                    {
+                        hasPointer = true;
+                        break;
+                    }
+                }
                 
 
                 spec += out_automaton + " ";
                 spec += "agent" + i.ToString() + newline;
 
+                // local variables for A_i 
                 if (h.Variables.Count > 0)
                 {
                     spec += out_var_contr + " " + out_separator + " ";
@@ -1646,15 +1693,36 @@ namespace passel.model
                     spec = spec.Substring(0, spec.Length - 1) + out_endline + newline;
                 }
 
-                if (this.Variables.Count > 0)
+                // input variables for A_i
+                if (this.Variables.Count > 0 || hasUguard)
                 {
                     spec += out_var_input + " " + out_separator + " ";
-                    foreach (var v in this.Variables) // globals
+
+                    if (this.Variables.Count > 0)
                     {
-                        spec += v.Name + ",";
+                        foreach (var v in this.Variables) // globals
+                        {
+                            spec += v.Name + ",";
+                        }
                     }
+
+                    if (hasUguard || hasPointer)
+                    {
+                        // share all variables of all other processes, so we can conjunct them
+                        for (uint j = 1; j <= N; j++)
+                        {
+                            if (i != j)
+                            {
+                                foreach (var v in h.Variables)
+                                {
+                                    spec += v.Name + "_" + j.ToString() + ",";
+                                }
+                            }
+                        }
+                    }
+
                     spec = spec.Substring(0, spec.Length - 1) + out_endline + newline;
-                }
+                }                
 
                 spec += out_sync_label + " " + out_separator + " " + " tau, ";
                 // generate sync label for each transition: iterate over all locations and transitions
@@ -1741,13 +1809,18 @@ namespace passel.model
                         {
                             case Flow.DynamicsTypes.rectangular:
                                 {
-                                    tmp = f.Variable.Name + "_" + i.ToString() + "' == 1"; // todo: add rates
+                                    tmp = f.Variable.Name + "_" + i.ToString() + "' >= " + f.RectRateA.ToString() + " & " + f.Variable + "_" + i.ToString() + "' <= " + f.RectRateB.ToString(); // todo : add rates
+                                    break;
+                                }
+                            case Flow.DynamicsTypes.constant:
+                                {
+                                    tmp = f.Variable.Name + "_" + i.ToString() + "' == 0";
                                     break;
                                 }
                             case Flow.DynamicsTypes.timed: // pass through
                             default:
                                 {
-                                    tmp = f.Variable.Name + "_" + i.ToString() + "' == 1"; // todo: add rates
+                                    tmp = f.Variable.Name + "_" + i.ToString() + "' == " + f.RectRateA;
 
                                     /* STARL STUFF
                                     if (f.Variable.Name == "x")
@@ -1813,32 +1886,107 @@ namespace passel.model
                                         Expr tmpt = t.Guard;
                                         Expr indexConst = z3.MkNumeral(i, Controller.Instance.IndexType);
                                         tmpt = tmpt.Substitute(Controller.Instance.Indices["i"], indexConst); // replace i with actual number i (e.g., i by 1, i by 2, etc)
-                                        tmp = z3.ToStringFormatted(tmpt, controller.smt.z3.Z3Wrapper.PrintFormatMode.phaver); // todo: format appropriately
+                                        tmp = z3.ToStringFormatted(tmpt, controller.smt.z3.Z3Wrapper.PrintFormatMode.phaver, true); // todo: format appropriately
                                         tmp = tmp.Replace("[i]", "_" + i.ToString());
                                         tmp = tmp.Replace("[" + i.ToString() + "]", "_" + i.ToString());
                                         spec += tmp;
+                                        spec += " & ";
                                     }
                                     if (l.Invariant != null)
                                     {
                                         Expr tmpt = l.Invariant;
                                         Expr indexConst = z3.MkNumeral(i, Controller.Instance.IndexType);
                                         tmpt = tmpt.Substitute(Controller.Instance.Indices["i"], indexConst); // replace i with actual number i (e.g., i by 1, i by 2, etc)
-                                        tmp = z3.ToStringFormatted(tmpt, controller.smt.z3.Z3Wrapper.PrintFormatMode.phaver); // todo: format appropriately
+                                        tmp = z3.ToStringFormatted(tmpt, controller.smt.z3.Z3Wrapper.PrintFormatMode.phaver, true); // todo: format appropriately
                                         tmp = tmp.Replace("[i]", "_" + i.ToString());
                                         tmp = tmp.Replace("[" + i.ToString() + "]", "_" + i.ToString());
                                         spec += tmp;
+                                        spec += " & ";
+                                    }
+
+                                    if (t.UGuard != null)
+                                    {
+                                        Expr indexConst = z3.MkNumeral(i, Controller.Instance.IndexType);
+
+                                        tmp = "";
+                                        for (uint j = 1; j <= N; j++)
+                                        {
+                                            if (i != j)
+                                            {
+                                                Expr tmpt = t.UGuard;
+                                                Expr jIndexConst = z3.MkNumeral(j, Controller.Instance.IndexType);
+                                                tmpt = tmpt.Substitute(Controller.Instance.Indices["j"], jIndexConst); // replace j by j value
+                                                tmp += "(" + z3.ToStringFormatted(tmpt, controller.smt.z3.Z3Wrapper.PrintFormatMode.phaver, true) + ")"; // todo: format appropriately
+                                                
+
+                                                if (hasPointer)
+                                                {
+                                                    foreach (var v in h.Variables)
+                                                    {
+                                                        if (v.Type == Variable.VarType.index)
+                                                        {
+                                                            tmp = tmp.Replace("[" + v.Name + "[" + i.ToString() + "]]", "_" + j.ToString() + " & " + v.Name + "[" + i.ToString() + "] == j" ); // replace p[i] with j's actually index, e.g., x[p[i]] -> x_j /\ p[i] = j
+                                                        }
+                                                    }
+                                                }
+
+                                                tmp = tmp.Replace("[j]", "_" + j.ToString());
+                                                tmp = tmp.Replace("[" + j.ToString() + "]", "_" + j.ToString());
+
+                                                tmp += " & ";
+                                            }
+                                        }
+                                        if (tmp.Length > 0) // loop ran at least once with i != j
+                                        {
+                                            tmp = tmp.Substring(0, tmp.Length - " & ".Length); // remove and
+                                        }
+                                        tmp = tmp.Replace("[i]", "_" + i.ToString());
+                                        tmp = tmp.Replace("[" + i.ToString() + "]", "_" + i.ToString());
+                                        spec += tmp;
+                                        spec += " & ";
                                     }
                                     /*
+                                    if (hasPointer)
+                                    {
+                                        Expr indexConst = z3.MkNumeral(i, Controller.Instance.IndexType);
+
+                                        tmp = "";
+                                        for (uint j = 1; j <= N; j++)
+                                        {
+                                            //if (i != j) // TODO: exclude self? maybe... in general i guess a pointer p_i could be equal to i, we don't exclude this
+                                            //{
+                                                Expr tmpt = t.UGuard;
+                                                Expr jIndexConst = z3.MkNumeral(j, Controller.Instance.IndexType);
+                                                tmpt = tmpt.Substitute(Controller.Instance.Indices["j"], jIndexConst); // replace j by j value
+                                                tmp += "(" + z3.ToStringFormatted(tmpt, controller.smt.z3.Z3Wrapper.PrintFormatMode.phaver, true) + ")"; // todo: format appropriately
+                                                tmp = tmp.Replace("[j]", "_" + j.ToString());
+                                                tmp = tmp.Replace("[" + j.ToString() + "]", "_" + j.ToString());
+                                                tmp += " & ";
+                                            //}
+                                        }
+                                        if (tmp.Length > 0) // loop ran at least once with i != j
+                                        {
+                                            tmp = tmp.Substring(0, tmp.Length - " & ".Length); // remove and
+                                        }
+                                        tmp = tmp.Replace("[i]", "_" + i.ToString());
+                                        tmp = tmp.Replace("[" + i.ToString() + "]", "_" + i.ToString());
+                                        //spec += tmp;
+                                        //spec += " & ";
+                                    }*/
+
+                                    // phaver semantics differ: just ensure that the invariant contains the negation of the stopping condition
+                                    // if we DON'T do this, phaver will do weird stuff on invariants, e.g., it will allow an invariant to go UP TO the value, let it take the transition, and still remain in the state, which differs from our semantics
                                     if (l.Stop != null)
                                     {
                                         Expr tmpt = l.Stop;
                                         Expr indexConst = z3.MkNumeral(i, Controller.Instance.IndexType);
                                         tmpt = tmpt.Substitute(Controller.Instance.Indices["i"], indexConst); // replace i with actual number i (e.g., i by 1, i by 2, etc)
-                                        tmp = z3.ToStringFormatted(tmpt, controller.smt.z3.Z3Wrapper.PrintFormatMode.phaver); // todo: format appropriately
+                                        tmp = "!(" + z3.ToStringFormatted(tmpt, controller.smt.z3.Z3Wrapper.PrintFormatMode.phaver) + ")"; // todo: format appropriately
                                         tmp = tmp.Replace("[i]", "_" + i.ToString());
                                         tmp = tmp.Replace("[" + i.ToString() + "]", "_" + i.ToString());
-                                        spec += tmp;
-                                    }*/
+                                        spec += tmp + " & ";
+                                    }
+                                    spec = spec.Substring(0, spec.Length - " & ".Length);
                                 }
 
                                 string synclab =  l.Label + ns.Label + i.ToString(); // unique label for all
@@ -1945,7 +2093,7 @@ namespace passel.model
                     tmpi = tmpi.Args[1];
                 }
 
-                tmp = z3.ToStringFormatted(tmpi, controller.smt.z3.Z3Wrapper.PrintFormatMode.phaver); // todo: format appropriately
+                tmp = z3.ToStringFormatted(tmpi, controller.smt.z3.Z3Wrapper.PrintFormatMode.phaver, true); // todo: format appropriately
                 tmp = tmp.Replace("[i]", "_" + i.ToString());
                 tmp = tmp.Replace("[#0]", "_" + i.ToString()); // z3 3.2 format
                 tmp = tmp.Replace("[(:var 0)]", "_" + i.ToString()); // z3 4.0 format
@@ -2013,7 +2161,11 @@ namespace passel.model
                 //       E.g.: if action a modifies x, but not y, then reset should be y' == y, with no constraint on x' (or copy the reset if its not over the local variables of A_i making the move, i.e., if x' == 0, set it)
 
                 //spec += "initially $ & True;" + newline + newline;
-                spec += "initially default & True;" + newline + newline;
+
+                Expr tmpi = h.Initial;
+                tmpi = tmpi.Args[0].Args[1]; // assumes (forall i ...) and GLOBAL
+                String gitmp = z3.ToStringFormatted(tmpi, controller.smt.z3.Z3Wrapper.PrintFormatMode.phaver, true); // todo: format appropriately
+                spec += "initially default & " + gitmp + ";" + newline + newline;
 
                 spec += "end" + newline + newline;
             }
@@ -2078,9 +2230,9 @@ namespace passel.model
 
             // for fischer / mutual exclusion algorithms 
             spec += "forbidden = sys.{";
-            for (int i = 1; i <= N; i++)
+            for (uint i = 1; i <= N; i++)
             {
-                for (int j = i + 1; j <= N; j++)
+                for (uint j = i + 1; j <= N; j++)
                 {
                     spec += "$~" + makeBadString("crit", i, j, N) + " & True," + newline; // TODO: set a bad bit on states in input file?
                 }
@@ -2129,10 +2281,10 @@ namespace passel.model
         }
 
 
-        String makeBadString(String statename, int i, int j, int N)
+        String makeBadString(String statename, uint i, uint j, uint N)
         {
             String s = "";
-            for (int ti = 1; ti <= N; ti++)
+            for (uint ti = 1; ti <= N; ti++)
             {
                 if (ti == i || ti == j)
                 {

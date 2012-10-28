@@ -1,0 +1,92 @@
+REACH_USE_CONVEX_HULL = false; // not possible because of global variables
+REACH_MAX_ITER = 0; 
+REACH_USE_BBOX = false;
+COMPOSE_USE_CONVEX_HULL_FOR_REACH = false;
+COMPOSE_WITH_REACH_MIN = true;
+CHEAP_CONTAIN_RETURN_OTHERS = false;
+
+N := 3;
+
+automaton agent1
+input_var : token;
+synclabs :  tau, idlewaiting1, waitingcs1, csidle1;
+loc idle: while  true  wait {  True  }
+	 when token == 1 & token >= N sync idlewaiting1  do {token' == 1 }  goto waiting;
+	 when token == 1 &  ! (N <= token) sync idlewaiting1  do {token' == 2 }  goto waiting;
+	 when true sync tau do {token' == token} goto idle;
+loc waiting: while  true  wait {  True  }
+	 when token == 1 sync waitingcs1  goto cs;
+	 when true sync tau do {token' == token} goto waiting;
+loc cs: while  true  wait {  True  }
+	 when  true  sync csidle1  goto idle;
+	 when true sync tau do {token' == token} goto cs;
+
+initially idle & true;
+
+end
+
+automaton agent2
+input_var : token;
+synclabs :  tau, idlewaiting2, waitingcs2, csidle2;
+loc idle: while  true  wait {  True  }
+	 when token == 2 & token >= N sync idlewaiting2  do {token' == 1 }  goto waiting;
+	 when token == 2 &  ! (N <= token) sync idlewaiting2  do {token' == 3 }  goto waiting;
+	 when true sync tau do {token' == token} goto idle;
+loc waiting: while  true  wait {  True  }
+	 when token == 2 sync waitingcs2  goto cs;
+	 when true sync tau do {token' == token} goto waiting;
+loc cs: while  true  wait {  True  }
+	 when  true  sync csidle2  goto idle;
+	 when true sync tau do {token' == token} goto cs;
+
+initially idle & true;
+
+end
+
+automaton agent3
+input_var : token;
+synclabs :  tau, idlewaiting3, waitingcs3, csidle3;
+loc idle: while  true  wait {  True  }
+	 when token == 3 & token >= N sync idlewaiting3  do {token' == 1 }  goto waiting;
+	 when token == 3 &  ! (N <= token) sync idlewaiting3  do {token' == 4 }  goto waiting;
+	 when true sync tau do {token' == token} goto idle;
+loc waiting: while  true  wait {  True  }
+	 when token == 3 sync waitingcs3  goto cs;
+	 when true sync tau do {token' == token} goto waiting;
+loc cs: while  true  wait {  True  }
+	 when  true  sync csidle3  goto idle;
+	 when true sync tau do {token' == token} goto cs;
+
+initially idle & true;
+
+end
+
+
+automaton global
+contr_var : token;
+synclabs: tau, idlewaiting1, idlewaiting2, idlewaiting3;
+loc default: while True wait { token' == 0}
+	 when True sync tau do { token' == token } goto default;
+	 when True sync idlewaiting1 do { true } goto default;
+	 when True sync idlewaiting2 do { true } goto default;
+	 when True sync idlewaiting3 do { true } goto default;
+
+
+
+initially default & token == 1;
+
+end
+
+sys =  global &  agent1 &  agent2 &  agent3;
+
+sys.print("token-ring_ii_sys_N3", 0);
+reg = sys.reachable;
+reg.print("token-ring_ii_reach_N3", 0);
+forbidden = sys.{$~cs~cs~$ & True, $~$~cs~cs & True, $~cs~$~cs & True};
+reg.intersection_assign(forbidden);
+echo "";
+echo "Reachable forbidden states:";
+reg.print("token-ring_ii_reach_bad", 0);
+echo "";
+echo "Reachable forbidden states empty?";
+reg.is_empty;

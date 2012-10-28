@@ -1,0 +1,79 @@
+<?xml version="1.0"?>
+
+<holism>
+	<parameter name='N' type='index' comment='number of processes in the system' />
+	<parameter name='a' type='real' comment='smaller constant' />
+	<parameter name='b' type='real' comment='larger constant' />
+	
+	<variable name='count' type='integer' update_type='Discrete' comment='lock' />
+	
+	<assumption equn='a &gt; 0.0 and b &gt; 0.0 and a &lt; b' comment='a *stictly less than* b for mutual exclusion' />
+	<assumption equn='a == 5.0 and b == 7.0' comment='need actual values for phaver' />
+	<assumption equn='c == 1.0 and d == 1.0' comment='need actual values for phaver' />
+	
+	<assumption equn='N &gt;= 1' comment='' />
+
+	<automaton name='fischer_bit'>
+		<variable name='x[i]' type='nnreal' update_type='Continuous' />
+		
+		<initial equn='(forall i (x[i] == 0.0)) and count = 0' />
+
+
+		<mode id='0' name='idle' initial='True'>
+			<dai variable='x[i]' equn='x[i]_dot = 0.0'/>
+		</mode>
+
+		<mode id='1' name='start' initial='False'>
+			<invariant equn='x[i] &lt;= a' />
+			<stop equn='x[i] &gt;= a' />
+			<dai variable='x[i]' equn='x[i]_dot == 1.0'/>
+		</mode>
+		
+		<mode id='2' name='check' initial='False'>
+			<dai variable='x[i]' equn='x[i]_dot == 1.0'/>
+		</mode>
+		
+		<mode id='3' name='crit' initial='False'>
+			<dai variable='x[i]' equn='x[i]_dot = 0.0'/>
+		</mode>
+		
+		<transition source='idle' destination='start'>
+			<guard equn='count == 0' />
+			<action equn='x[i]&apos; = 0.0'/>
+		</transition>
+
+		<transition source='start' destination='check'>
+			<action equn='count&apos; = count + 1 and x[i]&apos; = 0.0'/>
+		</transition>
+
+		<transition source='check' destination='crit'>
+			<guard equn='count &lt;= 1 and x[i] &gt;= b' />
+		</transition>
+		
+		<transition source='check' destination='idle'>
+			<guard equn='count &gt; 1 and x[i] &gt;= b' />
+			<action equn='x[i]&apos; = 0.0'/>
+		</transition>
+		
+		<transition source='crit' destination='idle'>
+			<action equn='count&apos; = count - 1 and x[i]&apos; = 0.0'/>
+		</transition>
+	</automaton>
+
+	<property equn='true' type='safety' />
+
+	<property equn='forall i ((q[i] == start) implies (x[i] &lt;= a))' type='safety' />
+
+	<property equn='forall i ((q[i] == crit) implies (x[i] &gt;= b))' type='safety' />
+	
+	<property equn='forall i ((q[i] == start) implies (x[i] &lt; a))' type='safety' />
+	
+	<property equn='forall i ((q[i] == idle) implies (x[i] == 0.0))' type='safety' />
+
+	<property equn='forall i j ((i != j) implies (q[i] != crit or q[j] != crit))' type='safety' />
+	
+	<property equn='forall i j ((i != j and q[i] == crit) implies (q[j] != crit))' type='safety' />
+	
+	<property equn='false' type='safety' />
+
+</holism>

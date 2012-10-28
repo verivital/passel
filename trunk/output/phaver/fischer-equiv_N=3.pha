@@ -1,0 +1,150 @@
+REACH_USE_CONVEX_HULL = false; // not possible because of global variables
+REACH_MAX_ITER = 0; 
+REACH_USE_BBOX = false;
+COMPOSE_USE_CONVEX_HULL_FOR_REACH = false;
+COMPOSE_WITH_REACH_MIN = true;
+CHEAP_CONTAIN_RETURN_OTHERS = false;
+
+N := 3;
+A := 5;
+B := 7;
+
+automaton agent1
+contr_var : x_1,b_1;
+input_var : indexSet,b_2,b_3;
+synclabs :  tau, idlestart1, startcheck1, checkcrit1, checkidle1, critidle1, reset1, reset2, reset3;
+loc idle: while  true  wait { b_1' == 0 }
+	 when indexSet == 0 sync idlestart1  do {x_1' == 0 & indexSet' == indexSet & b_1' == b_1 }  goto start;
+	 when true sync tau do {indexSet' == indexSet & x_1' == x_1 & b_1' == b_1} goto idle;
+	 when true sync reset1 do { x_1' == x_1 } goto idle;
+loc start: while x_1 <= A wait { x_1' == 1 & b_1' == 0 }
+	 when  b_2 == 0 & b_3 == 0  sync startcheck1  do {indexSet' == 1 & b_1' == 1 & x_1' == 0 & b_2' == b_2 & b_3' == b_3}  goto check;
+	 when  b_2 == 1 & b_3 == 0  sync startcheck1,reset2  do {indexSet' == 1 & b_1' == 1 & x_1' == 0 & b_2' == 0 & b_3' == b_3}  goto check;
+	 when  b_2 == 0 & b_3 == 1  sync startcheck1,reset3  do {indexSet' == 1 & b_1' == 1 & x_1' == 0 & b_2' == b_2 & b_3' == 0}  goto check;
+	 when  b_2 == 1 & b_3 == 1  sync startcheck1,reset2,reset3  do {indexSet' == 1 & b_1' == 1 & x_1' == 0 & b_2' == 0 & b_3' == 0}  goto check;
+	 when true sync tau do {indexSet' == indexSet & x_1' == x_1 & b_1' == b_1} goto start;
+	 when true sync reset1 do { x_1' == x_1 } goto start;
+loc check: while  true  wait { x_1' == 1 & b_1' == 0 }
+	 when indexSet == 1 & b_1 == 1 & x_1 >= B sync checkcrit1  do {indexSet' == indexSet & x_1' == x_1 & b_1' == b_1}  goto crit;
+	 when indexSet == 1 & b_1 == 0 & x_1 >= B sync checkidle1  do {x_1' == 0 & indexSet' == indexSet & b_1' == b_1 }  goto idle;
+	 when true sync checkidle1  do {x_1' == 0 & indexSet' == 0 & b_1' == b_1 }  goto idle;
+	 when true sync tau do {indexSet' == indexSet & x_1' == x_1 & b_1' == b_1} goto check;
+	 when true sync reset1 do { x_1' == x_1 } goto check;
+loc crit: while  true  wait { b_1' == 0 }
+// note reset: just set all b_2 to 0, this accomplishes the same thing
+	 when  b_2 == 0 & b_3 == 0  sync critidle1  do {indexSet' == 0 & b_1' == 0 & x_1' == 0 & b_2' == b_2 & b_3' == b_3 }  goto idle;
+	 when  b_2 == 1 & b_3 == 0  sync critidle1,reset2  do {indexSet' == 0 & b_1' == 0 & x_1' == 0 & b_2' == 0 & b_3' == b_3 }  goto idle;
+	 when  b_2 == 0 & b_3 == 1  sync critidle1,reset3  do {indexSet' == 0 & b_1' == 0 & x_1' == 0 & b_2' == b_2 & b_3' == 0 }  goto idle;
+	 when  b_2 == 1 & b_3 == 1  sync critidle1,reset2,reset3  do {indexSet' == 0 & b_1' == 0 & x_1' == 0 & b_2' == 0 & b_3' == 0 }  goto idle;
+	 when true sync tau do {indexSet' == indexSet & x_1' == x_1 & b_1' == b_1} goto crit;
+	 when true sync reset1 do { x_1' == x_1 } goto crit;
+
+initially idle & x_1 == 0 & b_1 == 0;
+
+end
+
+automaton agent2
+contr_var : x_2,b_2;
+input_var : indexSet,b_1,b_3;
+synclabs :  tau, idlestart2, startcheck2, checkcrit2, checkidle2, critidle2, reset1, reset2, reset3;
+loc idle: while  true  wait { b_2' == 0 }
+	 when indexSet == 0 sync idlestart2  do {x_2' == 0 & indexSet' == indexSet & b_2' == b_2 }  goto start;
+	 when true sync tau do {indexSet' == indexSet & x_2' == x_2 & b_2' == b_2} goto idle;
+	 when true sync reset2 do { x_2' == x_2 } goto idle;
+loc start: while x_2 <= A wait { x_2' == 1 & b_2' == 0 }
+	 when  true  sync startcheck2,reset1,reset3  do {indexSet' == 1 & b_2' == 1 & x_2' == 0 & b_1' == 0 & b_3' == 0 }  goto check;
+	 when  true  sync startcheck2,reset1  do {indexSet' == 1 & b_2' == 1 & x_2' == 0 & b_1' == 0 & b_3' == b_3 }  goto check;
+	 when  true  sync startcheck2,reset3  do {indexSet' == 1 & b_2' == 1 & x_2' == 0 & b_1' == b_1 & b_3' == 0 }  goto check;
+	 when true sync tau do {indexSet' == indexSet & x_2' == x_2 & b_2' == b_2} goto start;
+	 when true sync reset2 do { x_2' == x_2 } goto start;
+loc check: while  true  wait { x_2' == 1 & b_2' == 0 }
+	 when indexSet == 1 & b_2 == 1 & x_2 >= B sync checkcrit2  do {indexSet' == indexSet & x_2' == x_2 & b_2' == b_2}  goto crit;
+	 when indexSet == 1 & b_2 == 0 & x_2 >= B sync checkidle2  do {x_2' == 0 & indexSet' == indexSet & b_2' == b_2 }  goto idle;
+	 when true sync checkidle2  do {x_2' == 0 & indexSet' == 0 & b_2' == b_2 }  goto idle;
+	 when true sync tau do {indexSet' == indexSet & x_2' == x_2 & b_2' == b_2} goto check;
+	 when true sync reset2 do { x_2' == x_2 } goto check;
+loc crit: while  true  wait { b_2' == 0 }
+	 when  true  sync critidle2,reset1,reset3  do {indexSet' == 0 & b_2' == 0 & x_2' == 0 & b_1' == 0 & b_3' == 0 }  goto idle;
+	 when  true  sync critidle2,reset1  do {indexSet' == 0 & b_2' == 0 & x_2' == 0 & b_1' == 0 & b_3' == 0 }  goto idle;
+	 when  true  sync critidle2,reset3  do {indexSet' == 0 & b_2' == 0 & x_2' == 0 & b_1' == 0 & b_3' == 0 }  goto idle;
+	 when true sync tau do {indexSet' == indexSet & x_2' == x_2 & b_2' == b_2} goto crit;
+	 when true sync reset2 do { x_2' == x_2 } goto crit;
+
+initially idle & x_2 == 0 & b_2 == 0;
+
+end
+
+automaton agent3
+contr_var : x_3,b_3;
+input_var : indexSet,b_1,b_2;
+synclabs :  tau, idlestart3, startcheck3, checkcrit3, checkidle3, critidle3, reset1, reset2, reset3;
+loc idle: while  true  wait { b_3' == 0 }
+	 when indexSet == 0 sync idlestart3  do {x_3' == 0 & indexSet' == indexSet & b_3' == b_3 }  goto start;
+	 when true sync tau do {indexSet' == indexSet & x_3' == x_3 & b_3' == b_3} goto idle;
+	 when true sync reset3 do { x_3' == x_3 } goto idle;
+loc start: while x_3 <= A wait { x_3' == 1 }
+	 when  true  sync startcheck3,reset1,reset2  do {indexSet' == 1 & b_3' == 1 & x_3' == 0 & b_1' == 0 & b_2' == 0 }  goto check;
+	 when  true  sync startcheck3,reset1  do {indexSet' == 1 & b_3' == 1 & x_3' == 0 & b_1' == 0 & b_2' == b_2 }  goto check;
+	 when  true  sync startcheck3,reset2  do {indexSet' == 1 & b_3' == 1 & x_3' == 0 & b_1' == b_1 & b_2' == 0 }  goto check;
+	 when  b_1 == 1  sync startcheck3,reset1  do {indexSet' == 1 & b_3' == 1 & x_3' == 0 & b_1' == 0 & b_2' == b_2 }  goto check;
+	 when  b_2 == 1  sync startcheck3,reset2  do {indexSet' == 1 & b_3' == 1 & x_3' == 0 & b_1' == b_1 & b_2' == 0 }  goto check;
+	 when true sync tau do {indexSet' == indexSet & x_3' == x_3 & b_3' == b_3} goto start;
+	 when true sync reset3 do { x_3' == x_3 } goto start;
+loc check: while  true  wait { x_3' == 1 & b_3' == 0 }
+	 when indexSet == 1 & b_3 == 1 & x_3 >= B sync checkcrit3  do {indexSet' == indexSet & x_3' == x_3 & b_3' == b_3}  goto crit;
+	 when indexSet == 1 & b_3 == 0 & x_3 >= B sync checkidle3  do {x_3' == 0 & indexSet' == indexSet & b_3' == b_3 }  goto idle;
+	 when true sync checkidle3  do {x_3' == 0 & indexSet' == 0 & b_3' == b_3 }  goto idle;
+	 when true sync tau do {indexSet' == indexSet & x_3' == x_3 & b_3' == b_3} goto check;
+	 when true sync reset3 do { x_3' == x_3 } goto check;
+loc crit: while  true  wait { b_3' == 0 }
+	 when  true  sync critidle3,reset1,reset2  do {indexSet' == 0 & b_3' == 0 & x_3' == 0 & b_1' == 0 & b_2' == 0 }  goto idle;
+	 when  true  sync critidle3,reset1  do {indexSet' == 0 & b_3' == 0 & x_3' == 0 & b_1' == 0 & b_2' == 0 }  goto idle;
+	 when  true  sync critidle3,reset2  do {indexSet' == 0 & b_3' == 0 & x_3' == 0 & b_1' == 0 & b_2' == 0 }  goto idle;
+	 when  b_1 == 1  sync critidle3,reset1  do {indexSet' == 0 & b_3' == 0 & x_3' == 0 & b_1' == 0 & b_2' == b_2 }  goto idle;
+	 when  b_2 == 1  sync critidle3,reset2  do {indexSet' == 0 & b_3' == 0 & x_3' == 0 & b_1' == b_1 & b_2' == 0 }  goto idle;
+	 when true sync tau do {indexSet' == indexSet & x_3' == x_3 & b_3' == b_3} goto crit;
+	 when true sync reset3 do { x_3' == x_3 } goto crit;
+
+initially idle & x_3 == 0 & b_3 == 0;
+
+end
+
+
+automaton global
+contr_var : indexSet;
+synclabs: tau,startcheck1,critidle1,startcheck2,critidle2,startcheck3,critidle3,reset1,reset2,reset3,checkidle1,checkidle2,checkidle3;
+loc default: while True wait { indexSet' == 0}
+	 when True sync tau do { indexSet' == indexSet } goto default;
+	 when True sync startcheck1 do { true } goto default;
+	 when True sync startcheck2 do { true } goto default;
+	 when True sync startcheck3 do { true } goto default;
+	 when True sync critidle1 do { true } goto default;
+	 when True sync critidle2 do { true } goto default;
+	 when True sync critidle3 do { true } goto default;
+	 when True sync checkidle1 do { true } goto default;
+	 when True sync checkidle2 do { true } goto default;
+	 when True sync checkidle3 do { true } goto default;
+	 when True sync reset1 do { true } goto default;
+	 when True sync reset1,reset2 do { true } goto default;
+	 when True sync reset2 do { true } goto default;
+	 when True sync reset2,reset3 do { true } goto default;
+	 when True sync reset3 do { true } goto default;
+	 when True sync reset1,reset3 do { true } goto default;
+
+initially default & indexSet == 0;
+
+end
+
+sys =  global &  agent1 &  agent2 & agent3;
+
+sys.print("fischer-equiv_ii_sys_N3", 0);
+reg = sys.reachable;
+reg.print("fischer-equiv_ii_reach_N3", 0);
+forbidden = sys.{$~crit~crit~$ & True, $~crit~$~crit & True, $~crit~crit~crit & True, $~$~crit~crit & True};
+reg.intersection_assign(forbidden);
+echo "";
+echo "Reachable forbidden states:";
+reg.print("fischer-equiv_ii_reach_bad", 0);
+echo "";
+echo "Reachable forbidden states empty?";
+reg.is_empty;

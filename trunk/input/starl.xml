@@ -1,0 +1,42 @@
+<?xml version="1.0"?>
+<holism>
+	<parameter name='N' type='index' comment='' />
+	
+	<parameter name='r' type='real' comment='' />
+
+	<automaton name='default_automaton'>
+		<variable name='x[i]' type='real' update_type='Continuous' />
+		<variable name='y[i]' type='real' update_type='Continuous' />
+		
+		<!--
+		<variable name='xwp[i]' type='real' update_type='Discrete' />
+		<variable name='ywp[i]' type='real' update_type='Discrete' />
+		-->
+		
+		<!-- <initial equn='(forall i j ( ((x[i]^2.0) + (y[i]^2.0) = 1.0^2.0)   &  ( ((x[i] - x[j])^2.0) + ((y[i] - y[j])^2.0))^(0.5) &gt;= 5.6   ) )' /> -->
+		
+		<!-- ((x[i]^2.0) + (y[i]^2.0) = r^2.0)  & -->
+		
+		<initial equn='(forall i (  (x[i] == cos((360 * i) / N) ) &amp;&amp; (y[i] == sin((360 * i) / N) )    ) )' />
+
+		<mode id='0' name='straightToWaypoint' initial='True'>
+			<dai variable='x[i]' equn='x[i]_dot == sin(i)'/>
+			<dai variable='y[i]' equn='y[i]_dot == cos(i)'/>
+		</mode>
+		
+		<!--
+		<mode id='1' name='stopped' initial='False'>
+			<dai variable='x[i]' equn='x[i]_dot == 0.0'/>
+			<dai variable='y[i]' equn='y[i]_dot == 0.0'/>
+		</mode>
+
+
+		<transition source='straightToWaypoint' destination='stopped'>
+		</transition>
+		-->
+
+	</automaton>
+
+	<property equn='forall i ((x[i] &lt;= 2.0*2.0))' type='safety' expectation='true' />
+	
+</holism>

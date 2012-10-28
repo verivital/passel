@@ -1,0 +1,112 @@
+<?xml version="1.0"?>
+
+<!-- Source: hand translation from pnueli2001tacas -->
+
+<!-- Note: the variable x_granted in the program Home was not defined; assuming it is an index-typed global variable since it gets assigned to currClient, which is indexed -->
+
+<holism>
+	<parameter name='N' type='index' comment='number of processes in the system' />
+	
+	<parameter name='empty' type='integer' value='0' />
+	<parameter name='reqShared' type='integer' value='1' />
+	<parameter name='reqExclusive' type='integer' value='2' />
+	<parameter name='invalidate' type='integer' value='3' />
+	<parameter name='invalidateAck' type='integer' value='4' />
+	<parameter name='grantShared' type='integer' value='5' />
+	<parameter name='grantExclusive' type='integer' value='6' />
+	
+	<variable name='exclusiveGranted' type='integer' update_type='Discrete' comment='bit' />
+	<variable name='currCommand' type='integer' update_type='Discrete' comment='message typed' />
+	
+	<variable name='currClient' type='index' update_type='Discrete' comment='message typed' />
+
+	<assumption equn='N &gt;= 2' comment='' />
+
+	<automaton name='german'>
+		<variable name='channel1[i]' type='integer' update_type='Discrete' comment='message' />
+		<variable name='channel2[i]' type='integer' update_type='Discrete' comment='message' />
+		<variable name='channel3[i]' type='integer' update_type='Discrete' comment='message' />
+		
+		<variable name='sharerList[i]' type='integer' update_type='Discrete' comment='bit' />
+		<variable name='invalidateList[i]' type='integer' update_type='Discrete' comment='bit' />
+			
+		<initial equn='forall i (q[i] == invalid and channel1[i] == empty and channel2[i] == empty and channel3[i] == empty and sharerList[i] == 0 and invalidateList[i] == 0 and exclusiveGranted == 0 and currCommand == empty and currClient == 1)' />
+
+		<!-- cacheState translated to local process states -->
+
+		<mode id='0' name='invalid' initial='True'>
+		</mode>
+
+		<mode id='1' name='shared' initial='False'>
+		</mode>
+		
+		<mode id='2' name='exclusive' initial='False'>
+		</mode>
+		
+		<transition source='invalid' destination='invalid'>
+			<guard equn='channel1[i] == empty' />
+			<action equn='channel1[i]&apos; = reqShared' />
+		</transition>
+		
+		<transition source='invalid,shared' > <!-- no destination means map to same -->
+			<guard equn='channel1[i] == empty' />
+			<action equn='channel1[i]&apos; = reqExclusive' />
+		</transition>
+		
+		<transition source='invalid,shared,exclusive' destination='invalid' >
+			<guard equn='channel2[i] == invalidate and channel3[i] == empty' />
+			<action equn='channel2[i]&apos; = empty and channel3[i]&apos; = invalidateAck' />
+		</transition>
+		
+		<transition source='invalid,shared,exclusive' destination='shared' >
+			<guard equn='channel2[i] == grantShared' />
+			<action equn='channel2[i]&apos; = empty' />
+		</transition>
+		
+		<transition source='invalid,shared,exclusive' destination='exclusive' >
+			<guard equn='channel2[i] == grantExclusive' />
+			<action equn='channel2[i]&apos; = empty' />
+		</transition>
+		
+		
+		
+		
+		<transition source='invalid,shared,exclusive'> <!-- no destination means map to same -->
+			<guard equn='currCommand == empty and channel1[i] != empty' />
+			<action equn='currCommand&apos; = channel1[i] and channel1[i]&apos; = empty and invalidateList[i]&apos; = sharerList[i] and currClient&apos; = i' /> <!-- TODO: need to copy sharer to invalidate -->
+		</transition>
+
+		<transition source='invalid,shared,exclusive'> <!-- no destination means map to same -->
+			<guard equn='((currCommand == reqShared and exclusiveGranted == 1) or (currCommand == reqExclusive)) and invalidateList[i] == 1 and channel2[i] == empty' />
+			<action equn='channel2[i]&apos; = invalidate and invalidateList[i]&apos; = 0' />
+		</transition>
+
+		<transition source='invalid,shared,exclusive'> <!-- no destination means map to same -->
+			<guard equn='currCommand != empty and channel3[i] == invalidateAck' />
+			<action equn='sharerList[i]&apos; = 0 and exclusiveGranted&apos; = 0 and channel3[i]&apos; = empty' />
+		</transition>
+
+	</automaton>
+	
+	<transition>
+		<guard equn='currCommand == reqShared and exclusiveGranted == 0 and channel2[currClient] == empty' />
+		<action equn='sharerList[currClient]&apos; = 1 and currCommand&apos; = empty and channel2[currClient]&apos; = grantShared' />
+	</transition>
+	
+	<transition>
+		<guard equn='currCommand == reqExclusive and channel2[currClient] == empty and (forall i (sharerList[i] == 0))' />
+		<!-- note in next, xGranted was undefined variable -->
+		<!-- was: and xGranted&apos; = currClient -->
+		<action equn='sharerList[currClient]&apos; = 1 and currCommand&apos; = empty and exclusiveGranted&apos; = 1 and channel2[currClient]&apos; = grantExclusive' />
+	</transition>
+
+
+	<property equn='true' type='safety' />
+
+	<property equn='forall i j ((i != j) implies (not (q[i] == exclusive and q[j] == shared)))' type='safety' />
+	
+	<property equn='false' type='safety' />
+
+
+
+</holism>

@@ -1,0 +1,53 @@
+REACH_USE_CONVEX_HULL = false; // not possible because of global variables
+REACH_MAX_ITER = 0; 
+REACH_USE_BBOX = false;
+COMPOSE_USE_CONVEX_HULL_FOR_REACH = false;
+COMPOSE_WITH_REACH_MIN = true;
+CHEAP_CONTAIN_RETURN_OTHERS = false;
+
+N := 1;
+
+automaton agent1
+contr_var : choosing_1,number_1;
+input_var : largest;
+synclabs :  tau, trychoose1, choosecheck1, checkcrit1;
+loc try: while  true  wait { choosing_1' == 0 & number_1' == 0 }
+	 when  true  sync trychoose1  do {choosing_1' == 1 & number_1' == 1 + largest & largest' == 1 + largest }  goto choose;
+	 when true sync tau do {largest' == largest & choosing_1' == choosing_1 & number_1' == number_1} goto try;
+loc choose: while  true  wait { choosing_1' == 0 & number_1' == 0 }
+	 when  true  sync choosecheck1  do {choosing_1' == 0 & largest' == largest & number_1' == number_1 }  goto check;
+	 when true sync tau do {largest' == largest & choosing_1' == choosing_1 & number_1' == number_1} goto choose;
+loc check: while  true  wait { choosing_1' == 0 & number_1' == 0 }
+	 when  true  sync checkcrit1  goto crit;
+	 when true sync tau do {largest' == largest & choosing_1' == choosing_1 & number_1' == number_1} goto check;
+loc crit: while  true  wait { choosing_1' == 0 & number_1' == 0 }
+	 when true sync tau do {largest' == largest & choosing_1' == choosing_1 & number_1' == number_1} goto crit;
+
+initially try & choosing_1 == 0 & number_1 == 0 & largest == 0;
+
+end
+
+automaton global
+contr_var : largest;
+synclabs: tau,trychoose1;
+loc default: while True wait { largest' == 0}
+	 when True sync tau do { largest' == largest } goto default;
+	 when True sync trychoose1 do { true } goto default;
+
+initially default & True;
+
+end
+
+sys =  global &  agent1;
+
+sys.print("bakery-lynch_ii_sys_N1", 0);
+reg = sys.reachable;
+reg.print("bakery-lynch_ii_reach_N1", 0);
+forbidden = sys.{$~crit~crit & True};
+reg.intersection_assign(forbidden);
+echo "";
+echo "Reachable forbidden states:";
+reg.print("bakery-lynch_ii_reach_bad", 0);
+echo "";
+echo "Reachable forbidden states empty?";
+reg.is_empty;

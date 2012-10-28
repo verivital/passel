@@ -1,0 +1,143 @@
+<?xml version="1.0"?>
+
+<holism>
+	<parameter name='N' type='index' comment='number of processes in the system' />
+	<parameter name='S' type='real' comment='smaller constant' />
+	<parameter name='L' type='real' comment='larger constant' />
+		
+	<assumption equn='S &gt; 0.0 and L &gt; 0.0 and S &lt; L' comment='' />
+	<assumption equn='S == 5.0 and L == 5001.0' comment='need actual values for phaver' />
+	
+	<assumption equn='N &gt;= 1' comment='' />
+	
+	<variable name='x' type='integer' update_type='Discrete' comment='lock' />
+	
+	<assumption equn='N &gt;= 2' comment='' />
+
+	<automaton name='mux-sats'>
+		<variable name='pos[i]' type='nnreal' update_type='Continuous' />
+		<variable name='b[i]' type='integer' update_type='Discrete' />
+		<initial equn='(forall i (pos[i] == 0.0 and b[i] == 0 and x == 1))' />
+
+
+		<mode id='0' name='I' initial='True'>
+			<dai variable='pos[i]' equn='pos[i]_dot = 0.0'/>
+		</mode>
+
+		<mode id='1' name='T' initial='False'>
+			<dai variable='pos[i]' equn='pos[i]_dot = 0.0'/>
+		</mode>
+		
+		<mode id='2' name='C' initial='False'>
+			<dai variable='pos[i]' equn='pos[i]_dot = 0.0'/>
+		</mode>
+		
+		<mode id='3' name='E' initial='False'>
+			<dai variable='pos[i]' equn='pos[i]_dot = 0.0'/>
+		</mode>
+		
+		<mode id='4' name='fly' initial='False'>
+			<dai variable='pos[i]' equn='pos[i]_dot = 0.0'/>
+		</mode>
+
+		<mode id='5' name='landing' initial='False'>
+			<invariant equn='pos[i] &lt;= L' />
+			<stop equn='pos[i] &gt;= L' />
+			<dai variable='pos[i]' equn='pos[i]_dot == 1.0'/>
+		</mode>
+		
+		
+		<transition source='I' destination='T'>
+		</transition>
+		
+		<transition source='T' destination='C'>
+			<guard equn='x == 1' />
+			<action equn='x&apos; = 0'/>
+		</transition>
+		
+		<transition source='C' destination='E'>
+		</transition>
+		
+		<transition source='E' destination='I'>
+			<action equn='x&apos; = 1'/>
+		</transition>
+		
+		<transition source='I' destination='fly'>
+		</transition>
+		
+
+
+
+		
+		<transition source='fly' destination='landing'>
+			<action equn='pos[i]&apos; = 0.0 and b[i]&apos; = 1'/>
+			<uguard equn='(b[j] == 1) implies (pos[j] &gt;= S)' />
+		</transition>
+		
+		<transition source='landing' destination='fly'>
+			<action equn='pos[i]&apos; = 0.0 and b[i]&apos; = 0'/>
+		</transition>
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+	</automaton>
+
+
+
+	<property equn='true' type='safety' />
+	
+	<!-- <property equn='forall i j ((i != j) implies ( (q[i] == C or q[i] == E) implies ((x == 0) and (q[j] == I or q[j] == T)) ) and ( (q[j] == C or q[j] == E) implies ((x == 0) and (q[i] == I or q[i] == T) )) )' type='safety' comment='inductive invariant that implies mutual exclusion' /> -->
+
+	<!-- <property equn='forall i ((q[i] == C or q[i] == E) iff (x == 0))' type='safety' comment='not inductive' /> -->
+	
+<!--
+	<property equn='forall i j ((i != j) implies ( ((x == 1) implies ((q[i] == I or q[i] == T)) and (q[j] != C and q[j] != E)) and ((x == 0) implies ((q[i] == C or q[i] == E) implies (q[j] != C and q[j] != E))) ))' type='safety' comment='inductive invariant that implies mutual exclusion' />
+
+
+	<property equn='forall i j ((i != j) implies (q[i] != C or q[j] != C))' type='safety' />
+	
+	<property equn='forall i j ((i != j and q[i] == C) implies (q[j] != C))' type='safety' />
+	
+	<property equn='false' type='safety' />
+
+
+	
+	<property equn='forall i (q[i] == fly or q[i] == landing)' type='safety' />
+	<property equn='forall i j ((i != j) implies ((q[i] == fly or q[i] == landing) and (q[j] == fly or q[j] == landing)))' type='safety' />
+	
+	<property equn='forall i j ((i != j and x[i] &gt; x[j]) implies (x[i] &gt;= x[j] + S))' type='safety' />
+
+	
+	
+	<property equn='forall i j ((i != j and q[i] == landing and q[j] == landing and x[i] &gt; x[j] and b[i] == 1 and b[j] == 1) implies (x[i] &gt;= x[j] + S))' type='safety' />
+	
+-->
+
+
+
+
+	<property equn='forall i j ((i != j and pos[i] &gt; pos[j]) implies ((q[i] != C or q[j] != C) and (pos[i] &gt;= pos[j] + S) ))' type='safety' />
+	
+
+	<property equn='forall i j ((i != j and q[i] == C) implies (q[j] != C))' type='safety' />
+
+	<property equn='forall i j ((i != j and q[i] == landing and q[j] == landing and pos[i] &gt; pos[j]) implies (pos[i] &gt;= pos[j] + S))' type='safety' />
+
+	
+	<property equn='forall i (q[i] == I or q[i] == T or q[i] == C or q[i] == E or q[i] == fly or q[i] == landing)' type='safety' />
+	
+	
+	<property equn='false' type='safety' />
+
+
+
+
+</holism>
+

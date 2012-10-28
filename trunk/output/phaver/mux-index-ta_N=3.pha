@@ -1,0 +1,102 @@
+REACH_USE_CONVEX_HULL = false; // not possible because of global variables
+REACH_MAX_ITER = 0; 
+REACH_USE_BBOX = false;
+COMPOSE_USE_CONVEX_HULL_FOR_REACH = false;
+COMPOSE_WITH_REACH_MIN = true;
+CHEAP_CONTAIN_RETURN_OTHERS = false;
+
+N := 3;
+
+automaton agent1
+contr_var : x_1;
+input_var : g;
+synclabs :  tau, IT1, TC1, CE1, EI1;
+loc I: while true wait { x_1' == 1 }
+	 when g == 0 & x_1 >= 1 sync IT1  do {g' == 1 & x_1' == 0 }  goto T;
+	 when true sync tau do {g' == g & x_1' == x_1} goto I;
+loc T: while true wait {  x_1' == 1  }
+	 when g == 1 & x_1 >= 1 sync TC1  do {x_1' == 0 }  goto C;
+	 when true sync tau do {g' == g & x_1' == x_1} goto T;
+loc C: while true wait {  x_1' == 1  }
+	 when x_1 >= 1 sync CE1  do {x_1' == 0 }  goto E;
+	 when true sync tau do {g' == g & x_1' == x_1} goto C;
+loc E: while true wait {  x_1' == 1  }
+	 when x_1 >= 1 sync EI1  do {g' == 0 & x_1' == 0 }  goto I;
+	 when true sync tau do {g' == g & x_1' == x_1} goto E;
+
+initially I & x_1 == 0;
+
+end
+
+automaton agent2
+contr_var : x_2;
+input_var : g;
+synclabs :  tau, IT2, TC2, CE2, EI2;
+loc I: while true wait { x_2' == 1 }
+	 when g == 0 & x_2 >= 1 sync IT2  do {g' == 2 & x_2' == 0 }  goto T;
+	 when true sync tau do {g' == g & x_2' == x_2} goto I;
+loc T: while true wait {  x_2' == 1  }
+	 when g == 2 & x_2 >= 1 sync TC2  do {x_2' == 0 }  goto C;
+	 when true sync tau do {g' == g & x_2' == x_2} goto T;
+loc C: while true wait {  x_2' == 1  }
+	 when x_2 >= 1 sync CE2  do {x_2' == 0 }  goto E;
+	 when true sync tau do {g' == g & x_2' == x_2} goto C;
+loc E: while true wait {  x_2' == 1  }
+	 when x_2 >= 1 sync EI2  do {g' == 0 & x_2' == 0 }  goto I;
+	 when true sync tau do {g' == g & x_2' == x_2} goto E;
+
+initially I & x_2 == 0;
+
+end
+
+automaton agent3
+contr_var : x_3;
+input_var : g;
+synclabs :  tau, IT3, TC3, CE3, EI3;
+loc I: while true wait { x_3' == 1 }
+	 when g == 0 & x_3 >= 1 sync IT3  do {g' == 3 & x_3' == 0 }  goto T;
+	 when true sync tau do {g' == g & x_3' == x_3} goto I;
+loc T: while true wait {  x_3' == 1  }
+	 when g == 3 & x_3 >= 1 sync TC3  do {x_3' == 0 }  goto C;
+	 when true sync tau do {g' == g & x_3' == x_3} goto T;
+loc C: while true wait {  x_3' == 1  }
+	 when x_3 >= 1 sync CE3  do {x_3' == 0 }  goto E;
+	 when true sync tau do {g' == g & x_3' == x_3} goto C;
+loc E: while true wait {  x_3' == 1  }
+	 when x_3 >= 1 sync EI3  do {g' == 0 & x_3' == 0 }  goto I;
+	 when true sync tau do {g' == g & x_3' == x_3} goto E;
+
+initially I & x_3 == 0;
+
+end
+
+automaton global
+contr_var : g;
+synclabs: tau,IT1,EI1,IT2,EI2,IT3,EI3;
+loc default: while True wait { g' == 0}
+	 when True sync tau do { g' == g } goto default;
+	 when True sync IT1 do { true } goto default;
+	 when True sync EI1 do { true } goto default;
+	 when True sync IT2 do { true } goto default;
+	 when True sync EI2 do { true } goto default;
+	 when True sync IT3 do { true } goto default;
+	 when True sync EI3 do { true } goto default;
+
+
+initially default & g == 0;
+
+end
+
+sys =  global &  agent1 &  agent2 &  agent3;
+
+sys.print("mux-index-ta_ii_sys_N3", 0);
+reg = sys.reachable;
+reg.print("mux-index-ta_ii_reach_N3", 0);
+forbidden = sys.{$~crit~crit~$ & True, $~$~crit~crit & True, $~crit~$~crit & True};
+reg.intersection_assign(forbidden);
+echo "";
+echo "Reachable forbidden states:";
+reg.print("mux-index-ta_ii_reach_bad_N3", 0);
+echo "";
+echo "Reachable forbidden states empty?";
+reg.is_empty;

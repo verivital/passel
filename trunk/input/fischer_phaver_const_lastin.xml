@@ -1,0 +1,82 @@
+<?xml version="1.0"?>
+
+<holism>
+	<parameter name='N' type='index' comment='number of processes in the system' />
+	<parameter name='a' type='real' comment='smaller constant' />
+	<parameter name='b' type='real' comment='larger constant' />
+	
+	<parameter name='c' type='real' comment='lower rate' />
+	<parameter name='d' type='real' comment='upper rate' />
+	
+	<variable name='g' type='index' update_type='Discrete' comment='lock' />
+	<variable name='last' type='index' update_type='Discrete' comment='last process to enter cs' />
+	
+	<assumption equn='a &gt; 0.0 and b &gt; 0.0 and a &lt; b' comment='a *stictly less than* b for mutual exclusion' />
+	<assumption equn='a == 11.0 and b == 131.0' comment='need actual values for phaver' />
+	<assumption equn='c == 3.0 and d == 3.0' comment='need actual values for phaver' />
+	
+	<assumption equn='N &gt;= 2' comment='' />
+
+	<automaton name='fischer_phaver_const_lastin'>
+		<variable name='x[i]' type='nnreal' update_type='Continuous' />
+		
+		<initial equn='(forall i (x[i] == 0.0)) and g = 0' />
+
+
+		<mode id='0' name='idle' initial='True'>
+			<dai variable='x[i]' equn='x[i]_dot = 0.0'/>
+		</mode>
+
+		<mode id='1' name='start' initial='False'>
+			<invariant equn='x[i] &lt;= a' />
+			<dai variable='x[i]' equn='x[i]_dot &gt;= c and x[i]_dot &lt;= d'/>
+		</mode>
+		
+		<mode id='2' name='check' initial='False'>
+			<dai variable='x[i]' equn='x[i]_dot &gt;= c and x[i]_dot &lt;= d'/>
+		</mode>
+		
+		<mode id='3' name='CS' initial='False'>
+			<dai variable='x[i]' equn='x[i]_dot = 0.0'/>
+		</mode>
+		
+		<transition source='idle' destination='start'>
+			<guard equn='g == 0' />
+			<action equn='x[i]&apos; = 0.0'/>
+		</transition>
+
+		<transition source='start' destination='check'>
+			<action equn='g&apos; = i and x[i]&apos; = 0.0'/>
+		</transition>
+
+		<transition source='check' destination='CS'>
+			<guard equn='g == i and x[i] &gt;= b' />
+			<action equn='last&apos; == i' />
+		</transition>
+		
+		<transition source='check' destination='idle'>
+			<guard equn='g != i and x[i] &gt;= b' />
+			<action equn='x[i]&apos; = 0.0'/>
+		</transition>
+		
+		<transition source='CS' destination='idle'>
+			<action equn='g&apos; = 0 and x[i]&apos; = 0.0'/>
+		</transition>
+	</automaton>
+
+
+	<property equn='true' type='safety' />
+
+	<property equn='forall i ((q[i] == start) implies (x[i] &lt; a))' type='safety' />
+	<property equn='forall i ((q[i] == start) implies (x[i] &lt;= a))' type='safety' />
+	<property equn='forall i ((q[i] == CS) implies (x[i] &gt;= b))' type='safety' />
+
+	<property equn='forall i j ((i != j) implies (q[i] != CS or q[j] != CS))' type='safety' />
+	
+	<property equn='forall i j ((i != j and q[i] == CS) implies (q[j] != CS))' type='safety' />
+	
+	<property equn='false' type='safety' />
+
+
+
+</holism>

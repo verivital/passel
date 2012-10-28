@@ -1,0 +1,114 @@
+REACH_USE_CONVEX_HULL = false; // not possible because of global variables
+REACH_MAX_ITER = 0; 
+REACH_USE_BBOX = false;
+COMPOSE_USE_CONVEX_HULL_FOR_REACH = false;
+COMPOSE_WITH_REACH_MIN = true;
+CHEAP_CONTAIN_RETURN_OTHERS = false;
+
+N := 3;
+A := 3;
+B := 19;
+
+automaton agent1
+contr_var : x_1,last_1,first_1;
+input_var : g;
+synclabs :  tau, testtest1, testset1, setcheck1, checktest1, checkcrit1, crittest1;
+loc test: while  true  wait { x_1' == 1 & last_1' == 0 & first_1' == 0 }
+	 when  ! (g == 0) sync testtest1  goto test;
+	 when g == 0 sync testset1  do {last_1' == x_1 + A & g' == g & x_1' == x_1 & first_1' == first_1 }  goto set;
+	 when true sync tau do {g' == g & x_1' == x_1 & last_1' == last_1 & first_1' == first_1} goto test;
+loc set: while x_1 <= last_1 wait { x_1' == 1 & last_1' == 0 & first_1' == 0 }
+	 when  true  sync setcheck1  do {g' == 1 & first_1' == x_1 + B & x_1' == x_1 & last_1' == last_1 }  goto check;
+	 when true sync tau do {g' == g & x_1' == x_1 & last_1' == last_1 & first_1' == first_1} goto set;
+loc check: while  true  wait { x_1' == 1 & last_1' == 0 & first_1' == 0 }
+	 when  ! (g == 1) & x_1 >= first_1 sync checktest1  do {first_1' == 0 & g' == g & x_1' == x_1 & last_1' == last_1 }  goto test;
+	 when g == 1 & x_1 >= first_1 sync checkcrit1  goto crit;
+	 when true sync tau do {g' == g & x_1' == x_1 & last_1' == last_1 & first_1' == first_1} goto check;
+loc crit: while  true  wait { x_1' == 1 & last_1' == 0 & first_1' == 0 }
+	 when  true  sync crittest1  do {g' == 0 & x_1' == x_1 & last_1' == last_1 & first_1' == first_1 }  goto test;
+	 when true sync tau do {g' == g & x_1' == x_1 & last_1' == last_1 & first_1' == first_1} goto crit;
+
+initially test & x_1 == 0 & last_1 == A & first_1 == 0;
+
+end
+
+automaton agent2
+contr_var : x_2,last_2,first_2;
+input_var : g;
+synclabs :  tau, testtest2, testset2, setcheck2, checktest2, checkcrit2, crittest2;
+loc test: while  true  wait { x_2' == 1 & last_2' == 0 & first_2' == 0 }
+	 when  ! (g == 0) sync testtest2  goto test;
+	 when g == 0 sync testset2  do {last_2' == x_2 + A & g' == g & x_2' == x_2 & first_2' == first_2 }  goto set;
+	 when true sync tau do {g' == g & x_2' == x_2 & last_2' == last_2 & first_2' == first_2} goto test;
+loc set: while x_2 <= last_2 wait { x_2' == 1 & last_2' == 0 & first_2' == 0 }
+	 when  true  sync setcheck2  do {g' == 2 & first_2' == x_2 + B & x_2' == x_2 & last_2' == last_2 }  goto check;
+	 when true sync tau do {g' == g & x_2' == x_2 & last_2' == last_2 & first_2' == first_2} goto set;
+loc check: while  true  wait { x_2' == 1 & last_2' == 0 & first_2' == 0 }
+	 when  ! (g == 2) & x_2 >= first_2 sync checktest2  do {first_2' == 0 & g' == g & x_2' == x_2 & last_2' == last_2 }  goto test;
+	 when g == 2 & x_2 >= first_2 sync checkcrit2  goto crit;
+	 when true sync tau do {g' == g & x_2' == x_2 & last_2' == last_2 & first_2' == first_2} goto check;
+loc crit: while  true  wait { x_2' == 1 & last_2' == 0 & first_2' == 0 }
+	 when  true  sync crittest2  do {g' == 0 & x_2' == x_2 & last_2' == last_2 & first_2' == first_2 }  goto test;
+	 when true sync tau do {g' == g & x_2' == x_2 & last_2' == last_2 & first_2' == first_2} goto crit;
+
+initially test & x_2 == 0 & last_2 == A & first_2 == 0;
+
+end
+
+automaton agent3
+contr_var : x_3,last_3,first_3;
+input_var : g;
+synclabs :  tau, testtest3, testset3, setcheck3, checktest3, checkcrit3, crittest3;
+loc test: while  true  wait { x_3' == 1 & last_3' == 0 & first_3' == 0 }
+	 when  ! (g == 0) sync testtest3  goto test;
+	 when g == 0 sync testset3  do {last_3' == x_3 + A & g' == g & x_3' == x_3 & first_3' == first_3 }  goto set;
+	 when true sync tau do {g' == g & x_3' == x_3 & last_3' == last_3 & first_3' == first_3} goto test;
+loc set: while x_3 <= last_3 wait { x_3' == 1 & last_3' == 0 & first_3' == 0 }
+	 when  true  sync setcheck3  do {g' == 3 & first_3' == x_3 + B & x_3' == x_3 & last_3' == last_3 }  goto check;
+	 when true sync tau do {g' == g & x_3' == x_3 & last_3' == last_3 & first_3' == first_3} goto set;
+loc check: while  true  wait { x_3' == 1 & last_3' == 0 & first_3' == 0 }
+	 when  ! (g == 3) & x_3 >= first_3 sync checktest3  do {first_3' == 0 & g' == g & x_3' == x_3 & last_3' == last_3 }  goto test;
+	 when g == 3 & x_3 >= first_3 sync checkcrit3  goto crit;
+	 when true sync tau do {g' == g & x_3' == x_3 & last_3' == last_3 & first_3' == first_3} goto check;
+loc crit: while  true  wait { x_3' == 1 & last_3' == 0 & first_3' == 0 }
+	 when  true  sync crittest3  do {g' == 0 & x_3' == x_3 & last_3' == last_3 & first_3' == first_3 }  goto test;
+	 when true sync tau do {g' == g & x_3' == x_3 & last_3' == last_3 & first_3' == first_3} goto crit;
+
+initially test & x_3 == 0 & last_3 == A & first_3 == 0;
+
+end
+
+automaton global
+contr_var : g;
+synclabs: tau,setcheck1,crittest1,setcheck2,crittest2,setcheck3,crittest3;
+loc default: while True wait { g' == 0}
+	 when True sync tau do { g' == g } goto default;
+	 when True sync setcheck1 do { true } goto default;
+	 when True sync crittest1 do { true } goto default;
+	 when True sync setcheck2 do { true } goto default;
+	 when True sync crittest2 do { true } goto default;
+	 when True sync setcheck3 do { true } goto default;
+	 when True sync crittest3 do { true } goto default;
+
+initially default & g == 0;
+
+end
+
+sys =  global &  agent1 &  agent2 &  agent3;
+
+sys.print("fischer_umeno_five_state_ii_sys_N3", 0);
+reg = sys.reachable;
+reg.print("fischer_umeno_five_state_ii_reach_N3", 0);
+regm12 = reg;
+regm12.project_to(x_1,first_1,last_1,x_2,first_2,last_2,g);
+regm12.print("fischer_umeno_five_state_ii_reach_N3projected12", 0);
+forbidden = sys.{$~crit~crit~$ & True,
+$~crit~$~crit & True,
+$~$~crit~crit & True};
+reg.intersection_assign(forbidden);
+echo "";
+echo "Reachable forbidden states:";
+reg.print("fischer_umeno_five_state_ii_reach_bad", 0);
+echo "";
+echo "Reachable forbidden states empty?";
+reg.is_empty;

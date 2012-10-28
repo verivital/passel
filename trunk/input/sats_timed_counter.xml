@@ -1,0 +1,226 @@
+<?xml version="1.0"?>
+
+<holism>
+	<parameter name='N' type='index' comment='number of aircraft in the system' />
+	<parameter name='LB' type='real' comment='base zone length' />
+	<parameter name='LS' type='real' comment='safety spacing' />
+
+	<variable name='last'  type='index' update_type='discrete' comment='global tail pointer variable, where tail is defined as the plane that is last to land' />
+	<variable name='total'  type='integer' update_type='discrete' comment='total number of aircraft in the system (i.e., not flying and not landed)' />
+
+	<assumption equn='LS &gt; 0.0' comment='the safety spacing is positive' />
+	<assumption equn='LB &gt; 0.0' comment='the base zone length is positive'/>
+	<assumption equn='LB &gt; 100.0*LS' comment='the base length is at least as large as the safety spacing'/>
+	<assumption equn='N &gt;= 2 and N &lt;= 4' comment='there are at least 2 aircraft in the system, but no more than 10' />
+	<assumption equn='total &gt;= 0 and total &lt;= N' comment='total number of aircraft is nonnegative' type='safety' />
+
+	<automaton name='default_automaton'>
+		<variable name='x[i]' type='nnreal' update_type='Continuous' />
+		<variable name='next[i]' type='index' update_type='Discrete' />
+		
+		<initial equn='(forall i (x[i] == 0.0 and next[i] == 0)) and last == 0 and total == 0' />
+
+		<mode id='0' name='Fly' initial='True'>
+			<dai variable='x[i]' equn='x[i]_dot = 0.0'/>
+		</mode>
+
+		<mode id='1' name='Holding' initial='False'>
+			<dai variable='x[i]' equn='x[i]_dot = 0.0'/>
+		</mode>
+		
+		<mode id='2' name='Base' initial='False'>
+			<dai variable='x[i]' equn='x[i]_dot == 1.0'/>
+			<stop equn='x[i] &gt;= LB'/>
+			<invariant equn='x[i] &lt;= LB'/>
+		</mode>
+		
+		<mode id='3' name='Land' initial='False'>
+			<dai variable='x[i]' equn='x[i]_dot = 0.0'/>
+		</mode>
+
+		<transition source='Fly' destination='Holding'>
+			<guard equn='next[i] == 0' />
+			<action equn='x[i]&apos; = 0.0 and next[i]&apos; = last and last&apos; = i and total&apos; = total + 1'/>
+		</transition>
+		
+
+		<transition source='Holding' destination='Base'>
+			<guard equn='(next[i] == 0) or (next[i] != 0 and q[ next[i] ] == Base and x[ next[i] ] &gt;= LS)'/>
+			<action equn='x[i]&apos; = 0.0'/>
+		</transition>
+
+		<transition source='Base' destination='Holding'>
+			<guard equn='x[i] &gt;= LB and next[i] == 0'/>
+			<uguard equn='if (next[j] = i) then (next[j]&apos; = 0) else (next[j]&apos; = next[j])' />
+			<action equn='x[i]&apos; = 0.0 and (if (last != i) then (next[i]&apos; = last) else (next[i]&apos; = 0)) and last&apos; = i'/>
+		</transition>
+
+		<transition source='Base' destination='Land'>
+			<guard equn='x[i] &gt;= LB and next[i] == 0 and total &gt; 0'/>
+			<uguard equn='if (next[j] = i) then (next[j]&apos; = 0) else (next[j]&apos; = next[j])' />
+			<action equn='x[i]&apos; = 0.0 and next[i]&apos; = 0 and (if (last == i) then (last&apos; = 0 and total&apos; = 0) else (last&apos; = last and total&apos; = total - 1))'/>
+		</transition>
+
+	</automaton>
+
+
+
+<property equn='(total &gt;= 0) and (total &lt;= N)' type='safety' comment='' />
+
+
+<property equn='(total == 0) implies (forall i (q[i] != Holding and q[i] != Base))' type='safety' comment='' />
+<property equn='(forall i (q[i] != Holding and q[i] != Base)) implies (total == 0)' type='safety' comment='' />
+
+
+
+<property equn='(total == 1) implies (forall i j (i != j and (q[i] == Base or q[i] == Holding) and (last == i and next[i] == 0) and (q[j] != Holding and q[j] != Base)))' type='safety' comment='' />
+
+
+
+<property equn='forall i j ((i != j and q[i] == Holding and next[i] == 0) implies (q[j] != Base))' type='safety' comment='' />
+
+
+
+
+
+
+
+
+
+
+<property equn='forall i j ((i != j and last == i and next[i] == 0) implies (q[j] == Fly or q[j] == Land))' type='safety' comment='' />
+
+<property equn='forall i j ((i != j and last != i and (q[i] == Holding or q[i] == Base) and (q[j] == Holding or q[j] == Base) and next[i] == 0) implies (next[j] != 0))' type='safety' comment='' />
+
+
+
+
+
+
+<property equn='forall i j ((last == i and next[i] == 0) implies (q[j] == Fly or q[j] == Land))' type='safety' comment='' />
+
+
+
+
+
+
+<property equn='forall i ((last == 0) implies (q[i] == Fly or q[i] == Land))' type='safety' comment='' />
+
+
+<!-- equivalent unique leader property
+<property equn='forall i j (i != j and ( (q[i] == Base or q[i] == Holding) and next[i] == 0 and next[j] == 0) implies (q[j] != Base and q[j] != Holding))' type='safety' comment='' />
+-->
+
+
+<!--
+<property equn='forall i j (((q[i] == Base or q[i] == Holding) and next[i] == 0 and last == i) implies (next[j] == 0))' type='safety' comment='' />
+<property equn='forall i j (((q[i] == Base or q[i] == Holding) and next[i] == 0 and last == i) implies (q[j] != Base and q[j] != Holding))' type='safety' comment='' />
+<property equn='forall i j (((q[i] == Base or q[i] == Holding) and next[i] == 0 and last == i) implies (q[j] == Fly or q[j] == Land))' type='safety' comment='' />
+-->
+
+<property equn='forall i j ((next[i] == 0 and last == i) implies (next[j] == 0))' type='safety' comment='' />
+<property equn='forall i ((last == 0) implies (q[i] == Fly or q[i] == Land))' type='safety' comment='' />
+<property equn='forall i ((last == 0) implies (next[i] == 0))' type='safety' comment='' />
+
+
+<property equn='forall i j ((next[i] == 0 and last == i) implies (q[j] == Fly or q[j] == Land))' type='safety' comment='' />
+
+
+<!-- uniqueness property
+<property equn='forall i (exists j ((next[j] == i) implies (forall k ((k != j) implies (next[k] != i)))))' type='safety' comment='' />	
+-->
+
+
+	<property equn='forall i (next[i] &gt;= 0 and next[i] &lt;= N)' type='safety' comment='needed to remove suprious c.e. from landing order sublemma' />
+	<property equn='(last &gt;= 0 and last &lt;= N)' type='safety' comment='needed to remove spurious c.e. from landing order sublemma' />
+	
+	<property equn='forall i ((last != 0) implies (q[i] = Holding or q[i] == Base))' type='safety' comment='' />
+
+
+<!-- START spacing properties -->
+	<property equn='forall i ((q[i] == Fly or q[i] == Land) implies (last != i))' type='safety' comment='key lemma 3: must hold to show key lemma 2 (just need Fly part, but Land also holds, so we use the stronger version)' />
+	<property equn='forall i j ((next[j] == i) implies (q[i] != Fly and q[i] != Land and q[j] != Fly and q[j] != Land))' type='safety' comment='key lemma 2: must hold to show key lemma 1 (only need q[i] != Fly from proof, but stronger version also holds)' />	
+	<property equn='forall i j ((q[i] = Holding and next[j] = i) implies (q[j] = Holding))' type='safety' comment='key lemma 1: for showing safety (if this holds, safety holds)' />
+	<property equn='forall i j ((q[i] == Base and q[j] == Base and next[j] == i) implies (x[i] - x[j] &gt;= LS))' type='safety' comment='Safety: there is always at least S distance between any two distinct aircraft.' />
+	<property equn='forall i j ((i != j and q[i] == Base and q[j] == Base and next[j] == i) implies (x[i] - x[j] &gt;= LS))' type='safety' comment='Safety: there is always at least S distance between any two distinct aircraft.' />
+<!--
+	<property equn='forall i j ((i != j and q[i] == Base and q[j] == Base and x[i] &gt; x[j]) implies (x[i] - x[j] &gt;= LS))' type='safety' comment='strong safety' />
+-->
+<!-- END spacing properties -->
+
+
+
+	<property equn='forall i ((q[i] == Fly or q[i] == Land) implies (next[i] == 0))' type='safety' comment='' />
+	<property equn='forall i j ((q[i] == Fly or q[i] == Land) implies (next[j] != i))' type='safety' comment='' />
+
+<!-- START landing order properties -->
+<property equn='forall i j ((i != j) implies (next[i] != j or next[j] != i))' type='safety' comment='no cycles in the list (part of sublemma for leader has greatest position)' />
+	
+	<property equn='forall i (next[i] != i)' type='safety' comment='no one points to themselves' />
+	<property equn='forall i ((last != 0) implies (next[i] != last))' type='safety' comment='no one points at last' />
+
+
+
+
+
+
+<property equn='forall i j (((q[i] == Holding or q[i] == Base) and next[i] == 0 and last == i) implies (q[j] = Fly or q[j] == Land))' type='safety' comment='' />
+<property equn='forall i j ((i != j and next[i] == 0 and last == i) implies (q[j] = Fly or q[j] == Land))' type='safety' comment='' />
+
+
+
+
+
+	<property equn='forall i ((last == 0 and next[i] == 0) implies (q[i] == Land or q[i] == Fly))' type='safety' comment='' />
+	<property equn='forall i ((q[i] == Land or q[i] == Fly) implies (last == 0 and next[i] == 0))' type='safety' comment='' />
+
+
+	<property equn='forall i ((q[i] == Holding or q[i] == Base) implies (last != 0 or next[i] != 0))' type='safety' comment='sufficient for next lemma' />
+<!-- show next property  -->
+	<property equn='forall i ((last == 0 and next[i] == 0) implies (q[i] == Fly or q[i] == Land))' type='safety' comment='key sublemma for showing key lemma for landing order' />
+<property equn='forall i j ((next[j] = i) implies (last != i))' type='safety' comment='' />
+<property equn='forall i ((next[i] != 0) implies (q[i] = Holding or q[i] == Base))' type='safety' comment='sublemma B.1.1 (removes some c.e.)' />
+	<property equn='forall i j ((i != j and (q[i] == Holding or q[i] == Base) and (q[j] == Holding or q[j] == Base) and next[i] == 0) implies (next[j] != 0))' type='safety' comment='unique leader' />
+	<property equn='forall i ((q[i] == Holding or q[i] == Base) implies (last != 0))' type='safety' comment='key lemma for showing landing order (needed for transition from Fly to Holding)' />
+	<property equn='forall i j ((q[i] == Base and q[j] == Base and next[i] == 0) implies (x[i] &gt; x[j]))' type='safety' comment='leader is farthest in base' />
+<!-- END landing order properties -->
+
+
+<property equn='(last == 0) implies (forall i (q[i] == Land or q[i] == Fly))' type='safety' comment='' />
+<property equn='(forall i (q[i] == Land or q[i] == Fly)) implies (last == 0)' type='safety' comment='' />
+
+
+
+<property equn='(forall i (q[i] == Holding or q[i] == Base)) implies (last != 0)' type='safety' comment='' />
+
+
+
+<property equn='(forall i (next[i] == 0)) implies (last == 0 and (forall i (q[i] == Land or q[i] == Fly)))' type='safety' comment='' />
+<property equn='(last == 0 and (forall i (q[i] == Land or q[i] == Fly))) implies (forall i (next[i] == 0))' type='safety' comment='' />
+
+	<property equn='forall i j ((next[i] == 0 and last == i) implies (next[j] != i))' type='safety' comment='' />
+
+
+
+
+
+	
+
+<!-- START sanity check properties 
+
+	<property equn='forall i j ((i != j) implies (q[i] != Holding or q[j] != Holding))' type='safety' comment='' />
+	<property equn='forall i j ((i != j) implies (q[i] != Base or q[j] != Base))' type='safety' comment='' />
+
+	<property equn='forall i (q[i] == Fly)' type='safety' comment='' />
+	<property equn='forall i (q[i] == Holding)' type='safety' comment='' />
+	<property equn='forall i (q[i] == Base)' type='safety' comment='' />
+	<property equn='forall i (q[i] == Land)' type='safety' comment='' />
+	<property equn='forall i (q[i] != Fly)' type='safety' comment='' />
+	<property equn='forall i (q[i] != Holding)' type='safety' comment='' />
+	<property equn='forall i (q[i] != Base)' type='safety' comment='' />
+	<property equn='forall i (q[i] != Land)' type='safety' comment='' />
+-->	
+<!-- END sanity check properties -->
+
+
+</holism>

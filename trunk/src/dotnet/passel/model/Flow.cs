@@ -19,11 +19,12 @@ namespace passel.model
 
         public enum DynamicsTypes
         {
+            constant, // \dot{x} = 0
             timed,
             rectangular,
             linear,
             affine,
-            nonlinear
+            nonlinear,
         }
 
         public Expr Value;

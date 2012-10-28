@@ -1,0 +1,69 @@
+<?xml version="1.0"?>
+
+<holism>
+	<parameter name='N' type='index' comment='' />
+	
+	<variable name='counter' type='integer' update_type='discrete' />
+	
+	<assumption equn='N &gt;= 2' comment='' />
+
+	<!-- global transition does not specify a source and destination -->
+	<transition>
+		<action equn='counter&apos; = counter + 1' />
+	</transition>
+
+	<automaton name='bakery_lamport'>
+		<variable name='ticket[i]' type='index' update_type='Discrete' />
+		<variable name='u[i]' type='index' update_type='Discrete' />
+
+		
+		<initial equn='(forall i (ticket[i] = 0 and u[i] = 0)) and counter = 1' />
+
+		<mode id='0' name='sleep' initial='True'>
+		</mode>
+		
+		<mode id='1' name='wait' initial='False'>
+		</mode>
+
+		<mode id='2' name='try' initial='False'>
+		</mode>
+		
+		<mode id='3' name='cs' initial='False'>
+		</mode>
+
+		<transition source='sleep' destination='wait'>
+			<guard equn='forall j (ticket[j] &lt; counter)' />
+			<action equn='u[i]&apos; = counter' />
+		</transition>
+		
+		<transition source='wait' destination='try'>
+			<action equn='ticket[i]&apos; = u[i]' />
+		</transition>
+		
+		<transition source='try' destination='cs'>
+			<!-- j != i in next is unnecessary, since i is necessarily in location try (so we already know i != j) -->
+			<guard equn='forall j (((i != j and q[j] != try) and (ticket[j] == 0 or ticket[j] &gt; ticket[i] or (ticket[j] = ticket[i] and j &gt; i))))' />
+		</transition>
+		
+		<transition source='cs' destination='sleep'>
+			<action equn='ticket[i]&apos; = 0' />
+		</transition>
+
+	</automaton>
+
+
+	<property equn='forall i j ((i != j) implies (q[i] != cs or q[j] != cs))' type='safety' comment='' />
+	
+	<property equn='forall i (q[i] == sleep)' type='safety' comment='' />
+	<property equn='forall i (q[i] == wait)' type='safety' comment='' />
+	<property equn='forall i (q[i] == try)' type='safety' comment='' />
+	<property equn='forall i (q[i] == cs)' type='safety' comment='' />
+
+	<property equn='forall i j (q[i] == sleep and q[j] == wait)' type='safety' comment='' />
+	<property equn='forall i j (q[i] == wait and q[j] == try)' type='safety' comment='' />
+	<property equn='forall i j (q[i] == wait and q[j] == wait)' type='safety' comment='' />
+	<property equn='forall i j (q[i] == try and q[j] == try)' type='safety' comment='' />
+
+
+</holism>
+

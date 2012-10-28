@@ -1,0 +1,152 @@
+REACH_USE_CONVEX_HULL = false; // not possible because of global variables
+REACH_MAX_ITER = 0; 
+REACH_USE_BBOX = false;
+COMPOSE_USE_CONVEX_HULL_FOR_REACH = false;
+COMPOSE_WITH_REACH_MIN = true;
+CHEAP_CONTAIN_RETURN_OTHERS = false;
+
+N := 5;
+
+automaton agent1
+input_var : g;
+synclabs :  tau, IT1, TC1, CE1, EI1;
+loc I: while  true  wait {  True  }
+	 when g == 0 sync IT1  do {g' == 1 }  goto T;
+	 when true sync tau do {g' == g} goto I;
+loc T: while  true  wait {  True  }
+	 when g == 1 sync TC1  do {g' == g}  goto C;
+	 when true sync tau do {g' == g} goto T;
+loc C: while  true  wait {  True  }
+	 when  true  sync CE1  do {g' == g}  goto E;
+	 when true sync tau do {g' == g} goto C;
+loc E: while  true  wait {  True  }
+	 when  true  sync EI1  do {g' == 0 }  goto I;
+	 when true sync tau do {g' == g} goto E;
+
+initially I & True;
+
+end
+
+automaton agent2
+input_var : g;
+synclabs :  tau, IT2, TC2, CE2, EI2;
+loc I: while  true  wait {  True  }
+	 when g == 0 sync IT2  do {g' == 2 }  goto T;
+	 when true sync tau do {g' == g} goto I;
+loc T: while  true  wait {  True  }
+	 when g == 2 sync TC2  do {g' == g}  goto C;
+	 when true sync tau do {g' == g} goto T;
+loc C: while  true  wait {  True  }
+	 when  true  sync CE2  do {g' == g}  goto E;
+	 when true sync tau do {g' == g} goto C;
+loc E: while  true  wait {  True  }
+	 when  true  sync EI2  do {g' == 0 }  goto I;
+	 when true sync tau do {g' == g} goto E;
+
+initially I & True;
+
+end
+
+automaton agent3
+input_var : g;
+synclabs :  tau, IT3, TC3, CE3, EI3;
+loc I: while  true  wait {  True  }
+	 when g == 0 sync IT3  do {g' == 3 }  goto T;
+	 when true sync tau do {g' == g} goto I;
+loc T: while  true  wait {  True  }
+	 when g == 3 sync TC3  do {g' == g}  goto C;
+	 when true sync tau do {g' == g} goto T;
+loc C: while  true  wait {  True  }
+	 when  true  sync CE3  do {g' == g}  goto E;
+	 when true sync tau do {g' == g} goto C;
+loc E: while  true  wait {  True  }
+	 when  true  sync EI3  do {g' == 0 }  goto I;
+	 when true sync tau do {g' == g} goto E;
+
+initially I & True;
+
+end
+
+automaton agent4
+input_var : g;
+synclabs :  tau, IT4, TC4, CE4, EI4;
+loc I: while  true  wait {  True  }
+	 when g == 0 sync IT4  do {g' == 4 }  goto T;
+	 when true sync tau do {g' == g} goto I;
+loc T: while  true  wait {  True  }
+	 when g == 4 sync TC4  do {g' == g}  goto C;
+	 when true sync tau do {g' == g} goto T;
+loc C: while  true  wait {  True  }
+	 when  true  sync CE4  do {g' == g}  goto E;
+	 when true sync tau do {g' == g} goto C;
+loc E: while  true  wait {  True  }
+	 when  true  sync EI4  do {g' == 0 }  goto I;
+	 when true sync tau do {g' == g} goto E;
+
+initially I & True;
+
+end
+
+automaton agent5
+input_var : g;
+synclabs :  tau, IT5, TC5, CE5, EI5;
+loc I: while  true  wait {  True  }
+	 when g == 0 sync IT5  do {g' == 5 }  goto T;
+	 when true sync tau do {g' == g} goto I;
+loc T: while  true  wait {  True  }
+	 when g == 5 sync TC5  do {g' == g}  goto C;
+	 when true sync tau do {g' == g} goto T;
+loc C: while  true  wait {  True  }
+	 when  true  sync CE5  do {g' == g}  goto E;
+	 when true sync tau do {g' == g} goto C;
+loc E: while  true  wait {  True  }
+	 when  true  sync EI5  do {g' == 0 }  goto I;
+	 when true sync tau do {g' == g} goto E;
+
+initially I & True;
+
+end
+
+automaton global
+contr_var : g;
+synclabs: tau,IT1,EI1,IT2,EI2,IT3,EI3,IT4,EI4,IT5,EI5;
+loc default: while True wait { g' == 0}
+	 when True sync tau do { g' == g } goto default;
+	 when True sync IT1 do { true } goto default;
+	 when True sync EI1 do { true } goto default;
+	 when True sync IT2 do { true } goto default;
+	 when True sync EI2 do { true } goto default;
+	 when True sync IT3 do { true } goto default;
+	 when True sync EI3 do { true } goto default;
+	 when True sync IT4 do { true } goto default;
+	 when True sync EI4 do { true } goto default;
+	 when True sync IT5 do { true } goto default;
+	 when True sync EI5 do { true } goto default;
+
+initially default & g == 0;
+
+end
+
+sys =  global &  agent1 &  agent2 &  agent3 &  agent4 &  agent5;
+
+sys.print("mux-index_ii_sys_N5", 0);
+reg = sys.reachable;
+reg.print("mux-index_ii_reach_N5", 0);
+reg.print("mux-index_ii_reach_N5", 0);
+forbidden = sys.{$~crit~crit~$~$~$ & True,
+$~crit~$~crit~$~$ & True,
+$~crit~$~$~crit~$ & True,
+$~crit~$~$~$~crit & True,
+$~$~crit~crit~$~$ & True,
+$~$~crit~$~crit~$ & True,
+$~$~crit~$~$~crit & True,
+$~$~$~crit~crit~$ & True,
+$~$~$~crit~$~crit & True,
+$~$~$~$~crit~crit & True};
+reg.intersection_assign(forbidden);
+echo "";
+echo "Reachable forbidden states:";
+reg.print("mux-index_ii_reach_bad", 0);
+echo "";
+echo "Reachable forbidden states empty?";
+reg.is_empty;
