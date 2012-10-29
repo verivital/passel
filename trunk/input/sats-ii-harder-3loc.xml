@@ -5,8 +5,8 @@
 	<parameter name='LB' assumption='LB == (5.0 + 10.0 + 13.0)' type='real' comment='smaller constant' />
 	<parameter name='LS' assumption='LS == 7.0' type='real' comment='larger constant' />
 	<parameter name='a' assumption='a == 90.0' type='real' comment='lower bound on rectangular dynamics' />
-	<parameter name='b' assumption='b == 120.0' type='real' comment='upper bound on rectangular dynamics' />	
-	<parameter name='LGUARD' assumption='LGUARD == LS + (b - a) * ((LB - LS) / a)' type='real' comment='larger constant' />
+	<parameter name='vmax' assumption='vmax == 120.0' type='real' comment='upper bound on rectangular dynamics' />	
+	<parameter name='LGUARD' assumption='LGUARD == LS + (vmax - a) * ((LB - LS) / a)' type='real' comment='larger constant' />
 
 
 	<automaton name='sats-ii-harder-3loc'>
@@ -22,7 +22,7 @@
 		<mode id='1' name='base' initial='False'>
 			<invariant equn='x[i] &lt;= LB' />
 			<stop equn='x[i] &gt;= LB' />
-			<dai variable='x[i]' equn='x[i]_dot &gt;= a and x[i]_dot &lt;= b'/>
+			<dai variable='x[i]' equn='x[i]_dot &gt;= a and x[i]_dot &lt;= vmax'/>
 		</mode>
 		
 		<mode id='2' name='landed' initial='False'>
@@ -60,6 +60,191 @@
 
 	<property equn='forall i j ((i != j and q[i] == base and q[j] == base and x[i] &gt; x[j]) implies (x[i] &gt;= x[j] + LS))' type='safety' />
 
+	<property format='smt' type='safety' equn='(forall ((i Int) (j Int))
+  (let ((a!1 (exists ((x!154 Real))
+               (let ((a!1 (or (not (= (q i) base)) (&lt;= (x i) LB)))
+                     (a!2 (or (not (= (q j) base)) (&lt;= (x j) LB)))
+                     (a!3 (&lt;= 0.0 (+ (* (- 1.0) (* vmax x!154)) (* a x!154))))
+                     (a!4 (or (not (= (q j) base)) (&gt;= (x j) LGUARD)))
+                     (a!6 (not (&lt;= 0.0 (+ (* (- 1.0) LB) (* a x!154) LGUARD))))
+                     (a!8 (&lt;= (+ (* (- 1.0) (* vmax x!154)) (* a x!154)) 0.0))
+                     (a!9 (not (&lt;= 0.0 (+ LGUARD (* (- 1.0) LB))))))
+               (let ((a!5 (and (= (q i) fly)
+                               (= (q i) base)
+                               a!4
+                               (not (&lt;= (* a x!154) 0.0))
+                               (not (&lt;= 0.0 (* a x!154)))))
+                     (a!7 (and (&gt;= 0.0 (* a x!154))
+                               (&lt;= 0.0 (* vmax x!154))
+                               a!1
+                               a!2
+                               (&lt;= (* a x!154) 0.0)
+                               (not (&lt;= (* vmax x!154) 0.0))
+                               (not (&lt;= x!154 0.0))))
+                     (a!10 (and (= (q i) fly)
+                                (= (q i) base)
+                                a!4
+                                (&lt;= (+ LGUARD (* (- 1.0) LB)) 0.0))))
+               (let ((a!11 (or (and (&gt;= 0.0 (* a x!154))
+                                    (&lt;= 0.0 (* vmax x!154))
+                                    a!1
+                                    a!2
+                                    (not a!3)
+                                    (not (&lt;= x!154 0.0)))
+                               a!5
+                               (and (= (q i) base)
+                                    (= (q i) fly)
+                                    (= (x i) 0.0))
+                               (and (= (q i) base)
+                                    (= (q i) landed)
+                                    (= (x i) 0.0))
+                               (and (&gt;= 0.0 (* a x!154))
+                                    (&lt;= 0.0 (* vmax x!154))
+                                    a!1
+                                    a!2
+                                    (not a!3)
+                                    a!6
+                                    (not (&lt;= x!154 0.0)))
+                               a!7
+                               (and (&gt;= 0.0 (* a x!154))
+                                    (&lt;= 0.0 (* vmax x!154))
+                                    a!1
+                                    a!2
+                                    a!8
+                                    (not (&lt;= x!154 0.0)))
+                               (and (&gt;= 0.0 (* a x!154))
+                                    (&lt;= 0.0 (* vmax x!154))
+                                    a!1
+                                    a!2
+                                    (&lt;= (* a x!154) 0.0)
+                                    (&gt;= (* vmax x!154) 0.0)
+                                    (not (&lt;= x!154 0.0)))
+                               (and (= (q i) fly) (= (q i) base) a!4)
+                               (and (= (q i) fly) (= (q i) base) a!4 a!9)
+                               a!10)))
+                 (and (= (q i) fly) (= (x j) 0.0) (= (x i) 0.0) a!11))))))
+        (a!2 (exists ((x!164 Real))
+               (let ((a!1 (or (not (= (q i) base)) (&lt;= (x i) LB)))
+                     (a!2 (or (not (= (q j) base)) (&lt;= (x j) LB)))
+                     (a!4 (or (not (= (q j) base)) (&gt;= (x j) LGUARD)))
+                     (a!5 (or (not (= (q i) base)) (&gt;= (x i) LGUARD)))
+                     (a!6 (not (&lt;= 0.0 (+ LGUARD (* (- 1.0) LB)))))
+                     (a!9 (&lt;= 0.0 (+ (* (- 1.0) (* vmax x!164)) (* a x!164))))
+                     (a!12 (not (&lt;= 0.0 (+ (* (- 1.0) LB) (* a x!164) LGUARD))))
+                     (a!14 (&lt;= (+ (* (- 1.0) (* vmax x!164)) (* a x!164)) 0.0))
+                     (a!17 (not (&lt;= 0.0 (+ (* a x!164) LGUARD (* (- 1.0) LB))))))
+               (let ((a!3 (and (&gt;= 0.0 (* a x!164))
+                               (&lt;= 0.0 (* vmax x!164))
+                               a!1
+                               a!2
+                               (not (&lt;= 0.0 (* a x!164)))
+                               (&gt;= (* vmax x!164) 0.0)
+                               (not (&lt;= x!164 0.0))))
+                     (a!7 (and (= (q i) fly)
+                               (= (q i) base)
+                               a!4
+                               (&lt;= (+ LGUARD (* (- 1.0) LB)) 0.0)))
+                     (a!8 (and (= (q j) fly)
+                               (= (q j) base)
+                               a!5
+                               (&lt;= (+ LGUARD (* (- 1.0) LB)) 0.0)))
+                     (a!10 (and (= (q i) fly)
+                                (= (q i) base)
+                                a!4
+                                (&gt;= (* a x!164) 0.0)
+                                (not (&lt;= 0.0 (* a x!164)))))
+                     (a!11 (and (= (q j) fly)
+                                (= (q j) base)
+                                a!5
+                                (&gt;= (* a x!164) 0.0)
+                                (not (&lt;= 0.0 (* a x!164)))))
+                     (a!13 (and (&gt;= 0.0 (* a x!164))
+                                (&lt;= 0.0 (* vmax x!164))
+                                a!1
+                                a!2
+                                (not (&lt;= 0.0 (* a x!164)))
+                                (not (&lt;= (* vmax x!164) 0.0))
+                                (not (&lt;= x!164 0.0))))
+                     (a!15 (and (= (q i) fly)
+                                (= (q i) base)
+                                a!4
+                                (&lt;= (+ (* a x!164) LGUARD (* (- 1.0) LB)) 0.0)
+                                (&gt;= (* a x!164) 0.0)
+                                (&lt;= (* a x!164) 0.0)))
+                     (a!16 (and (= (q j) fly)
+                                (= (q j) base)
+                                a!5
+                                (&lt;= (+ (* a x!164) LGUARD (* (- 1.0) LB)) 0.0)
+                                (&gt;= (* a x!164) 0.0)
+                                (&lt;= (* a x!164) 0.0))))
+               (let ((a!18 (or (and (= (q i) base)
+                                    (= (q i) fly)
+                                    (= (x i) 0.0))
+                               (and (= (q i) base)
+                                    (= (q i) landed)
+                                    (= (x i) 0.0))
+                               (and (= (q j) base)
+                                    (= (q j) fly)
+                                    (= (x j) 0.0))
+                               (and (= (q j) base)
+                                    (= (q j) landed)
+                                    (= (x j) 0.0))
+                               a!3
+                               (and (= (q i) fly) (= (q i) base) a!4)
+                               (and (= (q j) fly) (= (q j) base) a!5)
+                               (and (= (q i) fly) (= (q i) base) a!4 a!6)
+                               (and (= (q j) fly) (= (q j) base) a!5 a!6)
+                               a!7
+                               a!8
+                               (and (&gt;= 0.0 (* a x!164))
+                                    (&lt;= 0.0 (* vmax x!164))
+                                    a!1
+                                    a!2
+                                    (not a!9)
+                                    (not (&lt;= x!164 0.0)))
+                               a!10
+                               a!11
+                               (and (&gt;= 0.0 (* a x!164))
+                                    (&lt;= 0.0 (* vmax x!164))
+                                    a!1
+                                    a!2
+                                    (not a!9)
+                                    a!12
+                                    (not (&lt;= x!164 0.0)))
+                               a!13
+                               (and (&gt;= 0.0 (* a x!164))
+                                    (&lt;= 0.0 (* vmax x!164))
+                                    a!1
+                                    a!2
+                                    a!14
+                                    (not (&lt;= x!164 0.0)))
+                               (and (= (q i) fly)
+                                    (= (q i) base)
+                                    a!4
+                                    (&gt;= (* a x!164) 0.0)
+                                    (&lt;= (* a x!164) 0.0))
+                               (and (= (q j) fly)
+                                    (= (q j) base)
+                                    a!5
+                                    (&gt;= (* a x!164) 0.0)
+                                    (&lt;= (* a x!164) 0.0))
+                               a!15
+                               a!16
+                               (and (= (q i) fly)
+                                    (= (q i) base)
+                                    a!4
+                                    a!17
+                                    (&gt;= (* a x!164) 0.0)
+                                    (&lt;= (* a x!164) 0.0))
+                               (and (= (q j) fly)
+                                    (= (q j) base)
+                                    a!5
+                                    a!17
+                                    (&gt;= (* a x!164) 0.0)
+                                    (&lt;= (* a x!164) 0.0)))))
+                 (and (= (q i) fly) (= (x j) 0.0) (= (x i) 0.0) a!18)))))))
+  (let ((a!3 (or a!1 a!2 (and (= (q i) fly) (= (x j) 0.0) (= (x i) 0.0)))))
+    (=&gt; (and (&gt;= i 1) (&lt;= i N) (&gt;= j 1) (&lt;= j N) (distinct i j)) a!3))))' />
 	
 	
 	<property equn='false' type='safety' />
