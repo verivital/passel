@@ -9,50 +9,81 @@ ControlLocation = Datatype('Location')
 fischer = 0
 mux = 1
 fischer_aux = 2
-pmode = fischer
+sats_3loc = 3
+pmode = fischer_aux
 
+ctx = main_ctx()
+ctx.set(PP_MIN_ALIAS_SIZE=1000)
+ctx.set(PULL_NESTED_QUANTIFIERS=True)
 
 set_option(max_depth=1000)
 set_option(max_lines=1000)
-set_option(pp_min_alias_size=1000) # doesn't work, at least not for .sexpr()
+set_option(PP_MIN_ALIAS_SIZE=1000) # doesn't work, at least not for .sexpr()
 
-ControlLocation.declare('idle')
-ControlLocation.declare('start')
-if pmode == fischer or pmode == fischer_aux:
-	ControlLocation.declare('check')
-ControlLocation.declare('cs')
+if pmode == fischer or pmode == fischer_aux or pmode == mux:
+	ControlLocation.declare('idle')
+	ControlLocation.declare('start')
+	if pmode == fischer or pmode == fischer_aux:
+		ControlLocation.declare('check')
+	ControlLocation.declare('cs')
+if pmode == sats_3loc:
+	ControlLocation.declare('fly')
+	ControlLocation.declare('base')
+	ControlLocation.declare('landed')
 ControlLocation = ControlLocation.create()
 
 s = Solver() # instantiate a solver
 
 
 q=[] # list of steps for control location
+
+lvars = []
+gvars = []
+
+if pmode == sats_3loc:
+	x=[]
+	#barray=[]
 if pmode == fischer or pmode == fischer_aux:
 	x=[] # list of steps for continuous variable x
 	g=[] # list of steps for global variable g
+	lvars.append( x )
+	gvars.append( g )
 if pmode == fischer_aux:
 	last=[]
 	first=[]
+	lvars.append( last )
+	lvars.append( first )
 if pmode == mux:
 	gx=[]
+	gvars.append( gx )
 
 r = Int("r")
 i, j, N = Ints("i j N")
 
-if pmode == fischer or pmode == fischer_aux:
+if pmode == fischer or pmode == fischer_aux or pmode == sats_3loc:
 	t1 = Real("t1") # time elapse variable
-
-	A, B, c, d = Reals("A B c d")
-	#s.add(A == 1) # safe if A < B; buggy (multiple processes in critical section) if A >= B
-	#s.add(B == 10)
-	s.add(And(A > 0, B > 0))
-	s.add(A < B) # you don't have to pick actual values for A or B
-	s.add(A == 5)
-	s.add(B == 7)
-
-	#s.add(c == 1) # unused for now
-	#s.add(d == 2)
-
+	if pmode == fischer or pmode == fischer_aux:
+		A, B, c, d = Reals("A B c d")
+		#s.add(A == 1) # safe if A < B; buggy (multiple processes in critical section) if A >= B
+		#s.add(B == 10)
+		#s.add(And(A > 0, B > 0))
+		#s.add(A < B) # you don't have to pick actual values for A or B
+		s.add(A == 5)
+		s.add(B == 7)
+	if pmode == sats_3loc:
+		#a, b, LB, LS, LGUARD = Reals("a b LB LS LGUARD")
+		#s.add(a == 90)
+		#s.add(b == 120)
+		#s.add(LB == 5 + 10 + 13)
+		#s.add(LS == 7)
+		#s.add(LGUARD == LS + (b - a) * ((LB - LS) / a))
+		
+		# define as actual values, otherwise we have to do a nonlinear q.e. (or we won't be able to eliminate all the quantifiers)
+		a = 90
+		b = 120
+		LB = 5 + 10 + 13
+		LS = 7
+		LGUARD = LS + (b - a) * ((LB - LS) / a)
 
 Nv = 3 # number of processes
 
@@ -61,17 +92,22 @@ s.add(N >= Nv)
 
 # allocate 1st vars
 for k in range(2):
-	if pmode == fischer or pmode == fischer_aux:
+	if pmode == fischer or pmode == fischer_aux or pmode == sats_3loc:
 		x.append( [] )
 	if pmode == fischer_aux:
 		last.append( [] )
 		first.append( [] )
+	#if pmode == sats_3loc:
+	#	barray.append( [] )
 	q.append( [] )
-	for i in range(1,Nv+1):
+	for i in range(1,Nv+1):		
 		q[k].append( Const( 'q' + str(i) + "_" + str(k), ControlLocation) )
-		if pmode == fischer or pmode == fischer_aux:
-			x[k].append( Real('x' + str(i) + "_" + str(k)) )
+		if pmode == fischer or pmode == fischer_aux or pmode == sats_3loc:
+			x[k].append( Real('x' + str(i) + "_" + str(k)) )			
 			s.add( x[k][i-1] >= 0 ) # all processes have nonnegative clocks at all steps
+		#if pmode == sats_3loc:
+			#barray[k].append( Int('b' + str(i) + "_" + str(k)) )
+			#s.add( And(barray[k][i-1] >= 0, barray[k][i-1] <= 1) )
 		if pmode == fischer_aux:
 			last[k].append( Real('last' + str(i) + "_" + str(k)) )
 			first[k].append( Real('first' + str(i) + "_" + str(k)) )
@@ -87,19 +123,24 @@ for k in range(2):
 initList = []
 # generate initial condition over all processes
 for m in range(1,Nv+1):
-	if pmode == fischer or pmode == fischer_aux:
+	if pmode == fischer or pmode == fischer_aux or pmode == sats_3loc:
 		initList.append( x[0][m-1] == 0 )
+	#if pmode == sats_3loc:
+		#initList.append( barray[0][m-1] == 0 )
 	if pmode == fischer_aux:
 		initList.append( last[0][m-1] == A )
 		initList.append( first[0][m-1] == 0 )
-	initList.append( And( q[0][m-1] == ControlLocation.idle ) )
+	if pmode == fischer or pmode == fischer_aux or pmode == mux:
+		initList.append( q[0][m-1] == ControlLocation.idle )
+	if pmode == sats_3loc:
+		initList.append( q[0][m-1] == ControlLocation.fly )
 
 if pmode == fischer or pmode == fischer_aux:
 	globalInit = g[0] == 0 # global starts as 0, no process id
+	initList.append( globalInit ) 
 if pmode == mux:
 	globalInit = gx[0] == 1 # global starts as 0, no process id
-
-initList.append( globalInit ) 
+	initList.append( globalInit ) 
 if len(initList) > 1:
 	init = And( initList )
 else:
@@ -162,7 +203,24 @@ def stepTransition(k, i):
 
 		# cs -> idle
 		ts.append(And( q[k][i-1] == ControlLocation.cs, q[k+1][i-1] == ControlLocation.idle, g[k+1] == 0,  identityTransition(k,i,[q,x,last,first],[])        ) )
+		
+
+	if pmode == sats_3loc:
+		j = 2
+		ug = universalGuard(Implies((q[k][j-1] == ControlLocation.base),  (x[k][j-1] >= LGUARD)),i,j,k)
+		#ug = universalGuard(Implies((barray[k][j-1] == 1),  (x[k][j-1] >= LGUARD)),i,j,k)
+		#ts.append(And( q[k][i-1] == ControlLocation.fly, q[k+1][i-1] == ControlLocation.base, barray[k+1][i-1] == 1, ug, identityTransition(k,i,[x,q],[]) ) )
+		#ts.append(And( q[k][i-1] == ControlLocation.base, q[k+1][i-1] == ControlLocation.fly, x[k+1][i-1] == 0, barray[k+1][i-1] == 0, identityTransition(k,i,[q],[]) ) )
+		#ts.append(And( q[k][i-1] == ControlLocation.base, q[k+1][i-1] == ControlLocation.landed, x[k+1][i-1] == 0, barray[k+1][i-1] == 0, identityTransition(k,i,[q],[]) ) )
+		
+		ts.append(And( q[k][i-1] == ControlLocation.fly, q[k+1][i-1] == ControlLocation.base, ug, identityTransition(k,i,[x,q],[]) ) )
+		ts.append(And( q[k][i-1] == ControlLocation.base, q[k+1][i-1] == ControlLocation.fly, x[k+1][i-1] == 0, identityTransition(k,i,[q],[]) ) )
+		ts.append(And( q[k][i-1] == ControlLocation.base, q[k+1][i-1] == ControlLocation.landed, x[k+1][i-1] == 0, identityTransition(k,i,[q],[]) ) )
 	
+	for v in range(len(ts)):
+		ts[v] = simplifyBetterConj( ts[v] ).as_expr()
+		
+		
 	return ts
 
 def timeTransition(k):
@@ -173,7 +231,7 @@ def timeTransition(k):
 	if pmode == fischer:
 		for j in range(1,Nv+1):
 			# all discrete variables remain unchanged; the last implication enforces the invariant in the start location
-			ts.append( And( q[k+1][j-1] == q[k][j-1], g[k+1] == g[k], x[k+1][j-1] == x[k][j-1] + t1, Implies( (q[k+1][j-1] == ControlLocation.start), x[k+1][j-1] <= A ) ) )
+			ts.append( And( q[k+1][j-1] == q[k][j-1], g[k+1] == g[k], x[k+1][j-1] == x[k][j-1] + t1, Implies( (q[k][j-1] == ControlLocation.start), x[k+1][j-1] <= A ) ) )
 
 		#p = Exists([t1], And(t1 > 0, And( ts ) ) )
 		ts.append( t1 > 0 )
@@ -182,13 +240,22 @@ def timeTransition(k):
 	if pmode == fischer_aux:
 		for j in range(1,Nv+1):
 			# all discrete variables remain unchanged; the last implication enforces the invariant in the start location
-			ts.append( And( q[k+1][j-1] == q[k][j-1], g[k+1] == g[k], x[k+1][j-1] == x[k][j-1] + t1, Implies( (q[k+1][j-1] == ControlLocation.start), x[k+1][j-1] <= last[k][j-1] ) ) )
+			ts.append( And( q[k+1][j-1] == q[k][j-1], g[k+1] == g[k], Implies( (q[k][j-1] == ControlLocation.start), x[k+1][j-1] <= last[k][j-1] ),If( (Or(q[k+1][j-1] == ControlLocation.start,q[k+1][j-1] == ControlLocation.check)), x[k+1][j-1] == x[k][j-1] + t1, x[k+1][j-1] == x[k][j-1] ) ) )
+			
+		ts.append( t1 > 0 )
+		p = And( ts )
+		
+	if pmode == sats_3loc:
+		for j in range(1,Nv+1):
+			#ts.append( And( q[k+1][j-1] == q[k][j-1], x[k+1][j-1] >= x[k][j-1] + a * t1, x[k+1][j-1] <= x[k][j-1] + b * t1, Implies( (q[k][j-1] == ControlLocation.base), x[k+1][j-1] <= LB )  ) )
+			ts.append( And( q[k+1][j-1] == q[k][j-1], Implies( (q[k][j-1] == ControlLocation.base), x[k+1][j-1] <= LB ), If( q[k][j-1] == ControlLocation.base, And(x[k+1][j-1] >= x[k][j-1] + a * t1, x[k+1][j-1] <= x[k][j-1] + b * t1), x[k+1][j-1] == x[k][j-1] ) ) )
 		ts.append( t1 > 0 )
 		p = And( ts )
 		
 	if pmode == mux:
 		p = False # no time transition (identity)
 	print "Time transition:"
+	p = simplifyBetterConj( p ).as_expr()
 	print p
 	return p
 
@@ -246,7 +313,10 @@ def split_inv_tlv_ii(prop,Nv,auxc):
 		for j in range(1,Nv+1):
 			#theta[i-1].append( [] )
 			if i != j:
-				theta[i-1].append( And(initList[i-1], initList[j-1], globalInit) )
+				if pmode == fischer or pmode == fischer_aux or pmode == mux:
+					theta[i-1].append( And(initList[i-1], initList[j-1], globalInit) )
+				if pmode == sats_3loc:
+					theta[i-1].append( And(initList[i-1], initList[j-1]) )
 			else:
 				theta[i-1].append( [] )
 
@@ -270,31 +340,11 @@ def split_inv_tlv_ii(prop,Nv,auxc):
 		for i in range(1,Nv+1):
 			for j in range(1,Nv+1):
 		 		if (i != j):
+		 			theta[i-1][j-1] = simplifyBetterConj( theta[i-1][j-1] ).as_expr()
 					cList.append( theta[i-1][j-1] )
 		conj = simplify( And(conj, And(cList) ) )
 		print "Done building conjunct"
-		
-		gconj = Goal()
-		#gconj.add( conj )
-		# apply a tactic to drastically simplify conj
-		#tconj = Then( Repeat(OrElse(Tactic('split-clause'), Tactic('skip'))), Repeat(Tactic('elim-and')), Repeat(Tactic('propagate-values')), Repeat(Tactic('propagate-ineqs')), Repeat(Tactic('normalize-bounds')), Repeat(Tactic('simplify')))
-		#tconj = Then( Repeat(Tactic('elim-and')), Repeat(Tactic('propagate-values')), Repeat(Tactic('propagate-ineqs')), Repeat(Tactic('normalize-bounds')), OrElse(Tactic('split-clause'), Tactic('skip')), Repeat(Tactic('simplify')))
-		#tconj = Then( Repeat(Tactic('elim-and')), Repeat(Tactic('propagate-values')), Repeat(Tactic('propagate-ineqs')), Repeat(Tactic('normalize-bounds')), OrElse(Tactic('split-clause'), Tactic('skip')), Repeat(Tactic('simplify')), Repeat(Tactic('ctx-solver-simplify')))
-		
-		#tconj = Then( Repeat(Tactic('elim-and')), Repeat(Tactic('propagate-values')), Repeat(Tactic('propagate-ineqs')), Repeat(Tactic('normalize-bounds')), OrElse(Tactic('split-clause'), Tactic('skip')), Repeat(Tactic('simplify')), Tactic('ctx-solver-simplify'))
-		
-		#tconj = Then( Repeat(Tactic('elim-and')), Repeat(Tactic('propagate-values')), Repeat(Tactic('propagate-ineqs')), Repeat(Tactic('simplify')), Tactic('ctx-solver-simplify'))
-		#tconj = Tactic('ctx-solver-simplify')
-		
-		#tconj = Then( Tactic('propagate-values'), Tactic('propagate-ineqs'), Tactic('ctx-solver-simplify'))
-		
-		#tconj = Then( Repeat(Tactic('simplify')), Repeat(Tactic('propagate-values')), Repeat(Tactic('propagate-ineqs')), Repeat( OrElse(Tactic('split-clause'), Tactic('skip') ) ), Tactic('ctx-solver-simplify'))
-		
-		#tconj = Then(With('simplify', arith_lhs=True, som=True), 'normalize-bounds', 'propagate-values', 'propagate-ineqs')
-		
-		
-		#conj = tconj( gconj ).as_expr()
-		#conj = simplifyBetter( conj )
+		conj = simplifyBetterConj( conj ).as_expr()
 		print "Done simplifying conjunct"
 
 		#print "conj start:"
@@ -309,110 +359,65 @@ def split_inv_tlv_ii(prop,Nv,auxc):
 			for j in range(1,Nv+1):
 				delta[i-1].append( False ) # start with false (identity since we're adding disjuncts)
 				#print delta[i-1][j-1]
-				if i != j:
-				
+				if i != j:				
 					# only do 1 iteration, copy delta[i-1][j-1] to the others
 					if not (i == 1 and j == 2):
 						continue
 					ts = []
-					#ts.append(timeTransition(0) ) # one time transition for all k possible process moves
-					
-					
-					#gdelta = Goal()
-					#gdelta.add( delta[i-1][j-1] )
-					## apply a tactic to drastically simplify delta
-					#tdelta = Then( Repeat(OrElse(Tactic('split-clause'), Tactic('skip'))), Repeat(Tactic('elim-and')), Repeat(Tactic('propagate-values')), Repeat(Tactic('propagate-ineqs')), Repeat(Tactic('normalize-bounds')), Repeat(Tactic('simplify')))
-					#delta[i-1][j-1] = tdelta( gdelta ).as_expr()
-					#print "Done simplifying delta"
 					
 					bounds = []
 					if pmode == mux:
 						bounds = [q[0][i-1], q[0][j-1], gx[0]] # eliminate pre-state variable names
 					if pmode == fischer:
-						#bounds = [t1,q[0][i-1], q[0][j-1], x[0][i-1], x[0][j-1], g[0]] # eliminate pre-state variable names
 						bounds = [q[0][i-1], q[0][j-1], x[0][i-1], x[0][j-1], g[0]] # eliminate pre-state variable names
 					if pmode == fischer_aux:
 						bounds = [q[0][i-1], q[0][j-1], x[0][i-1], x[0][j-1], first[0][i-1], first[0][j-1], last[0][i-1], last[0][j-1], g[0]] # eliminate pre-state variable names
+					if pmode == sats_3loc:
+						#bounds = [q[0][i-1], q[0][j-1], x[0][i-1], x[0][j-1], barray[0][i-1], barray[0][j-1]] # eliminate pre-state variable names
+						bounds = [q[0][i-1], q[0][j-1], x[0][i-1], x[0][j-1]] # eliminate pre-state variable names
 					bounds.extend( othersVarsPrePost_ii(i,j) ) # eliminate all other process variables (e.g., if looking at theta[0][1], eliminate vars of any process > 2)
 					print "others(" + str(i) + ", " + str(j) + "):" + str(othersVarsPrePost_ii(i,j))
 
 					
-					#if pmode == fischer:
-					#	tt = And(conj, timeTransition(0) )
-					#	# time elapse transition
-					#	tgoal = Goal()
-					#	bounds.append( t1 )
-					#	#tgoal.add( Exists(bounds, delta[i-1][j-1]) )
-					#	tgoal.add( Exists(bounds, tt ) )
-					#	ttac = Tactic('qe')
-					#	print "at time transition"
-					#	tr = ttac(tgoal)
-					#	restime = simplify( tr.as_expr() )
-					#	#delta[i-1][j-1] = Or(delta[i-1][j-1], simplify( tr.as_expr() ) )
-					#	#delta[i-1][j-1] = simplify( tr.as_expr() )
-					
-					if pmode == fischer or pmode == fischer_aux:
+					if pmode == fischer or pmode == fischer_aux or pmode == sats_3loc:
 						bounds.append( t1 )
-						ts.append( timeTransition(0) )
+						#ts.append( timeTransition(0) )
+						# do the time transition ONCE for all processes, add it here
+						delta[i-1][j-1] = Or( delta[i-1][j-1], And( conj, timeTransition(0) ) )
 					
-					for k in range(1,Nv+1):
-						#delta[i][j] = Or( delta[i][j], (succ(tr[k], conj) forsome others_vars[i][j]) )
-						ts.extend( stepTransition(0,k) )
+					for m in range(1,Nv+1):
+						#delta[i][j] = Or( delta[i][j], (succ(tr[m], conj) forsome others_vars[i][j]) )
+						print "step"
+						#ts.extend( stepTransition(0,m) )
+						ts = stepTransition(0, m)
 						
 						
+						# TODO NEXT: CAN WE INTERLEAVE THE Q.E. STEP HERE? E.G., ADD 1 TRANSITION, DO Q.E., REPEAT
 						
-						#if pmode == mux:
-						#	delta[i-1][j-1] = simplify( Or( delta[i-1][j-1], And( conj, Or( ts ) ) ) )
-						#if pmode == fischer:
-						#	delta[i-1][j-1] = simplify( Or( delta[i-1][j-1], restime, And( conj, Or( ts ) ) ) )
+						for tidx in range(len(ts)):
+							s.push()
+							s.add( And(conj, ts[tidx] ) )
+							if s.check() == unsat: # transition not enabled, don't add it
+								ts[tidx] = False
+							print tidx
+							s.pop()
+						
+						#delta[i-1][j-1] = simplify( Or( delta[i-1][j-1], And( conj, Or( ts ) ) ) )
+						
+						# do the step transition FOR EACH process m
 						delta[i-1][j-1] = simplify( Or( delta[i-1][j-1], And( conj, Or( ts ) ) ) )
 						
-						##tt = And(conj, timeTransition(0) )
-						## time elapse transition
-						#tgoal = Goal()
-						#bounds = [t1]
-						#tgoal.add( Exists(bounds, delta[i-1][j-1]) )
-						##tgoal.add( Exists(bounds, tt ) )
-						#ttac = Tactic('qe')
-						#tr = ttac(tgoal)
-						##delta[i-1][j-1] = Or(delta[i-1][j-1], simplify( tr.as_expr() ) )
-						#delta[i-1][j-1] = simplify( tr.as_expr() )
-						
-						#print "DELTA(" + str(i) + ", " + str(j) + ", " + str(k) + ")"
-						#print simplify(delta[i-1][j-1])
 					
-					tgoal = Goal()
-					#tgoal.add( And( list(s.assertions()) ) )
-					# eliminate quantifiers
+							
 					
-					print "simplifying goal"
-					
-					tgoal.add( delta[i-1][j-1] )
-					
-					#stac = Then(With('simplify', arith_lhs=True, som=True), 'normalize-bounds', 'propagate-values', 'propagate-ineqs')
-					stac = Then( Repeat(OrElse(Tactic('split-clause'), Tactic('skip'))), Repeat(Tactic('elim-and')), Repeat(Tactic('propagate-values')), Repeat(Tactic('propagate-ineqs')), Repeat(Tactic('ctx-simplify')))
-
+					print "step done"
 					
 					
-					
-					rest = stac( tgoal )
-					#rest = [delta[i-1][j-1]]
+					rest = simplifyBetter( delta[i-1][j-1] )
+					#rest = simplifyBetterConj( delta[i-1][j-1] )
 					
 					print "before unique:"  + str(len(rest))
-					
-					#new_subr = []
-					#for subrA in rest:
-					#	for subrB in rest:
-					#		if subrA == subrB:
-					#			continue
-					#		subr_same = Solver()
-					#		subr_same.add( Not( subrA != subrB ) )
-					#		if subr_same.check() == unsat: # proved unequal
-					#			new_subr.append(subrA)
-					#subr = new_subr	
-					
-					#rest = uniqueElements(rest)
-					
+										
 					newList = []
 					
 					print "at bound elimination for iteration " + str(index)
@@ -430,33 +435,16 @@ def split_inv_tlv_ii(prop,Nv,auxc):
 					
 						tgoal = Goal()
 						
-						#print subr.as_expr()
-						
-						
 						tgoal.add( Exists(bounds, subr.as_expr() ) )
-						#tgoal.add( Exists(bounds, subr) )
-						
-						
-						
-						#tgoal.add( delta[i-1][j-1])
-						#ttac = Then(Repeat(Tactic('split-clause')), Tactic('qe'))
-						#ttac = Tactic('elim-uncnstr')
-						#ttac = Tactic('snf')
-						ttac = Tactic('qe')
-
-						#print tgoal
+						#ttac = With(Tactic('qe'),  eliminate_variables_as_block=True) # qe_nonlinear=True
+						ttac = With(Tactic('qe'),  eliminate_variables_as_block=False) # qe_nonlinear=True
 						
 						tr = ttac(tgoal)
-						#newstates = simplify(tr.as_expr()) 
-						newList.append( simplify(tr.as_expr() ) )
-
-						#for vn in bounds:
-						#	print vn
-						#	rep = vn == ControlLocation.cs
-						#	print rep
-						#	delta[i-1][j-1] = substitute( delta[i-1][j-1], (vn,rep) )
-
-						#newstates = delta[i-1][j-1]
+						tr = simplifyBetter( tr.as_expr() )
+						#print tr
+						for gt in tr:
+							#print gt.as_expr()
+							newList.append( simplifyBetter( gt.as_expr() ).as_expr() )
 					newstates = Or(newList)
 
 
@@ -471,18 +459,12 @@ def split_inv_tlv_ii(prop,Nv,auxc):
 							delta[i-1][j-1] = simplify( substitute( delta[i-1][j-1], (q[kfrom][idx-1],q[kto][idx-1]), (x[kfrom][idx-1],x[kto][idx-1]), (g[kfrom],g[kto]), (first[kfrom][idx-1],first[kto][idx-1]), (last[kfrom][idx-1],last[kto][idx-1]) ) )
 						if pmode == mux:
 							delta[i-1][j-1] = simplify( substitute( delta[i-1][j-1], (q[kfrom][idx-1],q[kto][idx-1]), (gx[kfrom],gx[kto]) ) )
-							
-					#gnew = Goal()
-					#gnew.add( delta[i-1][j-1] )
-					## apply a tactic to drastically simplify conj
-					#tnew = Then( Repeat(OrElse(Tactic('split-clause'), Tactic('skip'))), Repeat(Tactic('elim-and')), Repeat(Tactic('propagate-values')), Repeat(Tactic('propagate-ineqs')), Repeat(Tactic('normalize-bounds')), Repeat(Tactic('simplify')))
-					#delta[i-1][j-1] = tnew( gnew ).as_expr()
-					#print "Done simplifying new states"
+						if pmode == sats_3loc:
+							#delta[i-1][j-1] = simplify( substitute( delta[i-1][j-1], (q[kfrom][idx-1],q[kto][idx-1]), (x[kfrom][idx-1],x[kto][idx-1]), (barray[kfrom][idx-1],barray[kto][idx-1]) ) )
+							delta[i-1][j-1] = simplify( substitute( delta[i-1][j-1], (q[kfrom][idx-1],q[kto][idx-1]), (x[kfrom][idx-1],x[kto][idx-1]) ) )
+
 					print "TRANSITION(" + str(i) + ", " + str(j) + ")"
-					#print delta[i-1][j-1]
-					#break
-			#break
-		#break
+					delta[i-1][j-1] = simplifyBetterConj( delta[i-1][j-1] ).as_expr()
 
 		# add new states
 		newtheta = []
@@ -492,7 +474,6 @@ def split_inv_tlv_ii(prop,Nv,auxc):
 			for j in range(1,Nv+1):
 				newtheta[i-1].append( [] )
 				if i != j:
-					#print "updating theta"
 					if not (i == 1 and j == 2):
 						kfrom = 0
 						kto = 0
@@ -507,17 +488,11 @@ def split_inv_tlv_ii(prop,Nv,auxc):
 
 		# check for change
 		change = False
+		print "fixpoint check"
 		for i in range(1,Nv+1):
 			for j in range(1,Nv+1):
 				if i != j:
-					#print "changing"
-					# unprime vars
-					#kfrom = 1
-					#kto = 0
-					#for idx in range(1,Nv+1):
-						#newtheta[i-1][j-1] = substitute(newtheta[i-1][j-1], (q[kfrom][idx-1],q[kto][idx-1]), (x[kfrom][idx-1],x[kto][idx-1]), (g[kfrom],g[kto]) )
-					#	newtheta[i-1][j-1] = substitute(newtheta[i-1][j-1], (q[kfrom][idx-1],q[kto][idx-1]), (gx[kfrom],gx[kto]) )
-					#print (theta[i-1][j-1] == newtheta[i-1][j-1])
+					print theta[i-1][j-1]
 					
 					s.push()
 					s.add( Not(theta[i-1][j-1] == newtheta[i-1][j-1]) )
@@ -553,7 +528,7 @@ def split_inv_tlv_ii(prop,Nv,auxc):
 	#	for j in range(1,Nv+1):
 	#		print "Inv(" + str(i) + ", " + str(j) + "):"
 	#		print theta[i-1][j-1]
-	print theta[0][1]
+	#print theta[0][1]
 	
 	print "finished split invariant computation after " + str(index) + " iterations. \n"
 	
@@ -563,34 +538,23 @@ def split_inv_tlv_ii(prop,Nv,auxc):
 	# i.e., check if [(/\i,j: i \neq j: theta(i,j)) & auxc -> prop]
 	# i.e., check if (/\i,j: i \neq j: theta(i,j)) & auxc & not(prop) is satisfiable
 
-	#viol = And(auxc, Not(prop) )
-	#print viol
 
 	qf = Function('qf', IntSort(), ControlLocation)	
 	if pmode == mux:
 		gxf = Int('gxf')
+	if pmode == sats_3loc:
+		xf = Function('xf', IntSort(), RealSort())
+		bf = Function('bf', IntSort(), IntSort())
 	if pmode == fischer or pmode == fischer_aux:
 		xf = Function('xf', IntSort(), RealSort())
 		gf = Int('gf')
 	if pmode == fischer_aux:
 		lastf = Function('lastf', IntSort(), RealSort())
 		firstf = Function('firstf', IntSort(), RealSort())
-	
-	
-	#for i in range(1,Nv+1):
-	#	for i in range(1,Nv+1):
-	#		if (i != j):
-				#viol = And(viol, theta[i-1][j-1])
+
 	i = 1
 	j = 2
-	
-	
-	if pmode == fischer:
-		xgoal = Goal()
-		#xgoal.add( delta[i-1][j-1])
-		#xtac = Tactic('qe')
-		#delta[i-1][j-1] = xtac( Exists([x[0][0], x[0][1]], delta[i-1][j-1] ) ).as_expr()
-	
+
 	kfrom = 0
 	iidx = Int('i')
 	jidx = Int('j')
@@ -602,7 +566,10 @@ def split_inv_tlv_ii(prop,Nv,auxc):
 		quant = simplify( substitute(delta[i-1][j-1], (q[kfrom][i-1], qf(iidx) ), (q[kfrom][j-1], qf(jidx) ), (x[kfrom][i-1], xf(iidx) ), (x[kfrom][j-1], xf(jidx) ), (g[kfrom],gf ) ) )
 	if pmode == fischer_aux:
 		quant = simplify( substitute(delta[i-1][j-1], (q[kfrom][i-1], qf(iidx) ), (q[kfrom][j-1], qf(jidx) ), (x[kfrom][i-1], xf(iidx) ), (x[kfrom][j-1], xf(jidx) ), (g[kfrom],gf ), (last[kfrom][i-1], lastf(iidx) ), (last[kfrom][j-1], lastf(jidx) ), (first[kfrom][i-1], firstf(iidx) ), (first[kfrom][j-1], firstf(jidx) ) ) )
-	print quant
+	if pmode == sats_3loc:
+		#quant = simplify( substitute(delta[i-1][j-1], (q[kfrom][i-1], qf(iidx) ), (q[kfrom][j-1], qf(jidx) ), (x[kfrom][i-1], xf(iidx) ), (x[kfrom][j-1], xf(jidx) ), (barray[kfrom][i-1], bf(iidx) ), (barray[kfrom][j-1], bf(jidx) ) ) )
+		quant = simplify( substitute(delta[i-1][j-1], (q[kfrom][i-1], qf(iidx) ), (q[kfrom][j-1], qf(jidx) ), (x[kfrom][i-1], xf(iidx) ), (x[kfrom][j-1], xf(jidx) ) ) )
+	#print quant
 	
 	
 	quant = ForAll([iidx, jidx], Implies(indexBounds_ii(iidx,jidx), quant))
@@ -617,13 +584,13 @@ def split_inv_tlv_ii(prop,Nv,auxc):
 	s.pop()
 	
 	#print viol
-	print res
+	#print res
 	
 	print Not(safetyQ(iidx, jidx, qf) )
 	
 	if res == sat:
 		print "!!!!! violation !!!!!\n"
-		print viol
+		#print viol
 		print "a satisfying assignment\n"
 		print s.model()
 	else:
@@ -632,12 +599,10 @@ def split_inv_tlv_ii(prop,Nv,auxc):
 	
 	print "quantified invariant:"
 
-	#qtac = Then( Repeat(OrElse(Tactic('split-clause'), Tactic('skip'))), Repeat(Tactic('elim-and')), Repeat(Tactic('propagate-values')), Repeat(Tactic('propagate-ineqs')), Repeat(Tactic('normalize-bounds')), Repeat(Tactic('simplify')))
-	#qgoal = Goal()
-	#qgoal.add( quant )
-	#rq = qtac( quant ).as_expr()
-	#rq = toCnf(rq)
-	print quant
+
+	quant = simplifyResult( quant )
+	
+	#print quant
 
 	fptr = open("quant-ii-" + str(pmode) + ".smt", 'w')
 	fptr.write( quant.sexpr().replace("qf","q").replace("gxf","x").replace("xf","x").replace("gf","g").replace("<","&lt;").replace(">","&gt;").replace("= g 1","= g i").replace("= g 2","= g j").replace("(= g 3)", "(not (= g i)) (not (= g j))").replace("(= g 0)", "(not (= g i)) (not (= g j))").replace("lastf","last").replace("firstf","first") )
@@ -697,23 +662,11 @@ def split_inv_tlv_i(prop,Nv,auxc):
 		cList = []
 		for i in range(1,Nv+1):
 			cList.append( theta[i-1] )
-		print conj
-		print cList
 		conj = simplify( And(conj, And(cList) ) )
 		print "Done building conjunct"
 		
-		gconj = Goal()
-		gconj.add( conj )
-		# apply a tactic to drastically simplify conj
-		#tconj = Then( Repeat(OrElse(Tactic('split-clause'), Tactic('skip'))), Repeat(Tactic('elim-and')), Repeat(Tactic('propagate-values')), Repeat(Tactic('propagate-ineqs')), Repeat(Tactic('normalize-bounds')), Repeat(Tactic('simplify')))
-		#tconj = Then( Repeat(Tactic('elim-and')), Repeat(Tactic('propagate-values')), Repeat(Tactic('propagate-ineqs')), Repeat(Tactic('normalize-bounds')), OrElse(Tactic('split-clause'), Tactic('skip')), Repeat(Tactic('simplify')))
-		tconj = Then( Repeat(Tactic('elim-and')), Repeat(Tactic('propagate-values')), Repeat(Tactic('propagate-ineqs')), Repeat(Tactic('normalize-bounds')), OrElse(Tactic('split-clause'), Tactic('skip')), Repeat(Tactic('simplify')))
-		conj = tconj( gconj ).as_expr()
+		conj = simplifyBetterConj( conj ).as_expr()
 		print "Done simplifying conjunct"
-
-		#print "conj start:"
-		#print simplify(conj)
-		#print "conj start end"
 
 		# compute delta to be added to theta(i,j)
 		delta = []
@@ -726,15 +679,7 @@ def split_inv_tlv_i(prop,Nv,auxc):
 			if not (i == 1):
 				continue
 			ts = []
-			#ts.append(timeTransition(0) ) # one time transition for all k possible process moves
 
-
-			#gdelta = Goal()
-			#gdelta.add( delta[i-1][j-1] )
-			## apply a tactic to drastically simplify delta
-			#tdelta = Then( Repeat(OrElse(Tactic('split-clause'), Tactic('skip'))), Repeat(Tactic('elim-and')), Repeat(Tactic('propagate-values')), Repeat(Tactic('propagate-ineqs')), Repeat(Tactic('normalize-bounds')), Repeat(Tactic('simplify')))
-			#delta[i-1][j-1] = tdelta( gdelta ).as_expr()
-			#print "Done simplifying delta"
 
 			bounds = []
 			if pmode == mux:
@@ -748,21 +693,6 @@ def split_inv_tlv_i(prop,Nv,auxc):
 			bounds.extend( othersVarsPrePost_i(i) ) # eliminate all other process variables (e.g., if looking at theta[0][1], eliminate vars of any process > 2)
 			print "others(" + str(i) + "):" + str(othersVarsPrePost_i(i))
 
-
-			#if pmode == fischer:
-			#	tt = And(conj, timeTransition(0) )
-			#	# time elapse transition
-			#	tgoal = Goal()
-			#	bounds.append( t1 )
-			#	#tgoal.add( Exists(bounds, delta[i-1][j-1]) )
-			#	tgoal.add( Exists(bounds, tt ) )
-			#	ttac = Tactic('qe')
-			#	print "at time transition"
-			#	tr = ttac(tgoal)
-			#	restime = simplify( tr.as_expr() )
-			#	#delta[i-1][j-1] = Or(delta[i-1][j-1], simplify( tr.as_expr() ) )
-			#	#delta[i-1][j-1] = simplify( tr.as_expr() )
-
 			if pmode == fischer or pmode == fischer_aux:
 				bounds.append( t1 )
 				ts.append( timeTransition(0) )
@@ -771,63 +701,11 @@ def split_inv_tlv_i(prop,Nv,auxc):
 				#delta[i][j] = Or( delta[i][j], (succ(tr[k], conj) forsome others_vars[i][j]) )
 				ts.extend( stepTransition(0,k) )
 
-
-
-				#if pmode == mux:
-				#	delta[i-1][j-1] = simplify( Or( delta[i-1][j-1], And( conj, Or( ts ) ) ) )
-				#if pmode == fischer:
-				#	delta[i-1][j-1] = simplify( Or( delta[i-1][j-1], restime, And( conj, Or( ts ) ) ) )
 				delta[i-1] = simplify( Or( delta[i-1], And( conj, Or( ts ) ) ) )
-
-				##tt = And(conj, timeTransition(0) )
-				## time elapse transition
-				#tgoal = Goal()
-				#bounds = [t1]
-				#tgoal.add( Exists(bounds, delta[i-1][j-1]) )
-				##tgoal.add( Exists(bounds, tt ) )
-				#ttac = Tactic('qe')
-				#tr = ttac(tgoal)
-				##delta[i-1][j-1] = Or(delta[i-1][j-1], simplify( tr.as_expr() ) )
-				#delta[i-1][j-1] = simplify( tr.as_expr() )
-
-				#print "DELTA(" + str(i) + ", " + str(j) + ", " + str(k) + ")"
-				#print simplify(delta[i-1][j-1])
-
-			tgoal = Goal()
-			# eliminate quantifiers
 
 			print "simplifying goal"
 
-			tgoal.add( delta[i-1] )
-			
-			stac = Then( Repeat(Tactic('elim-and')), Repeat(Tactic('propagate-values')), Repeat(Tactic('propagate-ineqs')), OrElse(Tactic('split-clause'), Tactic('skip')), Repeat(Tactic('ctx-solver-simplify')))
-			
-			#stac = Then( Repeat(Tactic('elim-and')), Repeat(Tactic('propagate-values')), Repeat(Tactic('propagate-ineqs')), OrElse(Tactic('split-clause'), Tactic('skip')), Repeat(Tactic('simplify')))
-			
-			#stac = Repeat(Then( Repeat(Tactic('elim-and')), Repeat(Tactic('propagate-values')), Repeat(Tactic('propagate-ineqs')), OrElse(Tactic('split-clause'), Tactic('skip')), Repeat(Tactic('simplify'))))
-			#stac = Repeat(Then( Repeat(Tactic('propagate-values')), Repeat(Tactic('propagate-ineqs')), Repeat(Tactic('simplify'))))
-
-
-			#stac = Then( Tactic('propagate-values'), Tactic('propagate-ineqs'))
-
-			#stac = Tactic('split-clause')
-			rest = stac( tgoal )
-			#rest = [delta[i-1][j-1]]
-
-			print "before unique:"  + str(len(rest))
-
-			#new_subr = []
-			#for subrA in rest:
-			#	for subrB in rest:
-			#		if subrA == subrB:
-			#			continue
-			#		subr_same = Solver()
-			#		subr_same.add( Not( subrA != subrB ) )
-			#		if subr_same.check() == unsat: # proved unequal
-			#			new_subr.append(subrA)
-			#subr = new_subr	
-
-			#rest = uniqueElements(rest)
+			rest = simplifyBetter( delta[i-1] )
 
 			newList = []
 
@@ -850,29 +728,13 @@ def split_inv_tlv_i(prop,Nv,auxc):
 
 
 				tgoal.add( Exists(bounds, subr.as_expr() ) )
-				#tgoal.add( Exists(bounds, subr) )
-
-
-
-				#tgoal.add( delta[i-1][j-1])
-				#ttac = Then(Repeat(Tactic('split-clause')), Tactic('qe'))
-				#ttac = Tactic('elim-uncnstr')
-				#ttac = Tactic('snf')
-				ttac = Tactic('qe')
-
-				#print tgoal
+				#ttac = With(Tactic('qe'),  eliminate_variables_as_block=True) # qe_nonlinear=True
+				ttac = With(Tactic('qe'),  eliminate_variables_as_block=False) # qe_nonlinear=True
 
 				tr = ttac(tgoal)
-				#newstates = simplify(tr.as_expr()) 
+
 				newList.append( simplify(tr.as_expr() ) )
 
-				#for vn in bounds:
-				#	print vn
-				#	rep = vn == ControlLocation.cs
-				#	print rep
-				#	delta[i-1][j-1] = substitute( delta[i-1][j-1], (vn,rep) )
-
-				#newstates = delta[i-1][j-1]
 			newstates = Or(newList)
 
 
@@ -888,17 +750,8 @@ def split_inv_tlv_i(prop,Nv,auxc):
 				if pmode == mux:
 					delta[i-1] = simplify( substitute( delta[i-1], (q[kfrom][idx-1],q[kto][idx-1]), (gx[kfrom],gx[kto]) ) )
 
-			#gnew = Goal()
-			#gnew.add( delta[i-1][j-1] )
-			## apply a tactic to drastically simplify conj
-			#tnew = Then( Repeat(OrElse(Tactic('split-clause'), Tactic('skip'))), Repeat(Tactic('elim-and')), Repeat(Tactic('propagate-values')), Repeat(Tactic('propagate-ineqs')), Repeat(Tactic('normalize-bounds')), Repeat(Tactic('simplify')))
-			#delta[i-1][j-1] = tnew( gnew ).as_expr()
-			#print "Done simplifying new states"
 			print "TRANSITION(" + str(i) + ")"
-			#print delta[i-1][j-1]
-			#break
-		#break
-	#break
+
 
 		# add new states
 		newtheta = []
@@ -986,18 +839,8 @@ def split_inv_tlv_i(prop,Nv,auxc):
 		firstf = Function('firstf', IntSort(), RealSort())
 	
 	
-	#for i in range(1,Nv+1):
-	#	for i in range(1,Nv+1):
-	#		if (i != j):
-				#viol = And(viol, theta[i-1][j-1])
 	i = 1
 	
-	
-	if pmode == fischer:
-		xgoal = Goal()
-		#xgoal.add( delta[i-1][j-1])
-		#xtac = Tactic('qe')
-		#delta[i-1][j-1] = xtac( Exists([x[0][0], x[0][1]], delta[i-1][j-1] ) ).as_expr()
 	
 	kfrom = 0
 	iidx = Int('i')
@@ -1040,15 +883,11 @@ def split_inv_tlv_i(prop,Nv,auxc):
 	
 	print "quantified invariant:"
 
-	#qtac = Then( Repeat(OrElse(Tactic('split-clause'), Tactic('skip'))), Repeat(Tactic('elim-and')), Repeat(Tactic('propagate-values')), Repeat(Tactic('propagate-ineqs')), Repeat(Tactic('normalize-bounds')), Repeat(Tactic('simplify')))
-	#qgoal = Goal()
-	#qgoal.add( quant )
-	#rq = qtac( quant ).as_expr()
-	#rq = toCnf(rq)
-	print quant
+
+	#print quant
 
 	fptr = open("quant-i-" + str(pmode) + ".smt", 'w')
-	fptr.write( quant.sexpr().replace("qf","q").replace("gxf","x").replace("xf","x").replace("gf","g").replace("<","&lt;").replace(">","&gt;").replace("= g 1","= g i").replace("(= g 2)","(not (= g i))").replace("(= g 3)", "(not (= g i))").replace("(= g 0)", "(not (= g i))") )
+	fptr.write( quant.sexpr().replace("bf","b").replace("qf","q").replace("gxf","x").replace("xf","x").replace("gf","g").replace("<","&lt;").replace(">","&gt;").replace("= g 1","= g i").replace("(= g 2)","(not (= g i))").replace("(= g 3)", "(not (= g i))").replace("(= g 0)", "(not (= g i))") )
 	fptr.close()
 
 
@@ -1088,7 +927,10 @@ def split_inv_tlv_i(prop,Nv,auxc):
 
 
 def safetyQ(i,j,q):
-	return ForAll([i,j], Implies( indexBounds_ii(i,j), Or( q(i) != ControlLocation.cs, q(j) != ControlLocation.cs) ))
+	if pmode == fischer or pmode == fischer_aux or pmode == mux:
+		return ForAll([i,j], Implies( indexBounds_ii(i,j), Or( q(i) != ControlLocation.cs, q(j) != ControlLocation.cs) ))
+	if pmode == sats_3loc:
+		return True
 
 def safety(Nv):
 	sList = []
@@ -1099,9 +941,14 @@ def safety(Nv):
 				continue
 			#sList.append( Implies( q[0][i-1] == ControlLocation.cs, q[0][j-1] != ControlLocation.cs ) )
 			#sList.append( Or(q[0][i-1] != ControlLocation.cs, q[0][j-1] != ControlLocation.cs ) )
-			nList.append( q[0][j-1] != ControlLocation.cs )
-		sList.append( Implies(q[0][i-1] == ControlLocation.cs, And(nList) ) )
-	return And( sList )
+			if pmode == fischer or pmode == fischer_aux or pmode == mux:
+				nList.append( q[0][j-1] != ControlLocation.cs )
+		if pmode == fischer or pmode == fischer_aux or pmode == mux:
+			sList.append( Implies(q[0][i-1] == ControlLocation.cs, And(nList) ) )
+	if len(sList) > 0:
+		return And( sList )
+	else:
+		return True
 
 
 def indexBounds_ii(i,j):
@@ -1111,6 +958,16 @@ def indexBounds_ii(i,j):
 def indexBounds_i(i):
 	return And( 1 <= i, i <= N)
 
+
+
+def universalGuard(g,i,j,k):
+	ov = othersVars(i)
+	gList = []
+	for n in range(1,Nv+1):
+		if n != i:
+			grep = simplify( substitute(g, (q[k][j-1], q[k][n-1] ), (x[k][j-1], x[k][n-1] ) ) )
+			gList.append( grep )
+	return And( gList )
 
 
 def othersVars(m,n):
@@ -1123,6 +980,8 @@ def othersVars(m,n):
 				ov.extend( [last[0][i-1], first[0][i-1]] )
 			if pmode == mux:
 				ov.extend( [q[0][i-1]] )
+			#if pmode ==  pmode == sats_3loc:
+				#ov.extend( [ barray[0][i-1] ] )
 	return ov
 	
 
@@ -1130,12 +989,14 @@ def othersVars(m):
 	ov = []
 	for i in range(1,Nv+1):	
 		if i != m:
-			if pmode == fischer or pmode == fischer_aux:
-				ov.extend( [q[0][i-1], x[0][i-1]] )
+			if pmode == fischer or pmode == fischer_aux or pmode == sats_3loc:
+				ov.extend( [q[0][i-1], x[0][i-1] ] )
 			if pmode == fischer_aux:
 				ov.extend( [first[0][i-1], last[0][i-1]] )
 			if pmode == mux:
 				ov.extend( [q[0][i-1]] )
+			#if pmode == sats_3loc:
+			#	ov.extend( [ barray[0][i-1]] )
 	return ov
 	
 
@@ -1149,7 +1010,7 @@ def othersVarsPrePost_ii(m,n):
 	ov = []
 	for i in range(1,Nv+1):	
 		if i != m and i != n:
-			if pmode == fischer or pmode == fischer_aux:
+			if pmode == fischer or pmode == fischer_aux or pmode == sats_3loc:
 				ov.extend( [q[0][i-1], x[0][i-1]] )
 				ov.extend( [q[1][i-1], x[1][i-1]] )
 			if pmode == fischer_aux:
@@ -1158,13 +1019,16 @@ def othersVarsPrePost_ii(m,n):
 			if pmode == mux:
 				ov.extend( [q[0][i-1]] )
 				ov.extend( [q[1][i-1]] )
+			#if pmode == sats_3loc:
+				#ov.extend( [barray[0][i-1]] )
+				#ov.extend( [barray[1][i-1]] )
 	return ov
 	
 def othersVarsPrePost_i(m):
 	ov = []
 	for i in range(1,Nv+1):	
 		if i != m:
-			if pmode == fischer or pmode == fischer_aux:
+			if pmode == fischer or pmode == fischer_aux or pmode == sats_3loc:
 				ov.extend( [q[0][i-1], x[0][i-1]] )
 				ov.extend( [q[1][i-1], x[1][i-1]] )
 			if pmode == fischer_aux:
@@ -1173,14 +1037,70 @@ def othersVarsPrePost_i(m):
 			if pmode == mux:
 				ov.extend( [q[0][i-1]] )
 				ov.extend( [q[1][i-1]] )
+			#if pmode == sats_3loc:
+				#ov.extend( [barray[0][i-1]] )
+				#ov.extend( [barray[1][i-1]] )
 	return ov
+
+def simplifyResult(expr):
+	g = Goal()
+	g.add( expr )
+	#, Repeat('ctx-simplify')
+	#tac = Repeat(Then( Repeat(Tactic('propagate-values')), Repeat('propagate-ineqs'), Repeat('normalize-bounds'), Repeat('elim-uncnstr'), Repeat('solve-eqs'), Repeat('purify-arith'), Repeat('symmetry-reduce'), Repeat('simplify'), Repeat('max-bv-sharing')))
+	tac = Tactic('ctx-solver-simplify')
+	
+	#tac = Repeat(Then(Repeat('max-bv-sharing'),Tactic('simplify'), Tactic('elim-term-ite'), Tactic('ctx-simplify'), Repeat(Tactic('elim-and')), Repeat(Tactic('propagate-values')), Repeat(Tactic('propagate-ineqs')), OrElse(Tactic('split-clause'), Tactic('skip')), Repeat(Tactic('ctx-simplify'))))
+	
+	return tac( g ).as_expr()
+
+def simplifyBetterConj(expr):
+	g = Goal()
+	g.add( expr )
+	tac = Repeat(Then( Tactic('lia2pb'), Tactic('simplify'), Tactic('ctx-simplify'), Repeat(Tactic('elim-and')), Repeat(Tactic('propagate-values')), Repeat(Tactic('propagate-ineqs')), Repeat('normalize-bounds')))
+	#tac = Then( Repeat(Tactic('propagate-values')), Repeat(Tactic('propagate-ineqs')))
+	
+	
+	
+#gconj = Goal()
+#gconj.add( conj )
+# apply a tactic to drastically simplify conj
+#tconj = Then( Repeat(OrElse(Tactic('split-clause'), Tactic('skip'))), Repeat(Tactic('elim-and')), Repeat(Tactic('propagate-values')), Repeat(Tactic('propagate-ineqs')), Repeat(Tactic('normalize-bounds')), Repeat(Tactic('simplify')))
+#tconj = Then( Repeat(Tactic('elim-and')), Repeat(Tactic('propagate-values')), Repeat(Tactic('propagate-ineqs')), Repeat(Tactic('normalize-bounds')), OrElse(Tactic('split-clause'), Tactic('skip')), Repeat(Tactic('simplify')))
+#tconj = Then( Repeat(Tactic('elim-and')), Repeat(Tactic('propagate-values')), Repeat(Tactic('propagate-ineqs')), Repeat(Tactic('normalize-bounds')), OrElse(Tactic('split-clause'), Tactic('skip')), Repeat(Tactic('simplify')), Repeat(Tactic('ctx-solver-simplify')))
+
+#tconj = Then( Repeat(Tactic('elim-and')), Repeat(Tactic('propagate-values')), Repeat(Tactic('propagate-ineqs')), Repeat(Tactic('normalize-bounds')), OrElse(Tactic('split-clause'), Tactic('skip')), Repeat(Tactic('simplify')), Tactic('ctx-solver-simplify'))
+
+#tconj = Then( Repeat(Tactic('elim-and')), Repeat(Tactic('propagate-values')), Repeat(Tactic('propagate-ineqs')), Repeat(Tactic('simplify')), Tactic('ctx-solver-simplify'))
+#tconj = Tactic('ctx-solver-simplify')
+
+#tconj = Then( Tactic('propagate-values'), Tactic('propagate-ineqs'), Tactic('ctx-solver-simplify'))
+
+#tconj = Then( Repeat(Tactic('simplify')), Repeat(Tactic('propagate-values')), Repeat(Tactic('propagate-ineqs')), Repeat( OrElse(Tactic('split-clause'), Tactic('skip') ) ), Tactic('ctx-solver-simplify'))
+
+#tconj = Then(With('simplify', arith_lhs=True, som=True), 'normalize-bounds', 'propagate-values', 'propagate-ineqs')
+
+
+#conj = tconj( gconj ).as_expr()
+
+	
+	
+	#tac = Then(Tactic('lia2pb'), Tactic('ctx-solver-simplify'))
+	#tac = Then(Tactic('lia2pb'), Tactic('ctx-simplify'))
+	
+	#tac = Tactic('skip')
+	
+	
+	return tac( g )
 
 def simplifyBetter(expr):
 	g = Goal()
 	g.add( expr )
+	
+	#tac = Then( Repeat(Tactic('elim-and')), Repeat(Tactic('propagate-values')), Repeat(Tactic('propagate-ineqs')), Repeat(Tactic('simplify')), Tactic('ctx-solver-simplify'))
+	
 	#tac = Then( Repeat(Tactic('elim-and')), Repeat(Tactic('propagate-values')), Repeat(Tactic('propagate-ineqs')), OrElse(Tactic('split-clause'), Tactic('skip')), Repeat(Tactic('ctx-solver-simplify')))
 	
-	tac = Then( Repeat(OrElse(Tactic('split-clause'), Tactic('skip'))), Repeat(Tactic('elim-and')), Repeat(Tactic('propagate-values')), Repeat(Tactic('propagate-ineqs')))
+	#tac = Then( Repeat(OrElse(Tactic('split-clause'), Tactic('skip'))), Repeat(Tactic('elim-and')), Repeat(Tactic('propagate-values')), Repeat(Tactic('propagate-ineqs')))
 	
 	#stac = Then( Repeat(Tactic('elim-and')), Repeat(Tactic('propagate-values')), Repeat(Tactic('propagate-ineqs')), OrElse(Tactic('split-clause'), Tactic('skip')), Repeat(Tactic('simplify')))
 
@@ -1188,7 +1108,7 @@ def simplifyBetter(expr):
 	#stac = Repeat(Then( Repeat(Tactic('propagate-values')), Repeat(Tactic('propagate-ineqs')), Repeat(Tactic('simplify'))))
 
 
-	#stac = Then( Tactic('propagate-values'), Tactic('propagate-ineqs'))
+	#tac = Repeat(Then( Tactic('propagate-values'), Tactic('propagate-ineqs')))
 
 	#stac = Tactic('split-clause')
 	
@@ -1209,7 +1129,7 @@ def simplifyBetter(expr):
 	#stac = Then( Repeat(OrElse(Tactic('split-clause'), Tactic('skip'))), Repeat(Tactic('elim-and')), Repeat(Tactic('propagate-values')) )
 
 	# lowest now
-	#stac = Then( Repeat(OrElse(Tactic('split-clause'), Tactic('skip'))), Repeat(Tactic('elim-and')), Repeat(Tactic('propagate-values')), Repeat(Tactic('propagate-ineqs')))
+	#tac = Then( Repeat(OrElse(Tactic('split-clause'), Tactic('skip'))), Repeat(Tactic('elim-and')), Repeat(Tactic('propagate-values')), Repeat(Tactic('propagate-ineqs')))
 
 	#
 	#stac = Then( Repeat(OrElse(Tactic('split-clause'), Tactic('skip'))), Repeat(Tactic('elim-and')), Repeat(Tactic('propagate-values')), Repeat(Tactic('propagate-ineqs')), Repeat(Tactic('normalize-bounds')), Repeat(Tactic('aig')), Repeat(Tactic('simplify')))
@@ -1241,8 +1161,33 @@ def simplifyBetter(expr):
 
 	#stac = Tactic('split-clause')
 	
+	#tac = Tactic('skip')
 	
-	return tac( g ).as_expr()
+	#tac = Then(Repeat('simplify'),Repeat('max-bv-sharing'))
+	
+			
+			
+			
+	#tac = Then( Repeat(Tactic('elim-and')), Repeat(Tactic('propagate-values')), Repeat(Tactic('propagate-ineqs')), OrElse(Tactic('split-clause'), Tactic('skip')), Repeat(Tactic('simplify')))
+			
+	
+	tac = Repeat(Then( Repeat(Tactic('propagate-values')), Repeat(Tactic('propagate-ineqs')), Repeat(Tactic('simplify'))))
+
+
+	#stac = Then( Tactic('propagate-values'), Tactic('propagate-ineqs'))
+	
+	#tac = Repeat(Then(Repeat('max-bv-sharing'),Tactic('simplify'), Tactic('elim-term-ite'), Tactic('ctx-simplify'), Repeat(Tactic('elim-and')), Repeat(Tactic('propagate-values')), Repeat(Tactic('propagate-ineqs')), OrElse(Tactic('split-clause'), Tactic('skip')), Repeat(Tactic('ctx-simplify'))))
+	#print expr
+	#tac = Then(Repeat(Tactic('propagate-values')), Repeat(Tactic('propagate-ineqs')), OrElse(Tactic('split-clause'), Tactic('skip')), Repeat(Tactic('simplify')))
+	
+	#tac = Then(Repeat('max-bv-sharing'),Tactic('simplify'), Tactic('elim-term-ite'), Tactic('ctx-simplify'), Repeat(Tactic('elim-and')), Repeat(Tactic('propagate-values')), Repeat(Tactic('propagate-ineqs')), OrElse(Tactic('split-clause'), Tactic('skip')), Repeat('max-bv-sharing'),Repeat(Tactic('ctx-simplify')))
+	
+	#tac = Tactic('ctx-simplify')
+	
+	
+	
+	
+	return tac( g )
 	
 
 def toCnf(expr):

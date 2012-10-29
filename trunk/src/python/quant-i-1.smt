@@ -7,6 +7,6 @@
                  (and (= idle (q i)) (= x 0))
                  (and (= start (q i)) (= x 1))
                  (and (= start (q i)) (= x 0))
-                 (and (= cs (q i)) (= x 0))
-                 (and (= cs (q i)) (= x 1)))))
+                 (and (= cs (q i)) (= x 1))
+                 (and (= cs (q i)) (= x 0)))))
     (=&gt; (and (&gt;= i 1) (&lt;= i N)) a!1)))

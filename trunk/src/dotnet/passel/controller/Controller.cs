@@ -785,7 +785,7 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
                             {
                                 Console.WriteLine("[" + f.Key.ToString() + "]" + " " + f.Value);
                             }
-                            Console.WriteLine("[255] generate FORTE/FMOODS table\n\r");
+                            //Console.WriteLine("[255] generate FORTE/FMOODS table\n\r");
                             Console.WriteLine("[256] enter custom file\n\r");
 
                             choice = Console.ReadLine();
