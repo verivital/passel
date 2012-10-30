@@ -37,7 +37,7 @@ s.add(c == 1)
 s.add(d == 2)
 
 
-Nv = 2 # number of processes
+Nv = 3 # number of processes
 
 s.add(N == Nv)
 
