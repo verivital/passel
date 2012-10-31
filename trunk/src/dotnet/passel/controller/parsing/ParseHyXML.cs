@@ -614,7 +614,7 @@ namespace passel.controller.parsing
                                             if (!Controller.Instance.ParamsAssumps.ContainsKey(name))
                                             {
                                                 Controller.Instance.ParamsAssumps.Add(name, passump);
-                                                z3.Assumptions.Add((BoolExpr)passump);
+                                                Controller.Instance.Z3.Assumptions.Add((BoolExpr)passump);
                                             }
                                         }
 
@@ -658,7 +658,7 @@ namespace passel.controller.parsing
                                             Property p;
                                             if (format == "smt")
                                             {
-                                                //BoolExpr prop = z3.ParseSMTLIB2String( "(benchmark tst :formula" + pstr + ")");
+                                                //BoolExpr prop = Controller.Instance.Z3.ParseSMTLIB2String( "(benchmark tst :formula" + pstr + ")");
                                                 //pstr = pstr.Replace("\n", "").Replace("\r", "");
                                                 //new Sort[] { Controller.Instance.LocType }
                                                 //foreach (var decl in Controller.Instance.DataU.IndexedVariableDecl.Values)
@@ -668,9 +668,9 @@ namespace passel.controller.parsing
                                                 pstr = "(assert " + pstr + ")";
 
 
-                                                //BoolExpr prop = z3.ParseSMTLIB2String(pstr, null, null, null, null);
-                                                //BoolExpr prop = z3.ParseSMTLIB2String("(assert " + pstr + ")", null, null, null, Controller.Instance.DataU.IndexedVariableDecl.Values.ToArray());
-                                                //BoolExpr prop = z3.ParseSMTLIB2String("(declare-fun a () (_ BitVec 8)) (assert (bvuge a #x10)) (assert (bvule a #xf0))");
+                                                //BoolExpr prop = Controller.Instance.Z3.ParseSMTLIB2String(pstr, null, null, null, null);
+                                                //BoolExpr prop = Controller.Instance.Z3.ParseSMTLIB2String("(assert " + pstr + ")", null, null, null, Controller.Instance.DataU.IndexedVariableDecl.Values.ToArray());
+                                                //BoolExpr prop = Controller.Instance.Z3.ParseSMTLIB2String("(declare-fun a () (_ BitVec 8)) (assert (bvuge a #x10)) (assert (bvule a #xf0))");
 
                                                 
                                                 // set up declarations and names (doesn't use existing context information)
@@ -717,9 +717,9 @@ namespace passel.controller.parsing
                                                 //decls.Add(Controller.Instance.IndexN.FuncDecl);
                                                 //names.Add(Controller.Instance.IndexN.FuncDecl.Name);
 
-                                                BoolExpr prop = z3.ParseSMTLIB2String(pstr, null, null, names.ToArray(), decls.ToArray());
+                                                BoolExpr prop = Controller.Instance.Z3.ParseSMTLIB2String(pstr, null, null, names.ToArray(), decls.ToArray());
                                                 
-                                                //BoolExpr prop = z3.ParseSMTLIB2String(pstr);
+                                                //BoolExpr prop = Controller.Instance.Z3.ParseSMTLIB2String(pstr);
                                                 p = new Property(prop);
                                                 p.makePost(); // update post expression
                                                 p.Type = Property.PropertyType.safety; // todo: generalize
@@ -732,7 +732,7 @@ namespace passel.controller.parsing
 
                                             if (assumed == "1")
                                             {
-                                                z3.Assumptions.Add((BoolExpr)p.Formula);
+                                                Controller.Instance.Z3.Assumptions.Add((BoolExpr)p.Formula);
                                             }
                                         }
                                         else
@@ -881,8 +881,8 @@ namespace passel.controller.parsing
                                                     }
                                                     if (constants.Count == 1)
                                                     {
-                                                        f.RectRateA = z3.MkReal(constants[0]);
-                                                        f.RectRateB = z3.MkReal(constants[0]);
+                                                        f.RectRateA = Controller.Instance.Z3.MkReal(constants[0]);
+                                                        f.RectRateB = Controller.Instance.Z3.MkReal(constants[0]);
                                                     }
                                                 }
                                                 else if (constants.Count + pvars.Count == 2)
@@ -899,11 +899,11 @@ namespace passel.controller.parsing
                                                     }
                                                     if (constants.Count >= 1)
                                                     {
-                                                        f.RectRateA = z3.MkReal(constants[0]);
+                                                        f.RectRateA = Controller.Instance.Z3.MkReal(constants[0]);
                                                     }
                                                     if (constants.Count >= 2)
                                                     {
-                                                        f.RectRateB = z3.MkReal(constants[1]);
+                                                        f.RectRateB = Controller.Instance.Z3.MkReal(constants[1]);
                                                     }
                                                 }
 
@@ -912,7 +912,7 @@ namespace passel.controller.parsing
                                                     foreach (var y in pvars)
                                                     {
                                                         // todo: generalize, this is pretty nasty, and currently only supports dynamics of the form: v[i] R y, where R is an order/equivalence relation (e.g., >, <, >=, <=, =, etc.)
-                                                        Expr addDeltaMin = z3.MkAdd((ArithExpr)Controller.Instance.IndexedVariables[new KeyValuePair<string, string>(variableName, "i")], z3.MkMul((ArithExpr)Controller.Instance.Params[y], (ArithExpr)t1));
+                                                        Expr addDeltaMin = Controller.Instance.Z3.MkAdd((ArithExpr)Controller.Instance.IndexedVariables[new KeyValuePair<string, string>(variableName, "i")], Controller.Instance.Z3.MkMul((ArithExpr)Controller.Instance.Params[y], (ArithExpr)t1));
                                                         expr = expr.Substitute(Controller.Instance.Params[y], addDeltaMin);
                                                     }
                                                 }
@@ -926,25 +926,25 @@ namespace passel.controller.parsing
                                                         if (cint == 1)
                                                         {
                                                             Expr c = Controller.Instance.Z3.MkReal(cstr);
-                                                            Expr addDeltaMin = z3.MkAdd((ArithExpr)Controller.Instance.IndexedVariables[new KeyValuePair<string, string>(variableName, "i")], (ArithExpr)t1);
+                                                            Expr addDeltaMin = Controller.Instance.Z3.MkAdd((ArithExpr)Controller.Instance.IndexedVariables[new KeyValuePair<string, string>(variableName, "i")], (ArithExpr)t1);
                                                             expr = expr.Substitute(c, addDeltaMin);
                                                         }
                                                         else if (cint == -1) // todo: constants will never be negative currently due to the way findRealConstants function works (- is a unary term, so the constants are always positive with another unary minus outside)
                                                         {
                                                             Expr c = Controller.Instance.Z3.MkReal(cstr);
-                                                            Expr addDeltaMin = z3.MkSub((ArithExpr)Controller.Instance.IndexedVariables[new KeyValuePair<string, string>(variableName, "i")], (ArithExpr)t1);
+                                                            Expr addDeltaMin = Controller.Instance.Z3.MkSub((ArithExpr)Controller.Instance.IndexedVariables[new KeyValuePair<string, string>(variableName, "i")], (ArithExpr)t1);
                                                             expr = expr.Substitute(c, addDeltaMin);
                                                         }
                                                         else if (cint < 0)
                                                         {
                                                             Expr c = Controller.Instance.Z3.MkReal(cstr);
-                                                            Expr addDeltaMin = z3.MkSub((ArithExpr)Controller.Instance.IndexedVariables[new KeyValuePair<string, string>(variableName, "i")], z3.MkMul((ArithExpr)c, (ArithExpr)t1));
+                                                            Expr addDeltaMin = Controller.Instance.Z3.MkSub((ArithExpr)Controller.Instance.IndexedVariables[new KeyValuePair<string, string>(variableName, "i")], Controller.Instance.Z3.MkMul((ArithExpr)c, (ArithExpr)t1));
                                                             expr = expr.Substitute(c, addDeltaMin);
                                                         }
                                                         else
                                                         {
                                                             Expr c = Controller.Instance.Z3.MkReal(cstr);
-                                                            Expr addDeltaMin = z3.MkAdd((ArithExpr)Controller.Instance.IndexedVariables[new KeyValuePair<string, string>(variableName, "i")], z3.MkMul((ArithExpr)c, (ArithExpr)t1));
+                                                            Expr addDeltaMin = Controller.Instance.Z3.MkAdd((ArithExpr)Controller.Instance.IndexedVariables[new KeyValuePair<string, string>(variableName, "i")], Controller.Instance.Z3.MkMul((ArithExpr)c, (ArithExpr)t1));
                                                             expr = expr.Substitute(c, addDeltaMin);
                                                         }
                                                     }
@@ -963,7 +963,7 @@ namespace passel.controller.parsing
                                                     foreach (var y in pvars)
                                                     {
                                                         // todo: generalize, this is pretty nasty, and currently only supports dynamics of the form: v[i] R y, where R is an order/equivalence relation (e.g., >, <, >=, <=, =, etc.)
-                                                        Expr addDeltaMin = z3.MkAdd((ArithExpr)Controller.Instance.Params[variableName], z3.MkMul((ArithExpr)Controller.Instance.Params[y], (ArithExpr)t1));
+                                                        Expr addDeltaMin = Controller.Instance.Z3.MkAdd((ArithExpr)Controller.Instance.Params[variableName], Controller.Instance.Z3.MkMul((ArithExpr)Controller.Instance.Params[y], (ArithExpr)t1));
                                                         expr = expr.Substitute(Controller.Instance.Params[y], addDeltaMin);
                                                     }
                                                 }
@@ -977,25 +977,25 @@ namespace passel.controller.parsing
                                                         if (cint == 1)
                                                         {
                                                             Expr c = Controller.Instance.Z3.MkReal(cstr);
-                                                            Expr addDeltaMin = z3.MkAdd((ArithExpr)Controller.Instance.GlobalVariables[variableName], (ArithExpr)t1);
+                                                            Expr addDeltaMin = Controller.Instance.Z3.MkAdd((ArithExpr)Controller.Instance.GlobalVariables[variableName], (ArithExpr)t1);
                                                             expr = expr.Substitute(c, addDeltaMin);
                                                         }
                                                         else if (cint == -1)
                                                         {
                                                             Expr c = Controller.Instance.Z3.MkReal(cstr);
-                                                            Expr addDeltaMin = z3.MkSub((ArithExpr)Controller.Instance.GlobalVariables[variableName], (ArithExpr)t1);
+                                                            Expr addDeltaMin = Controller.Instance.Z3.MkSub((ArithExpr)Controller.Instance.GlobalVariables[variableName], (ArithExpr)t1);
                                                             expr = expr.Substitute(c, addDeltaMin);
                                                         }
                                                         else if (cint < 0)
                                                         {
                                                             Expr c = Controller.Instance.Z3.MkReal(cstr);
-                                                            Expr addDeltaMin = z3.MkSub((ArithExpr)Controller.Instance.GlobalVariables[variableName], z3.MkMul((ArithExpr)c, (ArithExpr)t1));
+                                                            Expr addDeltaMin = Controller.Instance.Z3.MkSub((ArithExpr)Controller.Instance.GlobalVariables[variableName], Controller.Instance.Z3.MkMul((ArithExpr)c, (ArithExpr)t1));
                                                             expr = expr.Substitute(c, addDeltaMin);
                                                         }
                                                         else
                                                         {
                                                             Expr c = Controller.Instance.Z3.MkReal(cstr);
-                                                            Expr addDeltaMin = z3.MkAdd((ArithExpr)Controller.Instance.GlobalVariables[variableName], z3.MkMul((ArithExpr)c, (ArithExpr)t1));
+                                                            Expr addDeltaMin = Controller.Instance.Z3.MkAdd((ArithExpr)Controller.Instance.GlobalVariables[variableName], Controller.Instance.Z3.MkMul((ArithExpr)c, (ArithExpr)t1));
                                                             expr = expr.Substitute(c, addDeltaMin);
                                                         }
                                                     }
@@ -1003,7 +1003,8 @@ namespace passel.controller.parsing
                                             }
 
                                             // todo: generalize: we assume anything with a 0 in it is constant dynamics
-                                            if (!Controller.Instance.Z3.findTerm(expr, Controller.Instance.RealZero, true))
+                                            //if (!Controller.Instance.Z3.findTerm(expr, Controller.Instance.RealZero, true))
+                                            if (!(f.RectRateA == Controller.Instance.RealZero || f.RectRateB == Controller.Instance.RealZero))
                                             {
                                                 f.Value = expr;
                                                 /*
@@ -1350,8 +1351,8 @@ namespace passel.controller.parsing
                                         {
                                             if (v.UpdateType == Variable.VarUpdateType.discrete && v.Type == Variable.VarType.index)
                                             {
-                                                z3.Assumptions.Add(z3.MkAnd(z3.MkLe((ArithExpr)Controller.Instance.IntZero, (ArithExpr)Controller.Instance.GlobalVariables[v.Name]), z3.MkLe((ArithExpr)Controller.Instance.GlobalVariables[v.Name], (ArithExpr)Controller.Instance.Params["N"])));
-                                                z3.Assumptions.Add(z3.MkAnd(z3.MkLe((ArithExpr)Controller.Instance.IntZero, (ArithExpr)Controller.Instance.GlobalVariablesPrimed[v.Name]), z3.MkLe((ArithExpr)Controller.Instance.GlobalVariablesPrimed[v.Name], (ArithExpr)Controller.Instance.Params["N"])));
+                                                Controller.Instance.Z3.Assumptions.Add(Controller.Instance.Z3.MkAnd(Controller.Instance.Z3.MkLe((ArithExpr)Controller.Instance.IntZero, (ArithExpr)Controller.Instance.GlobalVariables[v.Name]), Controller.Instance.Z3.MkLe((ArithExpr)Controller.Instance.GlobalVariables[v.Name], (ArithExpr)Controller.Instance.Params["N"])));
+                                                Controller.Instance.Z3.Assumptions.Add(Controller.Instance.Z3.MkAnd(Controller.Instance.Z3.MkLe((ArithExpr)Controller.Instance.IntZero, (ArithExpr)Controller.Instance.GlobalVariablesPrimed[v.Name]), Controller.Instance.Z3.MkLe((ArithExpr)Controller.Instance.GlobalVariablesPrimed[v.Name], (ArithExpr)Controller.Instance.Params["N"])));
                                             }
                                         }
 

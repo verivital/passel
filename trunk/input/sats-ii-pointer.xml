@@ -2,17 +2,16 @@
 
 <holism>
 	<parameter name='N' type='index' comment='number of processes in the system' />
-	<parameter name='S' type='real' comment='smaller constant' />
-	<parameter name='L' type='real' comment='larger constant' />
+	<parameter name='S' assumption='S == 5.0' type='real' comment='safety spacing' />
+	<parameter name='L' assumption='L == 5001.0' type='real' comment='length of distance to runway' />
 	
 	<variable name='last'  type='index' update_type='discrete' comment='global tail pointer variable, where tail is defined as the plane that is last to land' />
 
 	<assumption equn='S &gt; 0.0 and L &gt; 0.0 and S &lt; L' comment='' />
-	<assumption equn='S == 5.0 and L == 5001.0' comment='need actual values for phaver' />
 	
 	<assumption equn='N &gt;= 1' comment='' />
 
-	<automaton name='sats-ii'>
+	<automaton name='sats-ii-pointer'>
 		<variable name='x[i]' type='nnreal' update_type='Continuous' />
 		<variable name='p[i]' type='index' update_type='Discrete' />
 		
@@ -30,32 +29,30 @@
 		</mode>
 		
 		<transition source='fly' destination='landing'>
-			<action equn='x[i]&apos; = 0.0 and p[i]&apos; = g'/>
-			<uguard equn='(b[j] == 1) implies (x[j] &gt;= S)' />
+			<action equn='x[i]&apos; = 0.0 and p[i]&apos; = last and last&apos; = i'/>
+			<uguard equn='(p[j] != 0) implies (x[j] &gt;= S)' />
 		</transition>
 		
 		<transition source='landing' destination='fly'>
-			<action equn='x[i]&apos; = 0.0 and b[i]&apos; = 0'/>
+			<guard equn='last == i' />
+			<action equn='x[i]&apos; = 0.0 and p[i]&apos; = 0'/>
+		</transition>
+		
+		<transition source='landing' destination='fly'>
+			<guard equn='last != i' />
+			<action equn='x[i]&apos; = 0.0 and p[i]&apos; = 0 and last&apos; = 0'/>
 		</transition>
 	</automaton>
 
 	<property equn='true' type='safety' />
 	
-	
 <!--
 	<property equn='forall i (q[i] == fly or q[i] == landing)' type='safety' />
 	<property equn='forall i j ((i != j) implies ((q[i] == fly or q[i] == landing) and (q[j] == fly or q[j] == landing)))' type='safety' />
-	
-	
-	<property equn='forall i j ((i != j and q[i] == landing and q[j] == landing and x[i] &gt; x[j] and b[i] == 1 and b[j] == 1) implies (x[i] &gt;= x[j] + S))' type='safety' />
-	
+	<property equn='forall i j ((i != j and q[i] == landing and q[j] == landing and x[i] &gt; x[j] and p[i] != 0 and p[j] != 0) implies (x[i] &gt;= x[j] + S))' type='safety' />
 -->
 	
 	<property equn='forall i j ((i != j and x[i] &gt; x[j]) implies (x[i] &gt;= x[j] + S))' type='safety' />
-	
-	
-
-
 	
 	<property equn='false' type='safety' />
 

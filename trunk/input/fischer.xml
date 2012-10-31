@@ -2,15 +2,14 @@
 
 <holism>
 	<parameter name='N' type='index' comment='number of processes in the system' />
-	<parameter name='A' type='real' comment='smaller constant' />
-	<parameter name='B' type='real' comment='larger constant' />
+	<parameter name='A' assumption='A == 5.0' type='real' comment='smaller constant' />
+	<parameter name='B' assumption='B == 27.0' type='real' comment='larger constant' />
 	
 	<variable name='g' type='index' update_type='Discrete' comment='lock' />
 	
 	<assumption equn='A &gt; 0.0 and B &gt; 0.0 and A &lt; B' comment='A *stictly less than* B for mutual exclusion' />
 	<assumption equn='N &gt;= 2 and N &lt;= 100' comment='' />
-	
-	<assumption equn='A == 5.0 and B == 7.0' comment='invariant synthesis needs fixed values' />
+
 
 	<automaton name='fischer'>
 		<variable name='x[i]' type='real' update_type='Continuous' />
@@ -18,7 +17,7 @@
 		<initial equn='(forall i (x[i] = 0.0)) and g = 0' />
 
 		<mode id='0' name='idle' initial='True'>
-			<dai variable='x[i]' equn='x[i]_dot = 1.0'/>
+			<dai variable='x[i]' equn='x[i]_dot = 0.0'/>
 		</mode>
 
 		<mode id='1' name='start' initial='False'>
@@ -32,14 +31,8 @@
 		</mode>
 		
 		<mode id='3' name='cs' initial='False'>
-			<dai variable='x[i]' equn='x[i]_dot = 1.0'/>
+			<dai variable='x[i]' equn='x[i]_dot = 0.0'/>
 		</mode>
-
-		<transition source='idle' destination='idle'>
-			<guard equn='g != i' />
-			<action equn='x[i]&apos; = 0.0'/>
-		</transition>
-
 
 		<transition source='idle' destination='start'>
 			<guard equn='g = 0'/>
@@ -58,6 +51,7 @@
 		
 		<transition source='check' destination='cs'>
 			<guard equn='x[i] &gt;= B and g = i'/>
+			<action equn='x[i]&apos; = 0.0'/>
 		</transition>
 		
 		<transition source='cs' destination='idle'>
@@ -65,7 +59,7 @@
 		</transition>
 	</automaton>
 	
-	
+<!--
 	<property format='smt' type='safety' equn='(forall ((i Int))
   (let ((a!1 (not (or (= (q i) start) (not (not (= g i))) (&lt;= (x i) 0.0))))
         (a!2 (or (not (= (q i) start)) (not (= (x i) 0.0)) (not (not (= g i)))))
@@ -738,6 +732,7 @@
                        (= (x i) 0.0)
                        (= (x j) 0.0)))))
     (=&gt; (and (&gt;= i 1) (&lt;= i N) (&gt;= j 1) (&lt;= j N) (distinct i j)) a!19)))))' />
+-->
 	
 	
 	

@@ -1008,6 +1008,20 @@ namespace passel.model
             int num_inv = 0;
             foreach (Property pi in this.Properties)
             {
+                // TODO: ADD ELEMENT TO PROPERTY PARSER
+                if ((pi.ProjectedFrom == null || pi.ProjectedFrom <= 0) && (pi.FormulaStr != null && !pi.FormulaStr.Contains("true") && !pi.FormulaStr.Contains("false"))) // original property
+                {
+                    Controller.Instance.appendLogEvent("inductive?", Controller.Instance.sysname, pi.FormulaStr + " " + (pi.Status == StatusTypes.inductiveInvariant).ToString());
+                }
+                    /*
+                else
+                {
+                    Controller.Instance.appendLogEvent("\\phi inductive?", Controller.Instance.sysname, pi.Status.ToString());
+                }
+                     */
+
+
+
                 if (pi.Status == StatusTypes.inductiveInvariant)
                 {
                     System.Console.WriteLine(pi.Formula.ToString() + "\n\r");
@@ -1693,8 +1707,8 @@ namespace passel.model
                     spec = spec.Substring(0, spec.Length - 1) + out_endline + newline;
                 }
 
-                // input variables for A_i
-                if (this.Variables.Count > 0 || hasUguard)
+                // input variables for A_i: globals or universal guards
+                if (this.Variables.Count > 0 || (hasUguard && N >= 2))
                 {
                     spec += out_var_input + " " + out_separator + " ";
 
@@ -1759,20 +1773,21 @@ namespace passel.model
                     //todo: convert to appropriate format: l.Invariant;
                     if (l.Invariant != null)
                     {
-                        tmp = z3.ToStringFormatted(l.Invariant, controller.smt.z3.Z3Wrapper.PrintFormatMode.phaver);
+                        tmp = z3.ToStringFormatted(l.Invariant, controller.smt.z3.Z3Wrapper.PrintFormatMode.phaver, true);
                         tmp = tmp.Replace("[i]", "_" + i.ToString());
                         spec += tmp;
                         spec += " & ";
                     }
-
-                    /*if (l.Stop != null)
+/*
+                    if (l.Stop != null)
                     {
                         // needs to be closure of negation... switch based on strict / nonstrict cases, but how to do in general?
-                        tmp = z3.ToStringFormatted( z3.MkNot((BoolExpr)l.Stop), controller.smt.z3.Z3Wrapper.PrintFormatMode.phaver);
+                        tmp = z3.ToStringFormatted( z3.MkNot((BoolExpr)l.Stop), controller.smt.z3.Z3Wrapper.PrintFormatMode.phaver, true);
                         tmp = tmp.Replace("[i]", "_" + i.ToString());
                         spec += tmp;
                         spec += " & ";
-                    }*/
+                    }
+ */
 
                     if (l.Invariant != null || l.Stop != null)
                     {
@@ -1875,7 +1890,7 @@ namespace passel.model
                             {
                                 // generate sync label
                                 spec += "\t when ";
-                                if (t.Guard == null && t.UGuard == null && l.Invariant == null && l.Stop == null)
+                                if (t.Guard == null && (t.UGuard == null || (t.UGuard != null && N < 2)) && l.Invariant == null && l.Stop == null)
                                 {
                                     spec += " true ";
                                 }
@@ -1904,7 +1919,7 @@ namespace passel.model
                                         spec += " & ";
                                     }
 
-                                    if (t.UGuard != null)
+                                    if (t.UGuard != null & N >= 2)
                                     {
                                         Expr indexConst = z3.MkNumeral(i, Controller.Instance.IndexType);
 
@@ -1976,7 +1991,7 @@ namespace passel.model
 
                                     // phaver semantics differ: just ensure that the invariant contains the negation of the stopping condition
                                     // if we DON'T do this, phaver will do weird stuff on invariants, e.g., it will allow an invariant to go UP TO the value, let it take the transition, and still remain in the state, which differs from our semantics
-                                    if (l.Stop != null)
+                                    /*if (l.Stop != null)
                                     {
                                         Expr tmpt = l.Stop;
                                         Expr indexConst = z3.MkNumeral(i, Controller.Instance.IndexType);
@@ -1985,7 +2000,7 @@ namespace passel.model
                                         tmp = tmp.Replace("[i]", "_" + i.ToString());
                                         tmp = tmp.Replace("[" + i.ToString() + "]", "_" + i.ToString());
                                         spec += tmp + " & ";
-                                    }
+                                    }*/
                                     spec = spec.Substring(0, spec.Length - " & ".Length);
                                 }
 
@@ -2075,28 +2090,36 @@ namespace passel.model
                     }
                 }
 
-                Expr tmpi = h.Initial;
-                Expr iConst = z3.MkNumeral(i, Controller.Instance.IndexType);
-                tmpi = tmpi.Substitute(Controller.Instance.Indices["i"], iConst); // replace i with actual number i (e.g., i by 1, i by 2, etc)
 
-                // todo: huge hack
-                while (tmpi.ASTKind != Z3_ast_kind.Z3_QUANTIFIER_AST && tmpi.NumArgs > 0)
+                if (Controller.Instance.IndexedVariables.Count == 0)
                 {
-                    tmpi = tmpi.Args[0];
+                    tmp = "True";
                 }
-                if (tmpi.ASTKind == Z3_ast_kind.Z3_QUANTIFIER_AST)
+                else
                 {
-                    tmpi = ((Quantifier)tmpi).Body;
-                }
-                if (tmpi.FuncDecl.DeclKind == Z3_decl_kind.Z3_OP_IMPLIES || tmpi.FuncDecl.DeclKind == Z3_decl_kind.Z3_OP_OR) // may have simplified implies to not or form
-                {
-                    tmpi = tmpi.Args[1];
-                }
+                    Expr tmpi = h.Initial;
+                    Expr iConst = z3.MkNumeral(i, Controller.Instance.IndexType);
+                    tmpi = tmpi.Substitute(Controller.Instance.Indices["i"], iConst); // replace i with actual number i (e.g., i by 1, i by 2, etc)
 
-                tmp = z3.ToStringFormatted(tmpi, controller.smt.z3.Z3Wrapper.PrintFormatMode.phaver, true); // todo: format appropriately
-                tmp = tmp.Replace("[i]", "_" + i.ToString());
-                tmp = tmp.Replace("[#0]", "_" + i.ToString()); // z3 3.2 format
-                tmp = tmp.Replace("[(:var 0)]", "_" + i.ToString()); // z3 4.0 format
+                    // todo: huge hack
+                    while (tmpi.ASTKind != Z3_ast_kind.Z3_QUANTIFIER_AST && tmpi.NumArgs > 0)
+                    {
+                        tmpi = tmpi.Args[0];
+                    }
+                    if (tmpi.ASTKind == Z3_ast_kind.Z3_QUANTIFIER_AST)
+                    {
+                        tmpi = ((Quantifier)tmpi).Body;
+                    }
+                    if (tmpi.FuncDecl.DeclKind == Z3_decl_kind.Z3_OP_IMPLIES || tmpi.FuncDecl.DeclKind == Z3_decl_kind.Z3_OP_OR) // may have simplified implies to not or form
+                    {
+                        tmpi = tmpi.Args[1];
+                    }
+
+                    tmp = z3.ToStringFormatted(tmpi, controller.smt.z3.Z3Wrapper.PrintFormatMode.phaver, true); // todo: format appropriately
+                    tmp = tmp.Replace("[i]", "_" + i.ToString());
+                    tmp = tmp.Replace("[#0]", "_" + i.ToString()); // z3 3.2 format
+                    tmp = tmp.Replace("[(:var 0)]", "_" + i.ToString()); // z3 4.0 format
+                }
                 spec += tmp;
                 
                 // STARL STUFF
@@ -2182,11 +2205,11 @@ namespace passel.model
             }
             spec = spec.Substring(0, spec.Length - 3);
             spec += ";" + newline + newline;
-            spec += "sys.print(\"" + h.Name + "_ii_sys_N" + Controller.Instance.IndexNValue + "\", 0);" + newline;
+            spec += "sys.print(\"system/" + h.Name + "_N=" + Controller.Instance.IndexNValue + ".csys" + "\", 0);" + newline;
 
             spec += "reg = sys.reachable;" + newline;
 
-            spec += "reg.print(\"" + h.Name + "_ii_reach_N" + Controller.Instance.IndexNValue + "\", 0);" + newline;
+            spec += "reg.print(\"reach/" + h.Name + "_N=" + Controller.Instance.IndexNValue + ".reach" + "\", 0);" + newline;
 
             string globalNames = ","; // start with comma
             foreach (var v in this.Variables)
@@ -2205,7 +2228,7 @@ namespace passel.model
                     }
 
                     string ij = i.ToString() + j.ToString();
-                    spec += "regm" + ij + " = reg;" + newline;
+                    /*spec += "regm" + ij + " = reg;" + newline;
                     if (j == 1)
                     {
                         spec += "regm" + ij + ".project_to(x_" + i.ToString() + globalNames + ");" + newline;
@@ -2215,10 +2238,11 @@ namespace passel.model
                         spec += "regm" + ij + ".project_to(x_" + i.ToString() + ",x_" + j.ToString() + globalNames + ");" + newline;
                     }
                     spec += "regm" + ij + ".print(\"" + h.Name + "_ii_reach_N" + Controller.Instance.IndexNValue + "projected" + ij + "\", 0);" + newline;
+                     */
                 }
             }
 
-            spec += "reg.print(\"" + h.Name + "_ii_reach_N" + Controller.Instance.IndexNValue + "\", 0);" + newline;
+            //spec += "reg.print(\"" + h.Name + "_ii_reach_N" + Controller.Instance.IndexNValue + "\", 0);" + newline;
 
             /* STARL
             for (int i = 1; i <= N; i++)
@@ -2228,7 +2252,9 @@ namespace passel.model
                 spec += "reg" + i + ".print(\"ii_reach_poly_N" + Controller.Instance.IndexNValue + "_" + i + "\", 2);" + newline;
             }*/
 
-            // for fischer / mutual exclusion algorithms 
+            //spec += "forbidden = sys.{};" + newline;
+            // for fischer / mutual exclusion algorithms
+            /*
             spec += "forbidden = sys.{";
             for (uint i = 1; i <= N; i++)
             {
@@ -2238,6 +2264,7 @@ namespace passel.model
                 }
             }
             spec = spec.Substring(0, spec.Length - 2) + "};" + newline;
+             */
 /*
  * forbidden=sys.{
 	$~CS~CS~$~$~$ & True ,
@@ -2246,6 +2273,7 @@ namespace passel.model
 	$~$~$~$~CS~CS & True 
 	};
  */
+            /*
             spec += "reg.intersection_assign(forbidden);" + newline;
             spec += "echo \"\";" + newline;
             spec += "echo \"Reachable forbidden states:\";" + newline;
@@ -2253,6 +2281,7 @@ namespace passel.model
             spec += "echo \"\";" + newline;
             spec += "echo \"Reachable forbidden states empty?\";" + newline;
             spec += "reg.is_empty;" + newline;
+             */
 
             return spec;
         }
