@@ -43,13 +43,13 @@
 		
 		<mode id='4' name='missR' initial='False'>
 			<invariant equn='x[i] &lt;= LB + LF + LM' />
-			<stop equn='x[i] &gt;= LM' />
+			<stop equn='x[i] &gt;= LB + LF + LM' />
 			<dai variable='x[i]' equn='x[i]_dot &gt;= a and x[i]_dot &lt;= b'/>
 		</mode>
 		
 		<mode id='5' name='missL' initial='False'>
 			<invariant equn='x[i] &lt;= LB + LF + LM' />
-			<stop equn='x[i] &gt;= LM' />
+			<stop equn='x[i] &gt;= LB + LF + LM' />
 			<dai variable='x[i]' equn='x[i]_dot &gt;= a and x[i]_dot &lt;= b'/>
 		</mode>
 		

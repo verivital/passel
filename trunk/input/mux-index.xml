@@ -8,7 +8,7 @@
 	<assumption equn='N &gt;= 2' comment='' />
 
 	<automaton name='mux-index'>
-		<initial equn='g == 0' />
+		<initial equn='true and g == 0' />
 
 		<mode id='0' name='I' initial='True'>
 		</mode>

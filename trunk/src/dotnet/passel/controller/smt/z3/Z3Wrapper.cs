@@ -1177,6 +1177,7 @@ namespace passel.controller.smt.z3
             {
                 //Console.WriteLine("Term:\n\r" + t.ToString());
             }
+            //Console.WriteLine("Term:\n\r" + t.ToString());
 
             //this.slvr = this.MkSolver(); // WAY slower
             //this.slvr.Assert(this.Assumptions.ToArray());

@@ -30,8 +30,6 @@ namespace passel.model
      */
     public class Property
     {
-        private static Z3Wrapper z3 = Controller.Instance.Z3;
-
         public Expr InductiveFormula;
         private Expr _formula;
         public String FormulaStr;
@@ -128,9 +126,9 @@ namespace passel.model
             // we cannot just "translate" to the same context, because it checks if the context is the same and returns the original reference if so
             Context tmpcontext = new Context(Controller.Instance.Config);
             Expr fcopy = f.Translate(tmpcontext);
-            Expr fcopyback = fcopy.Translate(z3);
+            Expr fcopyback = fcopy.Translate(Controller.Instance.Z3);
 
-            z3.primeAllVariables(ref fcopyback);
+            Controller.Instance.Z3.primeAllVariables(ref fcopyback);
             return fcopyback;
         }
 
@@ -181,7 +179,7 @@ namespace passel.model
             {
                 //Antlr.Runtime.Tree.CommonTree tmptree = Expression.Parse(post);
                 //this.Post = LogicalExpression.CreateTerm(tmptree);
-                //z3.primeAllVariables(ref this.Post); // prime all variables in post-state formula
+                //Controller.Instance.Z3.primeAllVariables(ref this.Post); // prime all variables in post-state formula
 
                 this.Post = primeAllByValue(this.Formula);
             }
@@ -207,10 +205,10 @@ namespace passel.model
                                     // todo: temporarily, we will make the tuple be the length of the number of variables
                                     for (int i = 0; i < Controller.Instance.GlobalVariables.Count; i++)
                                     {
-                                        ts.Add(z3.MkGe((ArithExpr)this.generateAffineTemplate(Controller.Instance.GlobalVariables, "i", i, false), Controller.Instance.RealZero)); // template >= 0
+                                        ts.Add(Controller.Instance.Z3.MkGe((ArithExpr)this.generateAffineTemplate(Controller.Instance.GlobalVariables, "i", i, false), Controller.Instance.RealZero)); // template >= 0
                                     }
 
-                                    this.Formula = z3.MkAnd(ts.ToArray()); // todo: detect size; actually, we should override this in MkAnd to not actually do a mkand if length is 1
+                                    this.Formula = Controller.Instance.Z3.MkAnd(ts.ToArray()); // todo: detect size; actually, we should override this in MkAnd to not actually do a mkand if length is 1
 
                                     Expr lhs = this.generateAffineTemplate(Controller.Instance.GlobalVariables, "c", 0, true);
                                     Expr rhs = this.generateAffineTemplate(Controller.Instance.GlobalVariablesPrimed, "c", 0, true); // todo: assumes GlobalVariables and GlobalVariablesPrimed are in the same order
@@ -250,7 +248,7 @@ namespace passel.model
                 }
 
                 String name = prefix + base_num.ToString() + "_" + i.ToString();
-                Expr factor = z3.MkRealConst(name); // todo: toreal detection
+                Expr factor = Controller.Instance.Z3.MkRealConst(name); // todo: toreal detection
                 if (!Controller.Instance.ExistentialConstants.ContainsKey(name))
                 {
                     Controller.Instance.ExistentialConstants.Add(name, factor); // global list of constants
@@ -258,7 +256,7 @@ namespace passel.model
 
                 if (i < lv.Count)
                 {
-                    ts.Add(z3.MkMul((ArithExpr)factor, z3.MkInt2Real((IntExpr)lv.Values.ElementAt(i))));
+                    ts.Add(Controller.Instance.Z3.MkMul((ArithExpr)factor, Controller.Instance.Z3.MkInt2Real((IntExpr)lv.Values.ElementAt(i))));
                 }
                 else
                 {
@@ -267,7 +265,7 @@ namespace passel.model
             }
 
             // todo: toreal detection
-            t = z3.MkAdd(ts.ToArray()); // c0_0 * v0 + c0_1 * v1 + .. * c0_1 * vn
+            t = Controller.Instance.Z3.MkAdd(ts.ToArray()); // c0_0 * v0 + c0_1 * v1 + .. * c0_1 * vn
             return t;
         }
     }

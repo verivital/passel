@@ -8,10 +8,22 @@
 	<parameter name='LTOTAL' assumption='LTOTAL = LB + LF + LM' type='real' comment='' />
 	<parameter name='LS' assumption='LS == 7.0' type='real' comment='larger constant' />
 	<parameter name='a' assumption='a == 90.0' type='real' comment='lower bound on rectangular dynamics' />
-	<parameter name='b' assumption='b == 120.0' type='real' comment='upper bound on rectangular dynamics' />	
+<!--
+	<parameter name='aBL' assumption='aBL == 95.0' type='real' comment='lower bound on rectangular dynamics' />
+	<parameter name='aBR' assumption='aBR == 92.0 + (1.0/2.0)' type='real' comment='lower bound on rectangular dynamics' />
+	<parameter name='aF' assumption='aF == 99.0 + (999.0/1000.0)' type='real' comment='lower bound on rectangular dynamics' />
+	<parameter name='aML' assumption='aML == 91.0' type='real' comment='lower bound on rectangular dynamics' />
+	<parameter name='aMR' assumption='aMR == 93.0 + (1.0/3.0)' type='real' comment='lower bound on rectangular dynamics' />
+	<parameter name='bBL' assumption='bBL == 117.0 + (7.0/9.0)' type='real' comment='lower bound on rectangular dynamics' />
+	<parameter name='bBR' assumption='bBR == 109.0' type='real' comment='lower bound on rectangular dynamics' />
+	<parameter name='bF' assumption='bF == 114.0 + (1234.0/10000.0)' type='real' comment='lower bound on rectangular dynamics' />
+	<parameter name='bML' assumption='bML == 115.0 + (1.0/10.0)' type='real' comment='lower bound on rectangular dynamics' />
+	<parameter name='bMR' assumption='bMR == 119.0' type='real' comment='lower bound on rectangular dynamics' />
+-->
+	<parameter name='b' assumption='b == 120.0' type='real' comment='upper bound on rectangular dynamics' />
 	<parameter name='LGUARD' assumption='LGUARD == LS + (b - a) * ((LTOTAL - LS) / a)' type='real' comment='larger constant' />
-
-	<automaton name='sats-ii-harder-sides-miss'>
+	
+	<automaton name='sats-ii-harder-sides-miss-dynamics'>
 		<variable name='x[i]' type='nnreal' update_type='Continuous' />
 		<variable name='b[i]' type='integer' update_type='Discrete' comment='phaver does not allow an automaton i to read the control location of an automaton j, so we use a bit to do this' />
 		
@@ -24,31 +36,31 @@
 		<mode id='1' name='baseR' initial='False'>
 			<invariant equn='x[i] &lt;= LB' />
 			<stop equn='x[i] &gt;= LB' />
-			<dai variable='x[i]' equn='x[i]_dot &gt;= a and x[i]_dot &lt;= b'/>
+			<dai variable='x[i]' equn='x[i]_dot &gt;= 92.0 and x[i]_dot &lt;= 119.0'/>
 		</mode>
 		
 		<mode id='2' name='baseL' initial='False'>
 			<invariant equn='x[i] &lt;= LB' />
 			<stop equn='x[i] &gt;= LB' />
-			<dai variable='x[i]' equn='x[i]_dot &gt;= a and x[i]_dot &lt;= b'/>
+			<dai variable='x[i]' equn='x[i]_dot &gt;= 95.0 and x[i]_dot &lt;= 117.0'/>
 		</mode>
 		
 		<mode id='3' name='final' initial='False'>
 			<invariant equn='x[i] &lt;= LB + LF' />
 			<stop equn='x[i] &gt;= LB + LF' />
-			<dai variable='x[i]' equn='x[i]_dot &gt;= a and x[i]_dot &lt;= b'/>
+			<dai variable='x[i]' equn='x[i]_dot &gt;= 99.0 and x[i]_dot &lt;= 114.0'/>
 		</mode>
 		
 		<mode id='4' name='missR' initial='False'>
 			<invariant equn='x[i] &lt;= LB + LF + LM' />
 			<stop equn='x[i] &gt;= LB + LF + LM' />
-			<dai variable='x[i]' equn='x[i]_dot &gt;= a and x[i]_dot &lt;= b'/>
+			<dai variable='x[i]' equn='x[i]_dot &gt;= 93.0 and x[i]_dot &lt;= 119.0'/>
 		</mode>
 		
 		<mode id='5' name='missL' initial='False'>
 			<invariant equn='x[i] &lt;= LB + LF + LM' />
 			<stop equn='x[i] &gt;= LB + LF + LM' />
-			<dai variable='x[i]' equn='x[i]_dot &gt;= a and x[i]_dot &lt;= b'/>
+			<dai variable='x[i]' equn='x[i]_dot &gt;= 97.0 and x[i]_dot &lt;= 115.0'/>
 		</mode>
 		
 		<mode id='6' name='landed' initial='False'>
