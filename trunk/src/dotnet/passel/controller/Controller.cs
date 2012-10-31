@@ -842,7 +842,7 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
                                         //Instance._inputFiles.Add(inputFiles.First(a => a.Value.Contains("pointer-example.xml")).Value);
                                         Instance._inputFiles.Add(inputFiles.First(a => a.Value.Contains("gpointer-example.xml")).Value);
 
-                                        Instance._inputFiles.Add(inputFiles.First(a => a.Value.Contains("sats.xml")).Value);
+                                        Instance._inputFiles.Add(inputFiles.First(a => a.Value.Contains("prelim.xml")).Value);
                                         Instance._inputFiles.Add(inputFiles.First(a => a.Value.Contains("fischer.xml")).Value);
                                         Instance._inputFiles.Add(inputFiles.First(a => a.Value.Contains("fischer_aux.xml")).Value);
 
@@ -1835,75 +1835,78 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
                 string itemStart = "starting";
                 string itemEnd = "invariance_end";
 
-                foreach (var v in Instance.TimeMeasurements)
+
+                if (batch && (Instance.OPERATION == PROGRAM_MODE.INDUCTIVE_INVARIANT || Instance.OPERATION == PROGRAM_MODE.INPUT_PHAVER))
                 {
-
-                    if (v.expname == itemStart)
+                    foreach (var v in Instance.TimeMeasurements)
                     {
-                        meas += v.name + ",";
-
-                        String[] lns = Tail(File.OpenText(@"C:\Users\tjohnson\Dropbox\Research\tools\passel\repos\trunk\output\phaver\hscc2013\" + v.name + ".pha.log"), 10);
-
-                        int idx = 0;
-                        foreach (String ln in lns)
+                        if (v.expname == itemStart)
                         {
-                            if (ln.Contains("elapsed"))
+                            meas += v.name + ",";
+
+                            String[] lns = Tail(File.OpenText(@"C:\Users\tjohnson\Dropbox\Research\tools\passel\repos\trunk\output\phaver\hscc2013\" + v.name + ".pha.log"), 10);
+
+                            int idx = 0;
+                            foreach (String ln in lns)
                             {
-                                break;
+                                if (ln.Contains("elapsed"))
+                                {
+                                    break;
+                                }
+                                idx++;
                             }
-                            idx++;
+
+                            String[] words = lns[idx].Split(',', '-');
+
+                            foreach (var s in words)
+                            {
+                                String tmp = s.Trim();
+                                if (tmp.EndsWith("elapsed"))
+                                {
+                                    meas += tmp.Split(' ')[0] + ",";
+                                }
+                                if (tmp.StartsWith("Max VSize", StringComparison.CurrentCultureIgnoreCase))
+                                {
+                                    String ss = tmp.Split('=')[1].Trim();
+                                    ss = ss.Substring(0, ss.Length - "KB".Length);
+                                    meas += (double.Parse(ss) / 1024.0) + ","; // KB -> MB
+                                }
+                            }
+                            //0.39 user, 0.30 system, 0.71 elapsed -- Max VSize = 6212KB, Max RSS = 3164KB
                         }
 
-                        String[] words = lns[idx].Split(',', '-');
-
-                        foreach (var s in words)
-                        {
-                            String tmp = s.Trim();
-                            if (tmp.EndsWith("elapsed"))
-                            {
-                                meas += tmp.Split(' ')[0] + ",";
-                            }
-                            if (tmp.StartsWith("Max VSize", StringComparison.CurrentCultureIgnoreCase))
-                            {
-                                String ss = tmp.Split('=')[1].Trim();
-                                ss = ss.Substring(0, ss.Length - "KB".Length);
-                                meas += (double.Parse(ss) / 1024.0) + ","; // KB -> MB
-                            }
-                        }
-                        //0.39 user, 0.30 system, 0.71 elapsed -- Max VSize = 6212KB, Max RSS = 3164KB
-                    }
-
-                    if (!headerDone)
-                    {
-                        header += v.expname + ",";
-                    }
-
-                    if (v.value == null)
-                    {
-                        meas += v.runtime.TotalSeconds + ",";
-                    }
-                    else
-                    {
-                        meas += v.value + ",";
-                    }
-
-                    if (v.expname == itemEnd)
-                    {
-                        if (!(Instance.TimeMeasurements.IndexOf(v) == Instance.TimeMeasurements.Count - 1))
-                        {
-                            meas += "\n";
-                        }
                         if (!headerDone)
                         {
-                            header += "\n";
+                            header += v.expname + ",";
                         }
-                        headerDone = true;
-                    }
 
-                    prev = v.name;
+                        if (v.value == null)
+                        {
+                            meas += v.runtime.TotalSeconds + ",";
+                        }
+                        else
+                        {
+                            meas += v.value + ",";
+                        }
+
+                        if (v.expname == itemEnd)
+                        {
+                            if (!(Instance.TimeMeasurements.IndexOf(v) == Instance.TimeMeasurements.Count - 1))
+                            {
+                                meas += "\n";
+                            }
+                            if (!headerDone)
+                            {
+                                header += "\n";
+                            }
+                            headerDone = true;
+                        }
+
+                        prev = v.name;
+                    }
+                    meas = header + meas;
+                    System.IO.File.WriteAllText(@"C:\Users\tjohnson\Dropbox\Research\tools\passel\repos\trunk\output\phaver\hscc2013\runtime.csv", meas);
                 }
-                meas = header + meas;
-                System.IO.File.WriteAllText(@"C:\Users\tjohnson\Dropbox\Research\tools\passel\repos\trunk\output\phaver\hscc2013\runtime.csv", meas);
             }
         }
 
