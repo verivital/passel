@@ -270,7 +270,7 @@ namespace passel.controller
 
 
 
-            this.Config.Add("ELIM_QUANTIFIERS", "true"); // if we fix N to be small, we can rely on MBQI, but if we have N large or unbounded, we may need Q.E.
+            //this.Config.Add("ELIM_QUANTIFIERS", "true"); // if we fix N to be small, we can rely on MBQI, but if we have N large or unbounded, we may need Q.E.
             this.Config.Add("ELIM_NLARITH_QUANTIFIERS", "true");
             this.Config.Add("ELIM_BOUNDS", "true");
             this.Config.Add("QI_LAZY_INSTANTIATION", "true");
@@ -842,7 +842,7 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
                                         //Instance._inputFiles.Add(inputFiles.First(a => a.Value.Contains("pointer-example.xml")).Value);
                                         Instance._inputFiles.Add(inputFiles.First(a => a.Value.Contains("gpointer-example.xml")).Value);
 
-                                        Instance._inputFiles.Add(inputFiles.First(a => a.Value.Contains("prelim.xml")).Value);
+                                        //Instance._inputFiles.Add(inputFiles.First(a => a.Value.Contains("prelim.xml")).Value);
                                         Instance._inputFiles.Add(inputFiles.First(a => a.Value.Contains("fischer.xml")).Value);
                                         Instance._inputFiles.Add(inputFiles.First(a => a.Value.Contains("fischer_aux.xml")).Value);
 
@@ -1038,8 +1038,8 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
             uint ub = Instance.IndexNValueUpper;
             if (!batch)
             {
-                lb = Controller.Instance.IndexNValue;
-                ub = Controller.Instance.IndexNValue;
+                //lb = Controller.Instance.IndexNValue;
+                //ub = Controller.Instance.IndexNValue;
             }
 
 
@@ -1396,7 +1396,8 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
                                     catch
                                     {*/
 
-                                    reachset = ParseHyXML.ParseReach("C:\\Users\\tjohnson\\Dropbox\\Research\\tools\\phaver\\hscc2013\\reach\\" + Instance.Sys.HybridAutomata[0].Name + "_N=" + N + ".reach", false); // parse reach set
+                                    String reachname = "C:\\Users\\tjohnson\\Dropbox\\Research\\tools\\phaver\\hscc2013\\reach\\" + Instance.Sys.HybridAutomata[0].Name + "_N=" + N + ".reach";
+                                    reachset = ParseHyXML.ParseReach(reachname, false); // parse reach set
 
                                     //}
 
@@ -1844,35 +1845,43 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
                         {
                             meas += v.name + ",";
 
-                            String[] lns = Tail(File.OpenText(@"C:\Users\tjohnson\Dropbox\Research\tools\passel\repos\trunk\output\phaver\hscc2013\" + v.name + ".pha.log"), 10);
-
-                            int idx = 0;
-                            foreach (String ln in lns)
+                            String logname = "C:\\Users\\tjohnson\\Dropbox\\Research\\tools\\passel\\repos\\trunk\\output\\phaver\\hscc2013\\" + v.name + ".pha.log";
+                            if (File.Exists(logname))
                             {
-                                if (ln.Contains("elapsed"))
+                                String[] lns = Tail(File.OpenText(@logname), 10);
+
+                                int idx = 0;
+                                foreach (String ln in lns)
                                 {
-                                    break;
+                                    if (ln.Contains("elapsed"))
+                                    {
+                                        break;
+                                    }
+                                    idx++;
                                 }
-                                idx++;
+
+                                String[] words = lns[idx].Split(',', '-');
+
+                                foreach (var s in words)
+                                {
+                                    String tmp = s.Trim();
+                                    if (tmp.EndsWith("elapsed"))
+                                    {
+                                        meas += tmp.Split(' ')[0] + ",";
+                                    }
+                                    if (tmp.StartsWith("Max VSize", StringComparison.CurrentCultureIgnoreCase))
+                                    {
+                                        String ss = tmp.Split('=')[1].Trim();
+                                        ss = ss.Substring(0, ss.Length - "KB".Length);
+                                        meas += (double.Parse(ss) / 1024.0) + ","; // KB -> MB
+                                    }
+                                }
+                                //0.39 user, 0.30 system, 0.71 elapsed -- Max VSize = 6212KB, Max RSS = 3164KB
                             }
-
-                            String[] words = lns[idx].Split(',', '-');
-
-                            foreach (var s in words)
+                            else
                             {
-                                String tmp = s.Trim();
-                                if (tmp.EndsWith("elapsed"))
-                                {
-                                    meas += tmp.Split(' ')[0] + ",";
-                                }
-                                if (tmp.StartsWith("Max VSize", StringComparison.CurrentCultureIgnoreCase))
-                                {
-                                    String ss = tmp.Split('=')[1].Trim();
-                                    ss = ss.Substring(0, ss.Length - "KB".Length);
-                                    meas += (double.Parse(ss) / 1024.0) + ","; // KB -> MB
-                                }
+                                meas += "nodata,nodata,";
                             }
-                            //0.39 user, 0.30 system, 0.71 elapsed -- Max VSize = 6212KB, Max RSS = 3164KB
                         }
 
                         if (!headerDone)

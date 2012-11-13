@@ -10,7 +10,7 @@ fischer = 0
 mux = 1
 fischer_aux = 2
 sats_3loc = 3
-pmode = sats_3loc
+pmode = mux
 
 ctx = main_ctx()
 ctx.set(PP_MIN_ALIAS_SIZE=1000)
@@ -64,14 +64,18 @@ assump = []
 
 if pmode == fischer or pmode == fischer_aux or pmode == sats_3loc:
 	t1 = Real("t1") # time elapse variable
+	t2 = Real("t2") # time elapse variable
+	delta = Real("delta") # time elapse variable
 	if pmode == fischer or pmode == fischer_aux:
-		A, B, c, d = Reals("A B c d")
+		#A, B, c, d = Reals("A B c d")
 		#assump.append(A == 1) # safe if A < B; buggy (multiple processes in critical section) if A >= B
 		#assump.append(B == 10)
 		#assump.append(And(A > 0, B > 0))
 		#assump.append(A < B) # you don't have to pick actual values for A or B
-		assump.append(A == 5)
-		assump.append(B == 7)
+		#assump.append(A == 5)
+		#assump.append(B == 7)
+		A = 5
+		B = 7
 	if pmode == sats_3loc:
 		#a, b, LB, LS, LGUARD = Reals("a b LB LS LGUARD")
 		#assump.append(a == 90)
@@ -88,6 +92,7 @@ if pmode == fischer or pmode == fischer_aux or pmode == sats_3loc:
 		LGUARD = LS + (b - a) * ((LB - LS) / a)
 
 Nv = 3 # number of processes
+Pv = 2
 
 assump.append(N == Nv) # TODO: >= ?
 
@@ -220,6 +225,10 @@ def stepTransition(k, i):
 		ts.append(And( q[k][i-1] == ControlLocation.fly, q[k+1][i-1] == ControlLocation.base, ug, identityTransition(k,i,[x,q],[]) ) )
 		ts.append(And( q[k][i-1] == ControlLocation.base, q[k+1][i-1] == ControlLocation.fly, x[k+1][i-1] == 0, identityTransition(k,i,[q],[]) ) )
 		ts.append(And( q[k][i-1] == ControlLocation.base, q[k+1][i-1] == ControlLocation.landed, x[k+1][i-1] == 0, identityTransition(k,i,[q],[]) ) )
+		
+		#ts.append(And( q[k][i-1] == ControlLocation.fly, q[k+1][i-1] == ControlLocation.base, identityTransition(k,i,[x,q],[]) ) )
+		#ts.append(And( q[k][i-1] == ControlLocation.base, q[k+1][i-1] == ControlLocation.fly, identityTransition(k,i,[x,q],[]) ) )
+		#ts.append(And( q[k][i-1] == ControlLocation.base, q[k+1][i-1] == ControlLocation.landed, identityTransition(k,i,[x,q],[]) ) )
 	
 	for v in range(len(ts)):
 		ts[v] = simplifyBetterConj( ts[v] ).as_expr()
@@ -244,20 +253,31 @@ def timeTransition(k):
 	if pmode == fischer_aux:
 		for j in range(1,Nv+1):
 			# all discrete variables remain unchanged; the last implication enforces the invariant in the start location
-			ts.append( And( q[k+1][j-1] == q[k][j-1], g[k+1] == g[k], Implies( (q[k][j-1] == ControlLocation.start), x[k+1][j-1] <= last[k][j-1] ),If( (Or(q[k+1][j-1] == ControlLocation.start,q[k+1][j-1] == ControlLocation.check)), x[k+1][j-1] == x[k][j-1] + t1, x[k+1][j-1] == x[k][j-1] ) ) )
+			#ts.append( And( q[k+1][j-1] == q[k][j-1], g[k+1] == g[k], Implies( (q[k][j-1] == ControlLocation.start), x[k+1][j-1] <= last[k][j-1] ),If( (Or(q[k+1][j-1] == ControlLocation.start,q[k+1][j-1] == ControlLocation.check)), x[k+1][j-1] == x[k][j-1] + t1, x[k+1][j-1] == x[k][j-1] ) ) )
 			
-		ts.append( t1 > 0 )
+			ts.append( And( q[k+1][j-1] == q[k][j-1], Implies( (q[k][j-1] == ControlLocation.start), x[k][j-1] + t2 <= last[k][j-1] ),If( (Or(q[k+1][j-1] == ControlLocation.start,q[k+1][j-1] == ControlLocation.check)), x[k+1][j-1] == x[k][j-1] + t1, x[k+1][j-1] == x[k][j-1] ) ) )
+			
+		ts.append( t1 >= 0 )
+		ts.append( g[k+1] == g[k] )
 		p = And( ts )
+		#p = Exists([delta], ForAll([t2], Implies(And(t2 >= 0, t2 <= t1), p) ) )
+		#p = Exists([t1], ForAll([t2], Implies(And(t2 >= 0, t2 <= t1), p) ) )
+		p = Exists([t1], p)
 		
 	if pmode == sats_3loc:
 		for j in range(1,Nv+1):
 			#ts.append( And( q[k+1][j-1] == q[k][j-1], x[k+1][j-1] >= x[k][j-1] + a * t1, x[k+1][j-1] <= x[k][j-1] + b * t1, Implies( (q[k][j-1] == ControlLocation.base), x[k+1][j-1] <= LB )  ) )
-			ts.append( And( q[k+1][j-1] == q[k][j-1], Implies( (q[k][j-1] == ControlLocation.base), x[k+1][j-1] <= LB ), If( q[k][j-1] == ControlLocation.base, And(x[k+1][j-1] >= x[k][j-1] + a * t1, x[k+1][j-1] <= x[k][j-1] + b * t1), x[k+1][j-1] == x[k][j-1] ) ) )
-		ts.append( t1 > 0 )
+			ts.append( And( q[k+1][j-1] == q[k][j-1], Implies( (q[k][j-1] == ControlLocation.base), And(x[k][j-1] <= LB, x[k+1][j-1] <= LB) ), If( q[k][j-1] == ControlLocation.base, And(x[k+1][j-1] >= x[k][j-1] + a * t1, x[k+1][j-1] <= x[k][j-1] + b * t1), x[k+1][j-1] == x[k][j-1] ) ) )
+
+		ts.append( t1 >= 0 )
 		p = And( ts )
-		
+		#p = Exists([delta], ForAll([t2], Implies(And(t2 >= 0, t2 <= t1), p) ) )
+		#p = Exists([t1], ForAll([t2], Implies(And(t2 >= 0, t2 <= t1), p) ) )
+		p = Exists([t1], p)
+
 	if pmode == mux:
 		p = False # no time transition (identity)
+	
 	print "Time transition:"
 	p = simplifyBetterConj( p ).as_expr()
 	print p
@@ -311,18 +331,26 @@ def split_inv_tlv_ii(prop,Nv,auxc):
 # N is the number of processes in the system
 #  auxc is an invariant defining auxiliary variables used in the proof
 	theta = []
+	
+	
+	print initList
+	
 	for i in range(1,Nv+1):
 		theta.append( [] )
 		theta[i-1] = []
 		for j in range(1,Nv+1):
-			#theta[i-1].append( [] )
+			theta[i-1].append( [] )
 			if i != j:
 				if pmode == fischer or pmode == fischer_aux or pmode == mux:
-					theta[i-1].append( And(initList[i-1], initList[j-1], globalInit) )
+					#theta[i-1].append( And(initList[i-1], initList[j-1], globalInit) )
+					theta[i-1][j-1] = And(And(initList), globalInit) # TODO: PROJECT AWAY NON-I,J
 				if pmode == sats_3loc:
-					theta[i-1].append( And(initList[i-1], initList[j-1]) )
+					#theta[i-1].append( And(initList[i-1], initList[j-1]) )
+					theta[i-1][j-1] = initList
 			else:
 				theta[i-1].append( [] )
+
+	print theta
 
 	print "loop until convergence. \n"
 	change = 1
@@ -330,6 +358,9 @@ def split_inv_tlv_ii(prop,Nv,auxc):
 
 	while change:
 		print "... starting iteration ", str(index), "\n"
+		
+		
+		
 		for i in range(1,Nv+1):
 			for j in range(1,Nv+1):
 				if (i != j):
@@ -350,6 +381,9 @@ def split_inv_tlv_ii(prop,Nv,auxc):
 		print "Done building conjunct"
 		conj = simplifyBetterConj( conj ).as_expr()
 		print "Done simplifying conjunct"
+		
+		fileWrite(conj, "quant-ii-" + str(pmode) + "-iteration-" + str(index) + "-conj.smt")
+		fileWrite(theta[0][1], "quant-ii-" + str(pmode) + "-iteration-" + str(index) + ".smt")
 
 		#print "conj start:"
 		#print simplify(conj)
@@ -379,20 +413,29 @@ def split_inv_tlv_ii(prop,Nv,auxc):
 					if pmode == sats_3loc:
 						#bounds = [q[0][i-1], q[0][j-1], x[0][i-1], x[0][j-1], barray[0][i-1], barray[0][j-1]] # eliminate pre-state variable names
 						bounds = [q[0][i-1], q[0][j-1], x[0][i-1], x[0][j-1]] # eliminate pre-state variable names
+					
+					#bounds.append( q[0][((j+1) % Nv)-1] )
+					#bounds.append( x[0][((j+1) % Nv)-1] )
+					
 					bounds.extend( othersVarsPrePost_ii(i,j) ) # eliminate all other process variables (e.g., if looking at theta[0][1], eliminate vars of any process > 2)
 					print "others(" + str(i) + ", " + str(j) + "):" + str(othersVarsPrePost_ii(i,j))
+					
+					bounds.append( N )
+					#bounds.extend( [N, x[1][0]] )
+					#if pmode == fischer_aux:
+					#	bounds.append( A )
+					#	bounds.append( B )
+					
+					
+					print "bounds " + str(bounds)
+					
+					
 
-					
-					if pmode == fischer or pmode == fischer_aux or pmode == sats_3loc:
-						bounds.append( t1 )
-						#ts.append( timeTransition(0) )
-						# do the time transition ONCE for all processes, add it here
-						delta[i-1][j-1] = Or( delta[i-1][j-1], And( conj, timeTransition(0) ) )
-					
+
+#					for trans in ts:
 					for m in range(1,Nv+1):
 						#delta[i][j] = Or( delta[i][j], (succ(tr[m], conj) forsome others_vars[i][j]) )
 						print "step"
-						#ts.extend( stepTransition(0,m) )
 						ts = stepTransition(0, m)
 						
 						
@@ -411,53 +454,21 @@ def split_inv_tlv_ii(prop,Nv,auxc):
 						# do the step transition FOR EACH process m
 						delta[i-1][j-1] = simplify( Or( delta[i-1][j-1], And( conj, Or( ts ) ) ) )
 						
-					
-							
-					
-					print "step done"
-					
-					
-					rest = simplifyBetter( delta[i-1][j-1] )
-					#rest = simplifyBetterConj( delta[i-1][j-1] )
-					
-					print "before unique:"  + str(len(rest))
-										
-					newList = []
-					
-					print "at bound elimination for iteration " + str(index)
-					print bounds
-					print datetime.now()
-					sidx = 0
-					
-					scount = len(rest)
-					
-					for subr in rest:
-						#print subr.as_expr()
-						if sidx % 100 == 0:
-							print "Iteration " + str(index) + ": on subterm " + str(sidx) + " of " + str(scount)
-						sidx = sidx + 1
-					
-						tgoal = Goal()
+						delta[i-1][j-1] = computePost(delta[i-1][j-1], bounds, index)
 						
-						tgoal.add( And(assump) )
-						#bounds.extend( [N, x[1][0]] )
-						bounds.append( N )
-						tgoal.add( Exists(bounds, And(And(assump), subr.as_expr() ) ) )
-						#tgoal.add( Exists(bounds, subr.as_expr() ) )
-						#ttac = With(Tactic('qe'),  eliminate_variables_as_block=True) # qe_nonlinear=True
-						ttac = With(Tactic('qe'),  eliminate_variables_as_block=False) # qe_nonlinear=True
+					if pmode == fischer or pmode == fischer_aux or pmode == sats_3loc:
+						#bounds.append( t1 )
+						#ts.append( timeTransition(0) )
+						# do the time transition ONCE for all processes, add it here
+						delta[i-1][j-1] = Or( delta[i-1][j-1], And( conj, timeTransition(0) ) )
 						
-						tr = ttac(tgoal)
-						tr = simplifyBetter( tr.as_expr() )
-						#print tr
-						for gt in tr:
-							#print gt.as_expr()
-							newList.append( simplifyBetter( gt.as_expr() ).as_expr() )
-					newstates = Or(newList)
+						delta[i-1][j-1] = computePost(delta[i-1][j-1], bounds, index)
 
 
+					#newstates = computePost(delta[i-1][j-1], bounds, index)
+					
 					# rename post-state to pre-state (x' -> x)
-					delta[i-1][j-1] = newstates
+					#delta[i-1][j-1] = newstates
 					kfrom = 1
 					kto = 0
 					for idx in range(1,Nv+1):
@@ -612,9 +623,12 @@ def split_inv_tlv_ii(prop,Nv,auxc):
 	
 	#print quant
 
-	fptr = open("quant-ii-" + str(pmode) + ".smt", 'w')
-	fptr.write( quant.sexpr().replace("qf","q").replace("gxf","x").replace("xf","x").replace("gf","g").replace("<","&lt;").replace(">","&gt;").replace("= g 1","= g i").replace("= g 2","= g j").replace("(= g 3)", "(not (= g i)) (not (= g j))").replace("(= g 0)", "(not (= g i)) (not (= g j))").replace("lastf","last").replace("firstf","first") )
-	fptr.close()
+	#fptr = open("quant-ii-" + str(pmode) + ".smt", 'w')
+	#fptr.write( quant.sexpr().replace("qf","q").replace("gxf","x").replace("xf","x").replace("gf","g").replace("<","&lt;").replace(">","&gt;").replace("= g 1","= g i").replace("= g 2","= g j").replace("(= g 3)", "(not (= g i)) (not (= g j))").replace("(= g 0)", "(not (= g i)) (not (= g j))").replace("lastf","last").replace("firstf","first") )
+	#fptr.close()
+	fileWrite(quant, "quant-ii-" + str(pmode) + ".smt")
+	
+	
 
 
 
@@ -628,6 +642,52 @@ def split_inv_tlv_ii(prop,Nv,auxc):
 
 
 
+
+def computePost(prop,bounds,round):
+	print "step done"
+	print "bounds " + str(bounds)
+
+	rest = simplifyBetter( prop )
+	#rest = simplifyBetter( delta[i-1][j-1] )
+	#rest = simplifyBetterConj( delta[i-1][j-1] )
+
+	print "before unique:"  + str(len(rest))
+
+	newList = []
+
+	print "at bound elimination for iteration " + str(round)
+	print bounds
+	print datetime.now()
+	sidx = 0
+
+	scount = len(rest)
+
+	for subr in rest:
+		#print subr.as_expr()
+		if sidx % 100 == 0:
+			print "Iteration " + str(round) + ": on subterm " + str(sidx) + " of " + str(scount)
+		sidx = sidx + 1
+
+		tgoal = Goal()
+
+		#tgoal.add( And(assump) )
+
+		#tgoal.add( N == Nv)
+		
+
+		tgoal.add( Exists(bounds, And(And(assump), subr.as_expr() ) ) )
+		#tgoal.add( Exists(bounds, subr.as_expr() ) )
+		ttac = With(Tactic('qe'),  eliminate_variables_as_block=True) # qe_nonlinear=True
+		#ttac = With(Tactic('qe'),  eliminate_variables_as_block=False) # qe_nonlinear=True
+
+		tr = ttac(tgoal)
+		tr = simplifyBetter( tr.as_expr() )
+		#print tr
+		for gt in tr:
+			#print gt.as_expr()
+			newList.append( simplifyBetter( gt.as_expr() ).as_expr() )
+	newstates = Or(newList)
+	return newstates
 
 
 
@@ -656,9 +716,11 @@ def split_inv_tlv_i(prop,Nv,auxc):
 	for i in range(1,Nv+1):
 		theta.append( [] )
 		if pmode == sats_3loc:
-			theta[i-1] = And(initList[i-1])
+			#theta[i-1] = And(initList[i-1])
+			theta[i-1] = And(initList)
 		else:
-			theta[i-1] = And(initList[i-1], globalInit)
+			theta[i-1] = And(And(initList), globalInit) # TODO: PROJECT AWAY NON-I,J
+			#theta[i-1] = And(initList[i-1], globalInit)
 
 	print "loop until convergence. \n"
 	change = 1
@@ -929,9 +991,21 @@ def split_inv_tlv_i(prop,Nv,auxc):
 
 
 	#print quant
+	fileWrite(quant, "quant-i-" + str(pmode) + ".smt")
 
-	fptr = open("quant-i-" + str(pmode) + ".smt", 'w')
-	fptr.write( quant.sexpr().replace("bf","b").replace("qf","q").replace("gxf","x").replace("xf","x").replace("gf","g").replace("<","&lt;").replace(">","&gt;").replace("= g 1","= g i").replace("(= g 2)","(not (= g i))").replace("(= g 3)", "(not (= g i))").replace("(= g 0)", "(not (= g i))") )
+
+
+
+def fileWrite(quant, name):
+	fptr = open(name, 'w')
+	if Pv == 1:
+		qstr = quant.sexpr().replace("qf","q").replace("gxf","x").replace("xf","x").replace("gf","g").replace("<","&lt;").replace(">","&gt;").replace("= g 1","= g i").replace("= g 2","(not (= g i))").replace("(= g 0)", "(not (= g i))").replace("lastf","last").replace("firstf","first");
+	elif Pv == 2:
+		qstr = quant.sexpr().replace("qf","q").replace("gxf","x").replace("xf","x").replace("gf","g").replace("<","&lt;").replace(">","&gt;").replace("= g 1","= g i").replace("= g 2","= g j").replace("(= g 3)", "(and (not (= g i)) (not (= g j)))").replace("(= g 0)", "(and (not (= g i)) (not (= g j)))").replace("lastf","last").replace("firstf","first");
+	else:
+		qstr = quant.sexpr().replace("qf","q").replace("gxf","x").replace("xf","x").replace("gf","g").replace("<","&lt;").replace(">","&gt;").replace("= g 1","= g i").replace("= g 2","= g j").replace("(= g 3)", "(and (not (= g i)) (not (= g j)))").replace("(= g 0)", "(and (not (= g i)) (not (= g j)))").replace("lastf","last").replace("firstf","first");
+	#fptr.write( quant.sexpr().replace("bf","b").replace("qf","q").replace("gxf","x").replace("xf","x").replace("gf","g").replace("<","&lt;").replace(">","&gt;").replace("= g 1","= g i").replace("(= g 2)","(not (= g i))").replace("(= g 3)", "(not (= g i))").replace("(= g 0)", "(not (= g i))") )
+	fptr.write( qstr )
 	fptr.close()
 
 
@@ -1127,6 +1201,7 @@ def simplifyBetterConj(expr):
 #conj = tconj( gconj ).as_expr()
 
 	
+	#tac = Tactic('ctx-solver-simplify')
 	
 	#tac = Then(Tactic('lia2pb'), Tactic('ctx-solver-simplify'))
 	#tac = Then(Tactic('lia2pb'), Tactic('ctx-simplify'))
@@ -1220,7 +1295,6 @@ def simplifyBetter(expr):
 
 	#stac = Then( Tactic('propagate-values'), Tactic('propagate-ineqs'))
 	
-	tac = Repeat(Then(Repeat('max-bv-sharing'),Tactic('simplify'), Tactic('elim-term-ite'), Tactic('ctx-simplify'), Repeat(Tactic('elim-and')), Repeat(Tactic('propagate-values')), Repeat(Tactic('propagate-ineqs')), OrElse(Tactic('split-clause'), Tactic('skip')), Repeat(Tactic('ctx-simplify'))))
 	#print expr
 	#tac = Then(Repeat(Tactic('propagate-values')), Repeat(Tactic('propagate-ineqs')), OrElse(Tactic('split-clause'), Tactic('skip')), Repeat(Tactic('simplify')))
 	
@@ -1228,8 +1302,8 @@ def simplifyBetter(expr):
 	
 	#tac = Tactic('ctx-simplify')
 	
-	
-	
+	tac = Repeat(Then(Repeat('max-bv-sharing'),Tactic('simplify'), Tactic('elim-term-ite'), Tactic('ctx-simplify'), Repeat(Tactic('elim-and')), Repeat(Tactic('propagate-values')), Repeat(Tactic('propagate-ineqs')), OrElse(Tactic('split-clause'), Tactic('skip')), Repeat(Tactic('ctx-simplify'))))	
+	#tac = Tactic('ctx-solver-simplify')
 	
 	return tac( g )
 	

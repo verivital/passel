@@ -766,12 +766,12 @@ namespace passel.model
                         //if (z3.proveTerm(inductiveInvariant, out model, out core, true))
                         if (true)
                         {
-                            z3.checkTerm(timeii, out model, out core, true);
+                            //z3.checkTerm(timeii, out model, out core, true);
 
 
                             timeii = z3.MkImplies((BoolExpr)timeii, (BoolExpr)p.Post);
 
-                            timeii = z3.MkExists(Controller.Instance.ExistentialConstants.Values.ToArray(), timeii); // todo: only do this for termination properties
+                            //timeii = z3.MkExists(Controller.Instance.ExistentialConstants.Values.ToArray(), timeii); // todo: only do this for termination properties
 
                             if (z3.proveTerm(timeii, out model, out core, out tmp_stat, true))
                             {
@@ -1617,7 +1617,14 @@ namespace passel.model
                     }
                     else
                     {
-                        spec += "1";
+                        if (p.Key == "N")
+                        {
+                            spec += N;
+                        }
+                        else
+                        {
+                            spec += "1 /* default value, unspecified in source */";
+                        }
                     }
                     spec += ";" + newline;
                 }

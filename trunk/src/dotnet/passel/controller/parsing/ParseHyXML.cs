@@ -215,6 +215,12 @@ namespace passel.controller.parsing
             //List<Expr> reach = new List<Expr>();
             List<String> reach = new List<String>();
 
+            if (!File.Exists(path))
+            {
+                Console.WriteLine("Error: reach set file not found.\n\r");
+                return reach;
+            }
+
             StreamReader reader = new StreamReader(path);
             
             String reachset = reader.ReadToEnd();

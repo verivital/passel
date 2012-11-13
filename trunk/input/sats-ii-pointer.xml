@@ -25,7 +25,7 @@
 		<mode id='1' name='landing' initial='False'>
 			<invariant equn='x[i] &lt;= L' />
 			<stop equn='x[i] &gt;= L' />
-			<dai variable='x[i]' equn='x[i]_dot == 1.0'/>
+			<dai variable='x[i]' equn='x[i]_dot &gt;= 90.0 and x[i]_dot &lt;= 120.0'/>
 		</mode>
 		
 		<transition source='fly' destination='landing'>
@@ -50,9 +50,11 @@
 	<property equn='forall i (q[i] == fly or q[i] == landing)' type='safety' />
 	<property equn='forall i j ((i != j) implies ((q[i] == fly or q[i] == landing) and (q[j] == fly or q[j] == landing)))' type='safety' />
 	<property equn='forall i j ((i != j and q[i] == landing and q[j] == landing and x[i] &gt; x[j] and p[i] != 0 and p[j] != 0) implies (x[i] &gt;= x[j] + S))' type='safety' />
--->
-	
 	<property equn='forall i j ((i != j and x[i] &gt; x[j]) implies (x[i] &gt;= x[j] + S))' type='safety' />
+-->
+
+	<property equn='forall i j ((i != j and q[i] == landing and q[j] == landing and x[i] &gt; x[j]) implies (x[i] &gt;= x[j] + S))' type='safety' />
+
 	
 	<property equn='false' type='safety' />
 

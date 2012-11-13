@@ -44,7 +44,7 @@
 		
 
 		<transition source='Holding' destination='Base'>
-			<guard equn='(next[i] == 0) or (next[i] != 0 and q[ next[i] ] == Base and x[ next[i] ] &gt;= (LGUARD * 1.0))'/>
+			<guard equn='(next[i] == 0) or (next[i] != 0 and q[ next[i] ] == Base and x[ next[i] ] &gt;= (LGUARD * 0.99))'/>
 			<action equn='x[i]&apos; = 0.0'/>
 		</transition>
 
@@ -63,14 +63,14 @@
 	</automaton>
 	
 	<!-- manual strengthening proof -->
-<!--
+
 	<property equn='forall i ((q[i] == Base) implies (x[i] &lt;= LB))' type='safety' comment='' />
 	<property equn='forall i ((x[i] &lt;= LB))' type='safety' comment='' />
 	<property equn='forall i ((q[i] == Fly) implies (last != i))' type='safety' comment='key lemma 3: must hold to show key lemma 2' />
 	<property equn='forall i j ((next[j] == i) implies (q[i] != Fly))' type='safety' comment='key lemma 2: must hold to show key lemma 1' />	
 	<property equn='forall i j ((q[i] = Holding and next[j] = i) implies (q[j] = Holding))' type='safety' comment='key lemma 1: for showing safety (if this holds, safety holds)' />
 	<property equn='forall i j ((q[i] == Base and q[j] == Base and next[j] == i) implies (x[i] &gt;= (LB - x[j]) / (a) * (b - a)))' type='safety' comment='inductive invariant of safety' />
--->
+
 	
 	<property equn='forall i j ((i != j and q[i] == Base and q[j] == Base and next[j] == i) implies (x[i] - x[j] &gt;= LS))' type='safety' comment='Safety: there is always at least S distance between any two distinct aircraft.' />
 

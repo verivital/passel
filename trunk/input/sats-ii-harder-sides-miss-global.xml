@@ -127,10 +127,13 @@
 	<property equn='forall i j (((q[i] == baseR or q[i] == baseL or q[i] == final) and (q[j] == baseR or q[j] == baseL or q[j] == final) and x[i] &gt; x[j] and b[i] == 1 and b[j] == 1) implies (x[i] &gt;= (LTOTAL - x[j]) / (a) * (b - a)))' type='safety' comment='inductive invariant of safety' />
 	<property equn='forall i j ((i != j and (q[i] == baseR or q[i] == baseL or q[i] == final) and (q[j] == baseR or q[j] == baseL or q[j] == final) and x[i] &gt; x[j] and b[i] == 1 and b[j] == 1) implies (x[i] &gt;= x[j] + LS))' type='safety' />
 -->
-	
+
 	<property equn='forall i j ((i != j and (q[i] == baseR or q[i] == baseL or q[i] == final) and (q[j] == baseR or q[j] == baseL or q[j] == final) and x[i] &gt; x[j]) implies (x[i] &gt;= x[j] + LS))' type='safety' />
 
-	
+<!--
+	<property equn='forall i j ((i != j and x[i] &gt; x[j]) implies (x[i] &gt;= x[j] + LS))' type='safety' />
+-->
+
 	
 	<property equn='false' type='safety' />
 
