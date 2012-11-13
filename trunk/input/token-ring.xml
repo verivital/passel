@@ -28,13 +28,15 @@ If the antisymmetric version is used, our implementation of the invisible invari
 		</mode>
 		
 		<!-- version using mod (incompatible with PHAVer) -->
+		<!--
 		<transition source='idle' destination='waiting'>
 			<guard equn='token == 0 or token == i' />
 			<action equn='token&apos; = (i % N) + 1'/>
 		</transition>
+		-->
 		
 		
-		<!-- version using two transitions instead of mod (needed for compatibility with PHAVer)
+		<!-- version using two transitions instead of mod (needed for compatibility with PHAVer) -->
 		<transition source='idle' destination='waiting'>
 			<guard equn='(token == 0 or token == i) and i &gt;= N' />
 			<action equn='token&apos; = 1'/>
@@ -44,7 +46,7 @@ If the antisymmetric version is used, our implementation of the invisible invari
 			<guard equn='(token == 0 or token == i) and i &lt; N' />
 			<action equn='token&apos; = i + 1'/>
 		</transition>
-		-->
+
 		
 		<transition source='waiting' destination='cs'>
 			<guard equn='token == i' />
@@ -55,25 +57,18 @@ If the antisymmetric version is used, our implementation of the invisible invari
 
 	</automaton>
 
-
 	<property equn='true' type='safety' />
-
-	<!-- <property equn='forall i ((q[i] == cs) implies (token == i))' type='safety' comment='inductive invariant that implies mutual exclusion' /> -->
-
+<!--	<property equn='forall i ((q[i] == cs) implies (token == i))' type='safety' comment='inductive invariant that implies mutual exclusion' /> -->
 	<property equn='forall i j ((i != j) implies (q[i] != cs or q[j] != cs))' type='safety' />
-	
 	<property equn='forall i j ((i != j and q[i] == cs) implies (q[j] != cs))' type='safety' />
-	
 	<property equn='false' type='safety' />
 
-	
 	
 	<!--
 	<property equn='forall i j ((i != j) implies ((q[i] == waiting and q[j] == waiting) or   (q[i] == idle and q[j] == idle) or  (q[i] == idle and q[j] == idle and token == i) or  (q[i] == idle and q[j] == waiting and token == i) or  (q[i] == cs and q[j] == idle and token == i) or  (q[i] == waiting and q[j] == cs and token == j) or  (q[i] == cs and q[j] == waiting and token == i) or  (q[i] == waiting and q[j] == idle and (token == i or token == j))))' type='safety' />
 	-->
 	
 <!--
-
 	<property equn='forall i j ((i != j) implies () )
       (q[i] == waiting and q[j] == waiting) or
       (q[i] == idle and q[j] == idle) or
@@ -83,8 +78,6 @@ If the antisymmetric version is used, our implementation of the invisible invari
       (q[i] == waiting and q[j] == cs and token == j) or
       (q[i] == cs and q[j] == waiting and token == i) or
       (q[i] == waiting and q[j] == idle and (token == i or token == j))' type='safety' />
-
-
 
 (forall ((i Int) (j Int))
   (or (not (and (>= i 1) (<= i N) (>= j 1) (<= j N) (not (= i j))))
