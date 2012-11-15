@@ -722,9 +722,9 @@ namespace passel.controller.parsing
                                                 // from params
                                                 //decls.Add(Controller.Instance.IndexN.FuncDecl);
                                                 //names.Add(Controller.Instance.IndexN.FuncDecl.Name);
-
+                                                System.Console.WriteLine("Before smt parsing");
                                                 BoolExpr prop = Controller.Instance.Z3.ParseSMTLIB2String(pstr, null, null, names.ToArray(), decls.ToArray());
-                                                
+                                                System.Console.WriteLine("Done with smt parsing");
                                                 //BoolExpr prop = Controller.Instance.Z3.ParseSMTLIB2String(pstr);
                                                 p = new Property(prop);
                                                 p.makePost(); // update post expression

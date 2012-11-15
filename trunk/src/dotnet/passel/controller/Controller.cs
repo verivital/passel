@@ -10,7 +10,7 @@ using System.IO;
 
 using Microsoft.Z3;
 
-using VixCOM;
+//using VixCOM;
 
 using passel.controller;
 
@@ -184,7 +184,7 @@ namespace passel.controller
         public const String PRIME_SUFFIX_PARSER = "&apos;";
         public const String DOT_SUFFIX = "_dot";
 
-        public const bool LOG_Z3 = true; // enable / disable z3 re-runnable log
+        public const bool LOG_Z3 = false; // enable / disable z3 re-runnable log
 
 
         /**
@@ -753,9 +753,13 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
             {
                 Instance._inoutPath = "C:\\Documents and Settings\\tjohnson\\My Documents\\My Dropbox\\Research\\tools\\passel\\repos\\trunk\\input\\";
             }
-            else if (System.Environment.MachineName.ToLower().StartsWith("lh-lapto"))
+            else if (System.Environment.MachineName.ToLower().StartsWith("lh-laptop-w7"))
             {
                 Instance._inoutPath = "C:\\Users\\tjohnson\\Dropbox\\Research\\tools\\passel\\repos\\trunk\\input\\";
+            }
+            else if (System.Environment.MachineName.ToLower().StartsWith("lh-laptop-w8"))
+            {
+                Instance._inoutPath = "D:\\Dropbox\\Research\\tools\\passel\\repos\\trunk\\input\\";
             }
             else
             {
