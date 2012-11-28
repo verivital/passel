@@ -42,11 +42,11 @@
 			<dai variable='x[i]' equn='x[i]_dot = 1.0'/>
 		</mode>
 		
-		<mode id='6' name='' initial='False'>
+		<mode id='6' name='loc6' initial='False'>
 			<dai variable='x[i]' equn='x[i]_dot = 1.0'/>
 		</mode>
 		
-		<mode id='7' name='' initial='False'>
+		<mode id='7' name='loc7' initial='False'>
 			<dai variable='x[i]' equn='x[i]_dot = 1.0'/>
 		</mode>
 		
@@ -58,19 +58,19 @@
 			<dai variable='x[i]' equn='x[i]_dot = 1.0'/>
 		</mode>
 		
-		<mode id='10' name='' initial='False'>
+		<mode id='10' name='loc10' initial='False'>
 			<dai variable='x[i]' equn='x[i]_dot = 1.0'/>
 		</mode>
 		
-		<mode id='11' name='' initial='False'>
+		<mode id='11' name='loc11' initial='False'>
 			<dai variable='x[i]' equn='x[i]_dot = 1.0'/>
 		</mode>
 		
-		<mode id='12' name='' initial='False'>
+		<mode id='12' name='loc12' initial='False'>
 			<dai variable='x[i]' equn='x[i]_dot = 1.0'/>
 		</mode>
 		
-		<mode id='13' name='' initial='False'>
+		<mode id='13' name='loc13' initial='False'>
 			<dai variable='x[i]' equn='x[i]_dot = 1.0'/>
 		</mode>
 		
@@ -164,21 +164,21 @@
 	</automaton>
 	
 
-	<property equn='(forall i ((q[i] == 11))) implies (b == 0)' type='safety' />
-	<property equn='(forall i ((q[i] != 0 and q[i] != 12 and q[i] == 11))) implies (b == 0)' type='safety' />
+	<property equn='(forall i ((q[i] == loc11))) implies (b == 0)' type='safety' />
+	<property equn='(forall i ((q[i] != rem and q[i] != loc12 and q[i] == loc11))) implies (b == 0)' type='safety' />
 
-	<property equn='forall i ((q[i] == 11) implies (b == 0))' type='safety' />
-	<property equn='forall i ((q[i] != 0 and q[i] != 12 and q[i] == 11) implies (b == 0))' type='safety' />
-
-
-	<property equn='(forall i ((q[i] == 12))) implies (v == 0 and b == 0)' type='safety' />
+	<property equn='forall i ((q[i] == loc11) implies (b == 0))' type='safety' />
+	<property equn='forall i ((q[i] != rem and q[i] != loc12 and q[i] == loc11) implies (b == 0))' type='safety' />
 
 
+	<property equn='(forall i ((q[i] == loc12))) implies (v == 0 and b == 0)' type='safety' />
 
-	<property equn='(forall i ((q[i] == 0 or q[i] == 12))) implies (v == 0 and b == 0)' type='safety' />
+
+
+	<property equn='(forall i ((q[i] == rem or q[i] == loc12))) implies (v == 0 and b == 0)' type='safety' />
 	
 	
-	<property equn='forall i ((q[i] != 7 and q[i] != 8 and q[i] != 9 and q[i] != 10) implies (b == 0))' type='safety' />
+	<property equn='forall i ((q[i] != loc7 and q[i] != cs1 and q[i] != cs2 and q[i] != loc10) implies (b == 0))' type='safety' />
 
 
 	<property equn='forall i j ((i != j) implies ((q[i] != cs1 and q[i] != cs2) or (q[j] != cs1 and q[j] != cs2)))' type='safety' />

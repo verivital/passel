@@ -2,18 +2,18 @@
 
 <holism>
 	<parameter name='N' type='index' comment='number of aircraft in the system' />
-	<parameter name='LB' assumption='LB == (15.0 + 10.0 + 13.0)' type='real' comment='base zone length' />
+	<parameter name='LB' assumption='LB == (5.0 + 10.0 + 13.0)' type='real' comment='base zone length' />
 	<parameter name='LS' assumption='LS == 7.0' type='real' comment='safety spacing' />
+	<parameter name='LGUARD' assumption='LGUARD == LS + (b - a) * ((LB - LS) / a)' type='real' comment='guard length' />
 	
 	<parameter name='a' assumption='a == 90.0' type='real' comment='v_min lower bound on rectangular dynamics' />
 	<parameter name='b' assumption='b == 120.0' type='real' comment='v_max upper bound on rectangular dynamics' />
 
 	<variable name='last'  type='index' update_type='discrete' comment='global tail pointer variable, where tail is defined as the plane that is last to land' />
 
-	<assumption equn='LGUARD == LS + (b - a) * ((LB - LS) / a)' />
 	<assumption equn='N &gt;= 2' comment='there are at least 2 aircraft in the system' />
 
-	<automaton name='sats'>
+	<automaton name='prelim'>
 		<variable name='x[i]' type='nnreal' update_type='Continuous' />
 		<variable name='next[i]' type='index' update_type='Discrete' />
 		
@@ -41,10 +41,9 @@
 			<guard equn='next[i] == 0' />
 			<action equn='x[i]&apos; = 0.0 and next[i]&apos; = last and last&apos; = i'/>
 		</transition>
-		
 
 		<transition source='Holding' destination='Base'>
-			<guard equn='(next[i] == 0) or (next[i] != 0 and q[ next[i] ] == Base and x[ next[i] ] &gt;= (LGUARD * 0.99))'/>
+			<guard equn='(next[i] == 0) or (next[i] != 0 and q[ next[i] ] == Base and x[ next[i] ] &gt;= (LGUARD * 1000.0))'/>
 			<action equn='x[i]&apos; = 0.0'/>
 		</transition>
 
@@ -65,6 +64,9 @@
 	<!-- manual strengthening proof -->
 
 	<property equn='forall i ((q[i] == Base) implies (x[i] &lt;= LB))' type='safety' comment='' />
+	
+	<property equn='forall i (false)' type='safety' comment='' />
+	
 	<property equn='forall i ((x[i] &lt;= LB))' type='safety' comment='' />
 	<property equn='forall i ((q[i] == Fly) implies (last != i))' type='safety' comment='key lemma 3: must hold to show key lemma 2' />
 	<property equn='forall i j ((next[j] == i) implies (q[i] != Fly))' type='safety' comment='key lemma 2: must hold to show key lemma 1' />	

@@ -43,5 +43,26 @@ namespace passel.model
         public Expr RectRateA;
         public Expr RectRateB;
 
+        public override String ToString()
+        {
+            string r = "\\dot{" + Variable.Name + "} = ";
+            switch (DynamicsType)
+            {
+                case DynamicsTypes.constant:
+                    r += "0";
+                    break;
+                case DynamicsTypes.timed:
+                    r += RectRateA;
+                    break;
+                case DynamicsTypes.rectangular:
+                    r += "\\in [" + RectRateA + ", " + RectRateB + "]";
+                    break;
+                case DynamicsTypes.nonlinear:
+                default:
+                    r += "f(" + Variable.Name + ")";
+                    break;
+            }
+            return r;
+        }
     }
 }

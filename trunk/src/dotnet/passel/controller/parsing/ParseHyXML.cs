@@ -578,6 +578,8 @@ namespace passel.controller.parsing
             ConcreteLocation l = null;
             ElementNames n = ElementNames.parameter;
 
+            int loc_counter = 0;
+
             XmlTextReader reader = new XmlTextReader(path);
             while (reader.Read())
             {
@@ -1124,11 +1126,24 @@ namespace passel.controller.parsing
                                         {
                                             throw new System.Exception("Error parsing transition: hybrid automaton not specified properly before reaching location.");
                                         }
-                                        UInt32 value = UInt32.Parse(reader.GetAttribute(LocationAttributes.id.ToString()));
+                                        uint value = UInt32.Parse(reader.GetAttribute(LocationAttributes.id.ToString()));
                                         String label = reader.GetAttribute(LocationAttributes.name.ToString());
                                         Boolean initial = Boolean.Parse(reader.GetAttribute(LocationAttributes.initial.ToString()));
-                                        Controller.Instance.LocationNumToName.Add(value, label);
-                                        Controller.Instance.LocationNameToNum.Add(label, value);
+
+                                        // dynamically create label name if none specified
+                                        if (label.Length == 0)
+                                        {
+                                            label = "loc" + loc_counter;
+                                            loc_counter++;
+                                        }
+                                        if (!Controller.Instance.LocationNumToName.ContainsKey(value))
+                                        {
+                                            Controller.Instance.LocationNumToName.Add(value, label);
+                                        }
+                                        if (!Controller.Instance.LocationNameToNum.ContainsKey(label))
+                                        {
+                                            Controller.Instance.LocationNameToNum.Add(label, value);
+                                        }
                                         l = new ConcreteLocation(label, value, initial);
                                         // bound control location variable values: 0 <= q_i <= # states, 0 <= q_j <= # states, 0 <= q_k <= # states
                                         break;
@@ -1188,14 +1203,14 @@ namespace passel.controller.parsing
                                                 List<AState> from = new List<AState>(); // have to find the frome state as well, because in hyxml syntax, transitions are not associated with locations
                                                 foreach (AState s in h.Locations)
                                                 {
-                                                    UInt32 desParsed;
-                                                    UInt32 srcParsed;
+                                                    uint desParsed = 0;
+                                                    uint srcParsed = 0;
 
                                                     foreach (String stmp in srcs)
                                                     {
                                                         UInt32.TryParse(stmp, out srcParsed);
 
-                                                        if (s.Label == stmp || (srcParsed != 0 && s.Value == UInt32.Parse(stmp)))
+                                                        if (s.Label == stmp || (srcParsed != null && Regex.IsMatch(stmp, @"^[0-9]+$") && s.Value == UInt32.Parse(stmp)))
                                                         {
                                                             from.Add(s);
                                                         }
@@ -1205,7 +1220,7 @@ namespace passel.controller.parsing
                                                     {
                                                         UInt32.TryParse(dtmp, out desParsed);
 
-                                                        if (s.Label == dtmp || (desParsed != 0 && s.Value == UInt32.Parse(dtmp)))
+                                                        if (s.Label == dtmp || (desParsed != null && Regex.IsMatch(dtmp, @"^[0-9]+$") && s.Value == UInt32.Parse(dtmp)))
                                                         {
                                                             t.NextStates.Add(s);
                                                         }

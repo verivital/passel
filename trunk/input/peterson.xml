@@ -8,7 +8,7 @@
 
 	<assumption equn='N &gt;= 2' comment='' />
 
-	<automaton name='mux-index'>
+	<automaton name='peterson'>
 		<variable name='y[i]' type='index' update_type='Discrete' />
 		<variable name='s[i]' type='index' update_type='Discrete' />
 	

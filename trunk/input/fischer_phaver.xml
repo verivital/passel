@@ -14,10 +14,8 @@
 
 	<automaton name='fischer_phaver'>
 		<variable name='x[i]' type='nnreal' update_type='Continuous' />
-		<variable name='c[i]' type='nnreal' update_type='Discrete' />
-		<variable name='d[i]' type='nnreal' update_type='Discrete' />
 		
-		<initial equn='(forall i (x[i] == 0.0 and c[i] == 1 and d[i] == 2)) and k = 0' />
+		<initial equn='(forall i (x[i] == 0.0)) and k = 0' />
 
 
 		<mode id='0' name='idle' initial='True'>
@@ -26,11 +24,11 @@
 
 		<mode id='1' name='start' initial='False'>
 			<invariant equn='x[i] &lt;= a' />
-			<dai variable='x[i]' equn='x[i]_dot &gt;= c[i] and x[i]_dot &lt;= d[i]'/>
+			<dai variable='x[i]' equn='x[i]_dot &gt;= a and x[i]_dot &lt;= b'/>
 		</mode>
 		
 		<mode id='2' name='check' initial='False'>
-			<dai variable='x[i]' equn='x[i]_dot &gt;= c[i] and x[i]_dot &lt;= d[i]'/>
+			<dai variable='x[i]' equn='x[i]_dot &gt;= a and x[i]_dot &lt;= b'/>
 		</mode>
 		
 		<mode id='3' name='CS' initial='False'>

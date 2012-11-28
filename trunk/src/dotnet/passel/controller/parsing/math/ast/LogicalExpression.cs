@@ -108,7 +108,7 @@ namespace passel.controller.parsing.math.ast
                         List<Expr> bound = new List<Expr>();
 
                         int i = 0;
-                        List<Expr> indexConstraints = new List<Expr>();
+                        List<BoolExpr> indexConstraints = new List<BoolExpr>();
                         while (ast.GetChild(i).Type == guardLexer.VARIABLE)
                         {
                             String name = ast.GetChild(i).GetChild(0).Text;
@@ -191,13 +191,13 @@ namespace passel.controller.parsing.math.ast
                                         if (bound.Count > 1)
                                         {
                                             indexConstraints.Add(Controller.Instance.Z3.MkDistinct(bound.ToArray()));
-                                            indexConstraints.Add(CreateTerm((CommonTree)ast.GetChild(i), treeHasRealVars)); // recursion
-                                            return Controller.Instance.Z3.MkExists(bound.ToArray(), Controller.Instance.Z3.MkAnd((BoolExpr[])indexConstraints.ToArray()));
+                                            indexConstraints.Add((BoolExpr)CreateTerm((CommonTree)ast.GetChild(i), treeHasRealVars)); // recursion
+                                            return Controller.Instance.Z3.MkExists(bound.ToArray(), Controller.Instance.Z3.MkAnd(indexConstraints.ToArray()));
                                         }
                                         else
                                         {
-                                            indexConstraints.Add(CreateTerm((CommonTree)ast.GetChild(i), treeHasRealVars)); // recursion
-                                            return Controller.Instance.Z3.MkExists(bound.ToArray(), Controller.Instance.Z3.MkAnd((BoolExpr[])indexConstraints.ToArray()));
+                                            indexConstraints.Add((BoolExpr)CreateTerm((CommonTree)ast.GetChild(i), treeHasRealVars)); // recursion
+                                            return Controller.Instance.Z3.MkExists(bound.ToArray(), Controller.Instance.Z3.MkAnd(indexConstraints.ToArray()));
                                         }
                                     case Controller.ExistsOptionType.implies:
                                     default:
@@ -295,99 +295,111 @@ namespace passel.controller.parsing.math.ast
 
 
                 case guardLexer.INDEXED_VARIABLE:
-                    // todo: find appropriate function for application and apply the index variable to it
-                    if (Controller.Instance.IndexedVariables.ContainsKey(new KeyValuePair<String, String>(ast.GetChild(0).Text, ast.GetChild(1).Text)))
                     {
-                        return Controller.Instance.IndexedVariables[new KeyValuePair<String, String>(ast.GetChild(0).Text, ast.GetChild(1).Text)];
-                    }
-                    else if (ast.GetChild(0).Text.Equals("q") && ast.GetChild(1).Type != guardLexer.INDEXED_VARIABLE)
-                    {
-                        if (!Controller.Instance.Q.ContainsKey(ast.GetChild(1).Text))
+                        // todo: find appropriate function for application and apply the index variable to it
+                        String varName = ast.GetChild(0).Text;
+                        CommonTree r = (CommonTree)ast.GetChild(1);
+                        Expr index = CreateTerm((CommonTree)r);
+
+                        return Controller.Instance.Z3.MkApp(Controller.Instance.DataU.IndexedVariableDecl[varName], index);
+
+
+
+                        /*
+                        if (Controller.Instance.IndexedVariables.ContainsKey(new KeyValuePair<String, String>(ast.GetChild(0).Text, ast.GetChild(1).Text)))
                         {
-                            // global variable index, e.g., q[ last ] where last is an id
-                            if (ast.GetChild(1).Type == guardLexer.ID)
+                            return Controller.Instance.IndexedVariables[new KeyValuePair<String, String>(ast.GetChild(0).Text, ast.GetChild(1).Text)];
+                        }
+                        else if (ast.GetChild(0).Text.Equals("q") && ast.GetChild(1).Type != guardLexer.INDEXED_VARIABLE)
+                        {
+                            if (!Controller.Instance.Q.ContainsKey(ast.GetChild(1).Text))
                             {
-                                return Controller.Instance.Z3.MkApp(Controller.Instance.DataU.IndexedVariableDecl["q"], CreateTerm((CommonTree)ast.GetChild(1), treeHasRealVars));
+                                // global variable index, e.g., q[ last ] where last is an id
+                                if (ast.GetChild(1).Type == guardLexer.ID)
+                                {
+                                    return Controller.Instance.Z3.MkApp(Controller.Instance.DataU.IndexedVariableDecl["q"], CreateTerm((CommonTree)ast.GetChild(1), treeHasRealVars));
+                                }
+                                // create the index if it hasn't been used before
+                                else if (!Controller.Instance.Indices.ContainsKey(ast.GetChild(1).Text))
+                                {
+                                    //Controller.Instance.Indices.Add(ast.GetChild(1).Text, Controller.Instance.Z3.MkConst(ast.GetChild(1).Text, Controller.Instance.IndexType)); // create the index
+                                    // TODO: switch based on index type: want integers to be interpreted if we are not using an enumerated index set (i.e., make as integer if possible, else make as uninterpreted)
+                                    Controller.Instance.Indices.Add(ast.GetChild(1).Text, Controller.Instance.Z3.MkInt(ast.GetChild(1).Text)); // create the index
+                                }
+
+                                switch (Controller.Instance.DataOption)
+                                {
+                                    case Controller.DataOptionType.array:
+                                        {
+                                            if (!Controller.Instance.Q.ContainsKey(ast.GetChild(1).Text))
+                                            {
+                                                // todo next: probably don't want this as a store, may need to create this as a store, select, etc., then depending upon usage, pick the correct one, i.e., have several lists Q and QPrimed, such as QStore, QSelect, etc.
+                                                Controller.Instance.Q.Add(ast.GetChild(1).Text, Controller.Instance.Z3.MkSelect(Controller.Instance.DataA.IndexedVariableDecl[ast.GetChild(0).Text], Controller.Instance.Indices[ast.GetChild(1).Text])); // create the indexed variable (i.e., function application with the just created index)
+                                                Controller.Instance.QPrimed.Add(ast.GetChild(1).Text, Controller.Instance.Z3.MkSelect(Controller.Instance.DataA.IndexedVariableDeclPrimed[ast.GetChild(0).Text], Controller.Instance.Indices[ast.GetChild(1).Text]));
+                                            }
+                                            break;
+                                        }
+                                    case Controller.DataOptionType.uninterpreted_function:
+                                    default:
+                                        {
+                                            if (!Controller.Instance.Q.ContainsKey(ast.GetChild(1).Text))
+                                            {
+                                                Controller.Instance.Q.Add(ast.GetChild(1).Text, Controller.Instance.Z3.MkApp(Controller.Instance.DataU.IndexedVariableDecl[ast.GetChild(0).Text], Controller.Instance.Indices[ast.GetChild(1).Text])); // create the indexed variable (i.e., function application with the just created index)
+                                                Controller.Instance.QPrimed.Add(ast.GetChild(1).Text, Controller.Instance.Z3.MkApp(Controller.Instance.DataU.IndexedVariableDeclPrimed[ast.GetChild(0).Text], Controller.Instance.Indices[ast.GetChild(1).Text]));
+                                            }
+                                            break;
+                                        }
+                                }
                             }
-                            // create the index if it hasn't been used before
-                            else if (!Controller.Instance.Indices.ContainsKey(ast.GetChild(1).Text))
+                            return Controller.Instance.Q[ast.GetChild(1).Text];
+                        }
+                        // nested index pointer variable (e.g., q[ p[i] ]
+                        else if (ast.GetChild(1).Type == guardLexer.INDEXED_VARIABLE)
+                        {
+                            // very nasty, generalize later
+                            switch (Controller.Instance.DataOption)
+                            {
+                                case Controller.DataOptionType.array:
+                                    {
+                                        return Controller.Instance.Z3.MkSelect(Controller.Instance.DataA.IndexedVariableDecl[ast.GetChild(0).Text], getIndexedVariable(ast.GetChild(1).GetChild(0).Text, ast.GetChild(1).GetChild(1).Text));
+                                    }
+                                case Controller.DataOptionType.uninterpreted_function:
+                                default:
+                                    {
+                                        return Controller.Instance.Z3.MkApp(Controller.Instance.DataU.IndexedVariableDecl[ast.GetChild(0).Text], getIndexedVariable(ast.GetChild(1).GetChild(0).Text, ast.GetChild(1).GetChild(1).Text));
+                                    }
+                            }
+                        }
+                        else
+                        {
+                            if (!Controller.Instance.Indices.ContainsKey(ast.GetChild(1).Text))
                             {
                                 //Controller.Instance.Indices.Add(ast.GetChild(1).Text, Controller.Instance.Z3.MkConst(ast.GetChild(1).Text, Controller.Instance.IndexType)); // create the index
-                                // TODO: switch based on index type: want integers to be interpreted if we are not using an enumerated index set (i.e., make as integer if possible, else make as uninterpreted)
-                                Controller.Instance.Indices.Add(ast.GetChild(1).Text, Controller.Instance.Z3.MkInt(ast.GetChild(1).Text)); // create the index
+                                Controller.Instance.Indices.Add(ast.GetChild(1).Text, Controller.Instance.Z3.MkIntConst(ast.GetChild(1).Text)); // create the index
                             }
-
-                            switch (Controller.Instance.DataOption)
+                            if (!Controller.Instance.IndexedVariables.ContainsKey(new KeyValuePair<string, string>(ast.GetChild(0).Text, ast.GetChild(1).Text)))
                             {
-                                case Controller.DataOptionType.array:
-                                    {
-                                        if (!Controller.Instance.Q.ContainsKey(ast.GetChild(1).Text))
-                                        {
-                                            // todo next: probably don't want this as a store, may need to create this as a store, select, etc., then depending upon usage, pick the correct one, i.e., have several lists Q and QPrimed, such as QStore, QSelect, etc.
-                                            Controller.Instance.Q.Add(ast.GetChild(1).Text, Controller.Instance.Z3.MkSelect(Controller.Instance.DataA.IndexedVariableDecl[ast.GetChild(0).Text], Controller.Instance.Indices[ast.GetChild(1).Text])); // create the indexed variable (i.e., function application with the just created index)
-                                            Controller.Instance.QPrimed.Add(ast.GetChild(1).Text, Controller.Instance.Z3.MkSelect(Controller.Instance.DataA.IndexedVariableDeclPrimed[ast.GetChild(0).Text], Controller.Instance.Indices[ast.GetChild(1).Text]));
-                                        }
-                                        break;
-                                    }
-                                case Controller.DataOptionType.uninterpreted_function:
-                                default:
-                                    {
-                                        if (!Controller.Instance.Q.ContainsKey(ast.GetChild(1).Text))
-                                        {
-                                            Controller.Instance.Q.Add(ast.GetChild(1).Text, Controller.Instance.Z3.MkApp(Controller.Instance.DataU.IndexedVariableDecl[ast.GetChild(0).Text], Controller.Instance.Indices[ast.GetChild(1).Text])); // create the indexed variable (i.e., function application with the just created index)
-                                            Controller.Instance.QPrimed.Add(ast.GetChild(1).Text, Controller.Instance.Z3.MkApp(Controller.Instance.DataU.IndexedVariableDeclPrimed[ast.GetChild(0).Text], Controller.Instance.Indices[ast.GetChild(1).Text]));
-                                        }
-                                        break;
-                                    }
-                            }
-                        }
-                        return Controller.Instance.Q[ast.GetChild(1).Text];
-                    }
-                    // nested index pointer variable (e.g., q[ p[i] ]
-                    else if (ast.GetChild(1).Type == guardLexer.INDEXED_VARIABLE)
-                    {
-                        // very nasty, generalize later
-                        switch (Controller.Instance.DataOption)
-                        {
-                            case Controller.DataOptionType.array:
+                                switch (Controller.Instance.DataOption)
                                 {
-                                    return Controller.Instance.Z3.MkSelect(Controller.Instance.DataA.IndexedVariableDecl[ast.GetChild(0).Text], getIndexedVariable(ast.GetChild(1).GetChild(0).Text, ast.GetChild(1).GetChild(1).Text));
+                                    case Controller.DataOptionType.array:
+                                        {
+                                            Controller.Instance.IndexedVariables.Add(new KeyValuePair<string, string>(ast.GetChild(0).Text, ast.GetChild(1).Text), Controller.Instance.Z3.MkSelect(Controller.Instance.DataA.IndexedVariableDecl[ast.GetChild(0).Text], Controller.Instance.Indices[ast.GetChild(1).Text])); // create the indexed variable (i.e., function application with the just created index)
+                                            Controller.Instance.IndexedVariablesPrimed.Add(new KeyValuePair<string, string>(ast.GetChild(0).Text, ast.GetChild(1).Text), Controller.Instance.Z3.MkSelect(Controller.Instance.DataA.IndexedVariableDeclPrimed[ast.GetChild(0).Text], Controller.Instance.Indices[ast.GetChild(1).Text]));
+                                            break;
+                                        }
+                                    case Controller.DataOptionType.uninterpreted_function:
+                                    default:
+                                        {
+                                            Controller.Instance.IndexedVariables.Add(new KeyValuePair<string, string>(ast.GetChild(0).Text, ast.GetChild(1).Text), Controller.Instance.Z3.MkApp(Controller.Instance.DataU.IndexedVariableDecl[ast.GetChild(0).Text], Controller.Instance.Indices[ast.GetChild(1).Text])); // create the indexed variable (i.e., function application with the just created index)
+                                            Controller.Instance.IndexedVariablesPrimed.Add(new KeyValuePair<string, string>(ast.GetChild(0).Text, ast.GetChild(1).Text), Controller.Instance.Z3.MkApp(Controller.Instance.DataU.IndexedVariableDeclPrimed[ast.GetChild(0).Text], Controller.Instance.Indices[ast.GetChild(1).Text]));
+                                            break;
+                                        }
                                 }
-                            case Controller.DataOptionType.uninterpreted_function:
-                            default:
-                                {
-                                    return Controller.Instance.Z3.MkApp(Controller.Instance.DataU.IndexedVariableDecl[ast.GetChild(0).Text], getIndexedVariable(ast.GetChild(1).GetChild(0).Text, ast.GetChild(1).GetChild(1).Text));
-                                }
-                        }
-                    }
-                    else
-                    {
-                        if (!Controller.Instance.Indices.ContainsKey(ast.GetChild(1).Text))
-                        {
-                            //Controller.Instance.Indices.Add(ast.GetChild(1).Text, Controller.Instance.Z3.MkConst(ast.GetChild(1).Text, Controller.Instance.IndexType)); // create the index
-                            Controller.Instance.Indices.Add(ast.GetChild(1).Text, Controller.Instance.Z3.MkIntConst(ast.GetChild(1).Text)); // create the index
-                        }
-                        if (!Controller.Instance.IndexedVariables.ContainsKey(new KeyValuePair<string,string>(ast.GetChild(0).Text, ast.GetChild(1).Text)))
-                        {
-                            switch (Controller.Instance.DataOption)
-                            {
-                                case Controller.DataOptionType.array:
-                                    {
-                                        Controller.Instance.IndexedVariables.Add(new KeyValuePair<string, string>(ast.GetChild(0).Text, ast.GetChild(1).Text), Controller.Instance.Z3.MkSelect(Controller.Instance.DataA.IndexedVariableDecl[ast.GetChild(0).Text], Controller.Instance.Indices[ast.GetChild(1).Text])); // create the indexed variable (i.e., function application with the just created index)
-                                        Controller.Instance.IndexedVariablesPrimed.Add(new KeyValuePair<string, string>(ast.GetChild(0).Text, ast.GetChild(1).Text), Controller.Instance.Z3.MkSelect(Controller.Instance.DataA.IndexedVariableDeclPrimed[ast.GetChild(0).Text], Controller.Instance.Indices[ast.GetChild(1).Text]));
-                                        break;
-                                    }
-                                case Controller.DataOptionType.uninterpreted_function:
-                                default:
-                                    {
-                                        Controller.Instance.IndexedVariables.Add(new KeyValuePair<string, string>(ast.GetChild(0).Text, ast.GetChild(1).Text), Controller.Instance.Z3.MkApp(Controller.Instance.DataU.IndexedVariableDecl[ast.GetChild(0).Text], Controller.Instance.Indices[ast.GetChild(1).Text])); // create the indexed variable (i.e., function application with the just created index)
-                                        Controller.Instance.IndexedVariablesPrimed.Add(new KeyValuePair<string, string>(ast.GetChild(0).Text, ast.GetChild(1).Text), Controller.Instance.Z3.MkApp(Controller.Instance.DataU.IndexedVariableDeclPrimed[ast.GetChild(0).Text], Controller.Instance.Indices[ast.GetChild(1).Text]));
-                                        break;
-                                    }
                             }
-                        }
-                        return Controller.Instance.IndexedVariables[new KeyValuePair<String, String>(ast.GetChild(0).Text, ast.GetChild(1).Text)];
-                        //throw new Exception("Problem parsing indexed variable declaration.");
+                            return Controller.Instance.IndexedVariables[new KeyValuePair<String, String>(ast.GetChild(0).Text, ast.GetChild(1).Text)];
+                            //throw new Exception("Problem parsing indexed variable declaration.");
+                        }*/
+                        break;
                     }
 
                 case guardLexer.RESET_VARIABLE:
@@ -407,28 +419,36 @@ namespace passel.controller.parsing.math.ast
                         throw new Exception("Problem parsing global variable reset.");
                         //return Controller.Instance.Z3.MkConst(ast.GetChild(0).GetChild(0).Text, Controller.Instance.IntType);
                     }
+                    break;
 
                 case guardLexer.RESET_INDEXED_VARIABLE:
-                    String varName = ast.GetChild(0).GetChild(0).Text;
-                    String varNamePrime = varName + Controller.PRIME_SUFFIX;
-                    String index = ast.GetChild(0).GetChild(1).Text;
-                    if (Controller.Instance.IndexedVariablesPrimed.ContainsKey(new KeyValuePair<String, String>(varNamePrime, index)))
                     {
-                        return Controller.Instance.IndexedVariablesPrimed[new KeyValuePair<String, String>(varNamePrime, index)];
+                        String varName = ast.GetChild(0).GetChild(0).Text;
+                        String varNamePrime = varName + Controller.PRIME_SUFFIX;
+                        //String index = ast.GetChild(0).GetChild(1).Text;
+                        Expr index = CreateTerm((CommonTree)ast.GetChild(0).GetChild(1));
+                        /*if (Controller.Instance.IndexedVariablesPrimed.ContainsKey(new KeyValuePair<String, String>(varNamePrime, index)))
+                        {
+                            return Controller.Instance.IndexedVariablesPrimed[new KeyValuePair<String, String>(varNamePrime, index)];
+                        }
+                        else if (ast.GetChild(0).GetChild(0).Text.Equals("q") && Controller.Instance.QPrimed.ContainsKey(index)) // todo: add a way to discuss different discrete locations
+                        {
+                            return Controller.Instance.QPrimed[index];
+                        }
+                        else if (Controller.Instance.GlobalVariables.ContainsKey(index) && Controller.Instance.GlobalVariables[index].Sort == Controller.Instance.IndexType)
+                        {
+                            return Controller.Instance.Z3.MkApp(Controller.Instance.DataU.IndexedVariableDeclPrimed[varName], Controller.Instance.GlobalVariables[index]);
+                        }*/
+                        if (true)
+                        {
+                            return Controller.Instance.Z3.MkApp(Controller.Instance.DataU.IndexedVariableDeclPrimed[varName], index);
+                        }
+                        else
+                        {
+                            throw new Exception("Problem parsing reset of " + varNamePrime + ".");
+                        }
+                        break;
                     }
-                    else if (ast.GetChild(0).GetChild(0).Text.Equals("q") && Controller.Instance.QPrimed.ContainsKey(index)) // todo: add a way to discuss different discrete locations
-                    {
-                        return Controller.Instance.QPrimed[index];
-                    }
-                    else if (Controller.Instance.GlobalVariables.ContainsKey(index) && Controller.Instance.GlobalVariables[index].Sort == Controller.Instance.IndexType)
-                    {
-                        return Controller.Instance.Z3.MkApp(Controller.Instance.DataU.IndexedVariableDeclPrimed[varName], Controller.Instance.GlobalVariables[index]);
-                    }
-                    else
-                    {
-                        throw new Exception("Problem parsing reset of " + varNamePrime + ".");
-                    }
-                    
 
                 case guardLexer.DYNAMICS_VARIABLE:
                     // todo: add the prime for derivative?
@@ -436,10 +456,17 @@ namespace passel.controller.parsing.math.ast
                     return CreateTerm((CommonTree)ast.GetChild(0), treeHasRealVars);
 
                 case guardLexer.DYNAMICS_INDEXED_VARIABLE:
+                    {
 
-                    //direct return: return getIndexedVariable(ast.GetChild(0).GetChild(0).Text, ast.GetChild(0).GetChild(1).Text);
+                        //direct return: return getIndexedVariable(ast.GetChild(0).GetChild(0).Text, ast.GetChild(0).GetChild(1).Text);
 
-                    return getIndexedVariable(ast.GetChild(0).GetChild(0).Text, ast.GetChild(0).GetChild(1).Text);
+                        String varname = ast.GetChild(0).GetChild(0).Text;
+                        Expr index = CreateTerm((CommonTree)ast.GetChild(0).GetChild(1));
+
+                        return Controller.Instance.Z3.MkApp(Controller.Instance.DataU.IndexedVariableDecl[varname], index);
+
+                        //return getIndexedVariable(ast.GetChild(0).GetChild(0).Text, ast.GetChild(0).GetChild(1).Text);
+                    }
 
                 case guardLexer.INTEGER:
                     if (treeHasRealVars)
@@ -692,6 +719,10 @@ namespace passel.controller.parsing.math.ast
                     if (Controller.Instance.GlobalVariables.ContainsKey(ast.Text))
                     {
                         return Controller.Instance.GlobalVariables[ast.Text];
+                    }
+                    else if (Controller.Instance.Indices.ContainsKey(ast.Text))
+                    {
+                        return Controller.Instance.Indices[ast.Text];
                     }
                     else // function delcaration like sin(x)
                     {
@@ -946,7 +977,7 @@ namespace passel.controller.parsing.math.ast
                     return null;
             }
         }
-
+        /*
         private static Expr getIndexedVariable(String varname, String index)
         {
             // todo: find appropriate function for application and apply the index variable to it
@@ -959,7 +990,7 @@ namespace passel.controller.parsing.math.ast
                 return Controller.Instance.Q[index];
             }
             return null;
-        }
+        }*/
 
         public virtual void Accept(LogicalExpressionVisitor visitor)
         {

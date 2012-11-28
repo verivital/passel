@@ -157,6 +157,10 @@ namespace passel.model
          */
         public void checkInductiveInvariants()
         {
+            if (this._has == null)
+            {
+                return;
+            }
             ConcreteHybridAutomaton h = this._has.First(); // assume only one ha
             bool iinv = true;
             bool inv = true;
@@ -313,6 +317,7 @@ namespace passel.model
                 // initiation (inductive invariance): if disproved, set as not being inductive invariant
                 if (!z3.proveTerm(z3.MkImplies((BoolExpr)h.Initial, (BoolExpr)p.Formula), out model, out core, out tmp_stat, true))
                 {
+                    System.Console.WriteLine("INITIAL FAIL");
                     inv = false; // actually, perhaps we only check the invariant if we proved the term?
                     iinv = false;
                     p.Status = StatusTypes.disproved;
@@ -398,7 +403,8 @@ namespace passel.model
                                 inv = false;
                                 iinv = false;
                                 tViolate.Add(t);
-                                p.Counterexamples.Add(new Counterexample(z3.slvr.Model, claim));
+                                p.Counterexamples.Add(new Counterexample(z3.slvr.Model, claim)); // TODO: fix model generation
+                                //p.Counterexamples.Add(new Counterexample(null, claim)); // TODO: fix model generation
                             }
                             //z3.Pop();
 
@@ -556,7 +562,8 @@ namespace passel.model
                                     inv = false;
                                     iinv = false;
                                     tViolate.Add(t);
-                                    p.Counterexamples.Add(new Counterexample(z3.slvr.Model, claim));
+                                    p.Counterexamples.Add(new Counterexample(z3.slvr.Model, claim)); // TODO: FIGURE OUT WHY MODEL GENERATION DOESN'T WORK WHEN USING A TACTIC-BASED SOLVER
+                                    //p.Counterexamples.Add(new Counterexample(null, claim)); // TODO: FIGURE OUT WHY MODEL GENERATION DOESN'T WORK WHEN USING A TACTIC-BASED SOLVER
                                 }
                                 z3.slvr.Pop();
 
@@ -793,7 +800,8 @@ namespace passel.model
                                 p.Statistics.Add(tmp_stat);
                                 inv = false;
                                 iinv = false;
-                                p.Counterexamples.Add(new Counterexample(z3.slvr.Model, timeii));
+                                p.Counterexamples.Add(new Counterexample(z3.slvr.Model, timeii)); // TODO: fix model generation
+                                //p.Counterexamples.Add(new Counterexample(null, timeii)); // TODO: fix model generation
                             }
                         }
                     }
@@ -1541,7 +1549,7 @@ namespace passel.model
         /**
          * Generate a specification of N (for a fixed natural number) automata for Phaver
          */
-        public String outputPhaverN(uint N)
+        public String outputPhaverN(uint N, String output_path)
         {
             String spec = "";
             String tmp = "";
@@ -1549,6 +1557,8 @@ namespace passel.model
             ConcreteHybridAutomaton h = this._has.First();
 
             outmode mode = outmode.MODE_PHAVER;
+
+            System.Console.WriteLine("START: Generating phaver input file from Passel description for N = " + N);
 
             const string PHAVER_AUTOMATON = "automaton";
             const string PHAVER_VAR_CONTR = "contr_var";
@@ -2212,11 +2222,11 @@ namespace passel.model
             }
             spec = spec.Substring(0, spec.Length - 3);
             spec += ";" + newline + newline;
-            spec += "sys.print(\"system/" + h.Name + "_N=" + Controller.Instance.IndexNValue + ".csys" + "\", 0);" + newline;
+            spec += "sys.print(\"" + output_path + "system/" + h.Name + "_N=" + Controller.Instance.IndexNValue + ".csys" + "\", 0);" + newline;
 
             spec += "reg = sys.reachable;" + newline;
 
-            spec += "reg.print(\"reach/" + h.Name + "_N=" + Controller.Instance.IndexNValue + ".reach" + "\", 0);" + newline;
+            spec += "reg.print(\"" + output_path + "reach/" + h.Name + "_N=" + Controller.Instance.IndexNValue + ".reach" + "\", 0);" + newline;
 
             string globalNames = ","; // start with comma
             foreach (var v in this.Variables)

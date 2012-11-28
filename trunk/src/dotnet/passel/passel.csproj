@@ -152,9 +152,9 @@
     <Reference Include="Antlr3.Runtime.Debug">
       <HintPath>..\..\..\lib\antlr\Antlr3.Runtime.Debug.dll</HintPath>
     </Reference>
-    <Reference Include="Microsoft.Z3, Version=4.3.0.0, Culture=neutral, processorArchitecture=MSIL">
+    <Reference Include="Microsoft.Z3, Version=4.1.0.0, Culture=neutral, PublicKeyToken=9c8d792caae602a2, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>bin\Debug\Microsoft.Z3.dll</HintPath>
+      <HintPath>..\..\..\..\..\..\z3\z3-4.1\hscc2013\passel\bin\Microsoft.Z3.dll</HintPath>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Data" />
@@ -205,6 +205,17 @@
       <Generator>SettingsSingleFileGenerator</Generator>
       <LastGenOutput>Settings.Designer.cs</LastGenOutput>
     </None>
+  </ItemGroup>
+  <ItemGroup>
+    <COMReference Include="VixCOM">
+      <Guid>{7A474EE3-0062-4239-AE91-134AC9BD5FD3}</Guid>
+      <VersionMajor>1</VersionMajor>
+      <VersionMinor>0</VersionMinor>
+      <Lcid>0</Lcid>
+      <WrapperTool>tlbimp</WrapperTool>
+      <Isolated>False</Isolated>
+      <EmbedInteropTypes>False</EmbedInteropTypes>
+    </COMReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>

@@ -66,7 +66,7 @@ i, j, N = Ints("i j N")
 
 assump = []
 
-if pmode == fischer or pmode == fischer_aux or pmode == sats_3loc:
+if pmode == mux or pmode == fischer or pmode == fischer_aux or pmode == sats_3loc:
 	t1 = Real("t1") # time elapse variable
 	t2 = Real("t2") # time elapse variable
 	delta = Real("delta") # time elapse variable
@@ -249,8 +249,14 @@ def timeTransition(k):
 	if pmode == fischer:
 		for j in range(1,Nv+1):
 			# all discrete variables remain unchanged; the last implication enforces the invariant in the start location
-			ts.append( And( q[k+1][j-1] == q[k][j-1], g[k+1] == g[k], x[k+1][j-1] == x[k][j-1] + t1, Implies( (q[k][j-1] == ControlLocation.start), x[k+1][j-1] <= A ) ) )
+			#ts.append( And( q[k+1][j-1] == q[k][j-1], g[k+1] == g[k], x[k+1][j-1] == x[k][j-1] + t1, Implies( (q[k][j-1] == ControlLocation.start), x[k+1][j-1] <= A ) ) )
 			#ts.append( And( q[k+1][j-1] == q[k][j-1], g[k+1] == g[k], x[k+1][j-1] == x[k][j-1] + t1 ) )
+			
+			ts.append( And( q[k+1][j-1] == q[k][j-1], g[k+1] == g[k], And(
+				Implies( (q[k][j-1] == ControlLocation.idle), x[k+1][j-1] == x[k][j-1] ),
+				Implies( (q[k][j-1] == ControlLocation.start), And(x[k+1][j-1] == x[k][j-1] + t1, x[k][j-1] + t1 <= A ) ),
+				Implies( (q[k][j-1] == ControlLocation.check), And(x[k+1][j-1] == x[k][j-1] + t1, x[k][j-1] + t1 <= 2*B ) ),
+				Implies( (q[k][j-1] == ControlLocation.cs), x[k+1][j-1] == x[k][j-1] ) ) ) )
 
 		ts.append( t1 > 0 )
 		p = And( ts )
@@ -357,9 +363,9 @@ def split_inv_tlv_ii(prop,Nv,auxc):
 			if i != j:
 				if pmode == fischer or pmode == fischer_aux or pmode == mux:
 					#theta[i-1].append( And(initList[i-1], initList[j-1], globalInit) )
-					#theta[i-1][j-1] = And(And(initList[i-1]), And(initList[j-1]), globalInit) # TODO: PROJECT AWAY NON-I,J
+					theta[i-1][j-1] = And(And(initList[i-1]), And(initList[j-1]), globalInit) # TODO: PROJECT AWAY NON-I,J
 					#theta[i-1][j-1] = And(And(initList), globalInit) # TODO: PROJECT AWAY NON-I,J
-					theta[i-1][j-1] = simplify(And(And( initAll ), globalInit))
+					#theta[i-1][j-1] = simplify(And(And( initAll ), globalInit))
 				if pmode == sats_3loc:
 					#theta[i-1].append( And(initList[i-1], initList[j-1]) )
 					theta[i-1][j-1] = initList
@@ -372,10 +378,10 @@ def split_inv_tlv_ii(prop,Nv,auxc):
 	change = 1
 	index = 0
 
-	while change:
+	while True:
 		print "... starting iteration ", str(index), "\n"
-		
-		
+
+
 		
 		for i in range(1,Nv+1):
 			for j in range(1,Nv+1):
@@ -398,8 +404,12 @@ def split_inv_tlv_ii(prop,Nv,auxc):
 		conj = simplifyBetterConj( conj ).as_expr()
 		print "Done simplifying conjunct"
 		
-		fileWrite(conj, "quant-ii-" + str(pmode) + "-iteration-" + str(index) + "-conj.smt")
 		fileWrite(theta[0][1], "quant-ii-" + str(pmode) + "-iteration-" + str(index) + ".smt")
+
+		fileWrite(conj, "quant-ii-" + str(pmode) + "-iteration-" + str(index) + "-conj.smt")
+		
+		if not change:
+			break
 
 		#print "conj start:"
 		#print simplify(conj)
@@ -437,7 +447,7 @@ def split_inv_tlv_ii(prop,Nv,auxc):
 					#bounds.append( x[0][((j+1) % Nv)-1] )
 					
 					bounds.extend( othersVarsPrePost_ii(i,j) ) # eliminate all other process variables (e.g., if looking at theta[0][1], eliminate vars of any process > 2)
-					print "others(" + str(i) + ", " + str(j) + "):" + str(othersVarsPrePost_ii(i,j))
+					#print "others(" + str(i) + ", " + str(j) + "):" + str(othersVarsPrePost_ii(i,j))
 					
 					bounds.append( N )
 					#bounds.extend( [N, x[1][0]] )
@@ -445,38 +455,40 @@ def split_inv_tlv_ii(prop,Nv,auxc):
 					#	bounds.append( A )
 					#	bounds.append( B )
 				
-#					for trans in ts:
+					ts = []
 					for m in range(1,Nv+1):
 						#delta[i][j] = Or( delta[i][j], (succ(tr[m], conj) forsome others_vars[i][j]) )
 						print "step"
-						ts = stepTransition(0, m)
+						ts.extend( stepTransition(0, m) )
 						
 						# TODO NEXT: CAN WE INTERLEAVE THE Q.E. STEP HERE? E.G., ADD 1 TRANSITION, DO Q.E., REPEAT
 						
-						for tidx in range(len(ts)):
-							s.push()
-							s.add( And(conj, ts[tidx] ) )
-							if s.check() == unsat: # transition not enabled, don't add it
-								print "not adding: " + str(tidx)
-								print ts[tidx]
-								ts[tidx] = False # remove transition
-							else:
-								print "adding: " + str(tidx)
-								#delta[i-1][j-1] = simplify( Or( delta[i-1][j-1], And( conj, Or( ts ) ) ) )
+					for tidx in range(len(ts)):
+						s.push()
+						s.add( And(conj, ts[tidx] ) )
+						if s.check() == unsat: # transition not enabled, don't add it
+							print "not adding: " + str(tidx)
+							print ts[tidx]
+							ts[tidx] = False # remove transition
+						else:
+							print "adding: " + str(tidx)
+							#delta[i-1][j-1] = simplify( Or( delta[i-1][j-1], And( conj, Or( ts ) ) ) )
 
-								# do the step transition FOR EACH process m
-								#delta[i-1][j-1] = simplify( Or( delta[i-1][j-1], And( conj, Or( ts ) ) ) )
-								delta[i-1][j-1] = simplify( Or( delta[i-1][j-1], And( conj, ts[tidx] ) ) )
-								delta[i-1][j-1] = computePost(delta[i-1][j-1], bounds, index)
-								#delta[i-1][j-1] = Or( delta[i-1][j-1], computePost( And( conj, Or( ts ) ), bounds, index) )
-								fileWrite(delta[i-1][j-1], "quant-ii-" + str(pmode) + "-transition-" + str(index) + "-t" + str(tidx) + ".txt" )
-							s.pop()
-						
-						
+							# do the step transition FOR EACH process m
+							#delta[i-1][j-1] = simplify( Or( delta[i-1][j-1], And( conj, Or( ts ) ) ) )
+							#delta[i-1][j-1] = simplify( Or( delta[i-1][j-1], And( conj, ts[tidx] ) ) )
+							#delta[i-1][j-1] = computePost(delta[i-1][j-1], bounds, index)
+							#delta[i-1][j-1] = Or( delta[i-1][j-1], computePost( And( conj, Or( ts ) ), bounds, index) )
+							#delta[i-1][j-1] = Or( delta[i-1][j-1], computePost( And( conj, ts[tidx] ), bounds, index) )
+							#delta[i-1][j-1] = Or( delta[i-1][j-1], And( conj, ts[tidx] ) )
+							#fileWrite(delta[i-1][j-1], "quant-ii-" + str(pmode) + "-transition-" + str(index) + "-t" + str(tidx) + ".txt" )
+						s.pop()
+					ts.append( timeTransition(0) )
+					delta[i-1][j-1] = simplify( Or( delta[i-1][j-1], And( conj, Or( ts ) ) ) )
 						
 					# do the time transition ONCE for all processes, add it here
-					if pmode == fischer or pmode == fischer_aux or pmode == sats_3loc:
-						#bounds.append( t1 )
+					if pmode == mux or pmode == fischer or pmode == fischer_aux or pmode == sats_3loc:
+						bounds.append( t1 )
 						timet = timeTransition(0)
 						#timet = Exists([t1], timet)
 						
@@ -485,22 +497,32 @@ def split_inv_tlv_ii(prop,Nv,auxc):
 						if s.check() == unsat: # transition not enabled, don't add it
 							print "NO TIME ENABLED: not adding time\n\n\n\n\n\n\n"
 							timet = False
-							return
 						else:
 							print s.model()
 						s.pop()
 						#return
+
+						#delta[i-1][j-1] = Or( delta[i-1][j-1], And( conj, timet ) )
+						#delta[i-1][j-1] = computePost(delta[i-1][j-1], [t1], index)
 						
+						#fileWrite(delta[i-1][j-1], "quant-ii-" + str(pmode) + "-transition-" + str(index) + "-t" + str(len(ts)) + ".txt" )
 						
-						delta[i-1][j-1] = Or( delta[i-1][j-1], And( conj, timet ) )
-						delta[i-1][j-1] = computePost(delta[i-1][j-1], [t1], index)
-						
-						fileWrite(delta[i-1][j-1], "quant-ii-" + str(pmode) + "-transition-" + str(index) + "-t" + str(len(ts)) + ".txt" )
-						
-						print "TIME-POST RESULT:"
+						#print "TIME-POST RESULT:"
+						#print delta[i-1][j-1]
+						#delta[i-1][j-1] = computePost(delta[i-1][j-1], bounds, index)
 						print delta[i-1][j-1]
-						delta[i-1][j-1] = computePost(delta[i-1][j-1], bounds, index)
-						#delta[i-1][j-1] = Or( delta[i-1][j-1], computePost(And( conj, timet ), bounds, index) )
+						#delta[i-1][j-1] = Or( delta[i-1][j-1], computePost(And( conj, timet ), [t1], index) )
+						#delta[i-1][j-1] = Or( delta[i-1][j-1], And( conj, timet ))
+						print delta[i-1][j-1]
+						print bounds
+						#delta[i-1][j-1] = computePost( delta[i-1][j-1], [q[0][i-1], q[0][j-1], x[0][i-1], x[0][j-1], g[0], t1], index)
+						delta[i-1][j-1] = computePost( And(And(assump),delta[i-1][j-1]), bounds, index)
+						
+						#if index >= 3:
+						#	print delta[i-1][j-1]
+						#	return
+						
+						# TODO: simplify better here
 					
 					# rename post-state to pre-state (x' -> x)
 					kfrom = 1
@@ -519,7 +541,7 @@ def split_inv_tlv_ii(prop,Nv,auxc):
 					delta[i-1][j-1] = simplify( substitute( delta[i-1][j-1], subs ) )
 
 					print "TRANSITION(" + str(i) + ", " + str(j) + ")"
-					delta[i-1][j-1] = simplifyBetterConj( delta[i-1][j-1] ).as_expr()
+					#delta[i-1][j-1] = simplifyBetterConj( delta[i-1][j-1] ).as_expr()
 
 		# add new states
 		newtheta = []
@@ -577,6 +599,8 @@ def split_inv_tlv_ii(prop,Nv,auxc):
 					fileWrite(delta[i-1][j-1], "theta_replace-iter" + str(index) + "ij" + str(i) + str(j) + ".smt")
 					
 					newtheta[i-1][j-1] = simplify( Or(theta[i-1][j-1], delta[i-1][j-1]) )
+					
+					#newtheta[i-1][j-1] = computePost(newtheta[i-1][j-1], othersVarsPrePost_ii(i,j), index) # ensure all other vars projected away
 					#print newtheta[i-1][j-1]
 
 		# check for change
@@ -641,14 +665,14 @@ def split_inv_tlv_ii(prop,Nv,auxc):
 	
 		
 	if pmode == mux:
-		quant = simplify( substitute(delta[i-1][j-1], (q[kfrom][i-1], qf(iidx) ), (q[kfrom][j-1], qf(jidx) ), (gx[kfrom],gxf ) ) )
+		quant = simplify( substitute(theta[i-1][j-1], (q[kfrom][i-1], qf(iidx) ), (q[kfrom][j-1], qf(jidx) ), (gx[kfrom],gxf ) ) )
 	if pmode == fischer:
-		quant = simplify( substitute(delta[i-1][j-1], (q[kfrom][i-1], qf(iidx) ), (q[kfrom][j-1], qf(jidx) ), (x[kfrom][i-1], xf(iidx) ), (x[kfrom][j-1], xf(jidx) ), (g[kfrom],gf ) ) )
+		quant = simplify( substitute(theta[i-1][j-1], (q[kfrom][i-1], qf(iidx) ), (q[kfrom][j-1], qf(jidx) ), (x[kfrom][i-1], xf(iidx) ), (x[kfrom][j-1], xf(jidx) ), (g[kfrom],gf ) ) )
 	if pmode == fischer_aux:
-		quant = simplify( substitute(delta[i-1][j-1], (q[kfrom][i-1], qf(iidx) ), (q[kfrom][j-1], qf(jidx) ), (x[kfrom][i-1], xf(iidx) ), (x[kfrom][j-1], xf(jidx) ), (g[kfrom],gf ), (last[kfrom][i-1], lastf(iidx) ), (last[kfrom][j-1], lastf(jidx) ), (first[kfrom][i-1], firstf(iidx) ), (first[kfrom][j-1], firstf(jidx) ) ) )
+		quant = simplify( substitute(theta[i-1][j-1], (q[kfrom][i-1], qf(iidx) ), (q[kfrom][j-1], qf(jidx) ), (x[kfrom][i-1], xf(iidx) ), (x[kfrom][j-1], xf(jidx) ), (g[kfrom],gf ), (last[kfrom][i-1], lastf(iidx) ), (last[kfrom][j-1], lastf(jidx) ), (first[kfrom][i-1], firstf(iidx) ), (first[kfrom][j-1], firstf(jidx) ) ) )
 	if pmode == sats_3loc:
-		#quant = simplify( substitute(delta[i-1][j-1], (q[kfrom][i-1], qf(iidx) ), (q[kfrom][j-1], qf(jidx) ), (x[kfrom][i-1], xf(iidx) ), (x[kfrom][j-1], xf(jidx) ), (barray[kfrom][i-1], bf(iidx) ), (barray[kfrom][j-1], bf(jidx) ) ) )
-		quant = simplify( substitute(delta[i-1][j-1], (q[kfrom][i-1], qf(iidx) ), (q[kfrom][j-1], qf(jidx) ), (x[kfrom][i-1], xf(iidx) ), (x[kfrom][j-1], xf(jidx) ) ) )
+		#quant = simplify( substitute(theta[i-1][j-1], (q[kfrom][i-1], qf(iidx) ), (q[kfrom][j-1], qf(jidx) ), (x[kfrom][i-1], xf(iidx) ), (x[kfrom][j-1], xf(jidx) ), (barray[kfrom][i-1], bf(iidx) ), (barray[kfrom][j-1], bf(jidx) ) ) )
+		quant = simplify( substitute(theta[i-1][j-1], (q[kfrom][i-1], qf(iidx) ), (q[kfrom][j-1], qf(jidx) ), (x[kfrom][i-1], xf(iidx) ), (x[kfrom][j-1], xf(jidx) ) ) )
 	#print quant
 	
 	
@@ -726,8 +750,8 @@ def computePost(prop,bounds,round):
 
 		#tgoal.add( Exists(bounds, And(And(assump), subr.as_expr() ) ) )
 		tgoal.add( Exists(bounds, subr.as_expr() ) )
-		ttac = With(Tactic('qe'),  eliminate_variables_as_block=True) # qe_nonlinear=True
-		#ttac = With(Tactic('qe'),  eliminate_variables_as_block=False) # qe_nonlinear=True
+		#ttac = With(Tactic('qe'),  eliminate_variables_as_block=True) # qe_nonlinear=True
+		ttac = Then(Repeat(Tactic('ctx-simplify')), Repeat(Tactic('simplify')), Repeat('symmetry-reduce'), With(Tactic('qe'),  eliminate_variables_as_block=False)) # qe_nonlinear=True
 
 		tr = ttac(tgoal)
 		tr = simplifyBetter( tr.as_expr() )
@@ -1247,7 +1271,8 @@ def simplifyBetterConj(expr):
 
 #conj = tconj( gconj ).as_expr()
 
-	tac = Then( Repeat(Tactic('elim-and')), Repeat(Tactic('propagate-values')), Repeat(Tactic('propagate-ineqs')), Repeat(Tactic('normalize-bounds')), OrElse(Tactic('split-clause'), Tactic('skip')), Repeat(Tactic('simplify')), Tactic('ctx-solver-simplify'))
+	#tac = Then( Repeat(Tactic('elim-and')), Repeat(Tactic('propagate-values')), Repeat(Tactic('propagate-ineqs')), Repeat(Tactic('normalize-bounds')), OrElse(Tactic('split-clause'), Tactic('skip')), Repeat(Tactic('simplify')), Tactic('ctx-solver-simplify'))
+	tac = Then( Repeat(Tactic('elim-and')), Repeat(Tactic('propagate-values')), Repeat(Tactic('simplify')))
 	#tac = Tactic('ctx-solver-simplify')
 	#g.add( And( assump ) ) # need to do this, otherwise ctx-solver-simplify will drop results
 	
