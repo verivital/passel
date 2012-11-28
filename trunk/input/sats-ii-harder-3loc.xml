@@ -4,9 +4,9 @@
 	<parameter name='N' assumption='N &gt;= 1' type='index' comment='number of processes in the system' />
 	<parameter name='LB' assumption='LB == (5.0 + 10.0 + 13.0)' type='real' comment='smaller constant' />
 	<parameter name='LS' assumption='LS == 7.0' type='real' comment='larger constant' />
-	<parameter name='a' assumption='a == 90.0' type='real' comment='lower bound on rectangular dynamics' />
+	<parameter name='vmin' assumption='vmin == 90.0' type='real' comment='lower bound on rectangular dynamics' />
 	<parameter name='vmax' assumption='vmax == 120.0' type='real' comment='upper bound on rectangular dynamics' />	
-	<parameter name='LGUARD' assumption='LGUARD == LS + (vmax - a) * ((LB - LS) / a)' type='real' comment='larger constant' />
+	<parameter name='LGUARD' assumption='LGUARD == LS + (vmax - vmin) * ((LB - LS) / vmin)' type='real' comment='larger constant' />
 
 
 	<automaton name='sats-ii-harder-3loc'>
@@ -22,7 +22,7 @@
 		<mode id='1' name='base' initial='False'>
 			<invariant equn='x[i] &lt;= LB' />
 			<stop equn='x[i] &gt;= LB' />
-			<dai variable='x[i]' equn='x[i]_dot &gt;= a and x[i]_dot &lt;= vmax'/>
+			<dai variable='x[i]' equn='x[i]_dot &gt;= vmin and x[i]_dot &lt;= vmax'/>
 		</mode>
 		
 		<mode id='2' name='landed' initial='False'>
@@ -46,20 +46,20 @@
 
 	<property equn='true' type='safety' />
 	
-<!--
-	<property equn='forall i (q[i] == fly or q[i] == landed)' type='safety' />
-	<property equn='forall i j ((i != j) implies ((q[i] == fly or q[i] == landed) and (q[j] == fly or q[j] == landed)))' type='safety' />
+
+	<property equn='forall i (q[i] == fly or q[i] == base or q[i] == landed)' type='safety' />
+	<property equn='forall i j ((i != j) implies ((q[i] == fly or q[i] == base or q[i] == landed) and (q[j] == fly or q[i] == base or q[j] == landed)))' type='safety' />
 	<property equn='forall i j ((i != j and x[i] &gt; x[j]) implies (x[i] &gt;= x[j] + LS))' type='safety' />
--->
-<!--
+
+
 	<property equn='forall i ((q[i] == base) implies (x[i] &lt;= LB))' type='safety' comment='' />
 	<property equn='forall i ((x[i] &lt;= LB))' type='safety' comment='' />
-	<property equn='forall i j ((q[i] == base and q[j] == base and x[i] &gt; x[j] and b[i] == 1 and b[j] == 1) implies (x[i] &gt;= (LB - x[j]) / (a) * (b - a)))' type='safety' comment='inductive invariant of safety' />	
+	<property equn='forall i j ((q[i] == base and q[j] == base and x[i] &gt; x[j] and b[i] == 1 and b[j] == 1) implies (x[i] &gt;= (LB - x[j]) / (vmin) * (vmax - vmin)))' type='safety' comment='inductive invariant of safety' />	
 	<property equn='forall i j ((i != j and q[i] == base and q[j] == base and x[i] &gt; x[j] and b[i] == 1 and b[j] == 1) implies (x[i] &gt;= x[j] + LS))' type='safety' />
--->
+
 
 	<property equn='forall i j ((i != j and q[i] == base and q[j] == base and x[i] &gt; x[j]) implies (x[i] &gt;= x[j] + LS))' type='safety' />
-
+<!--
 	<property format='smt' type='safety' equn='(forall ((i Int) (j Int))
   (let ((a!1 (or (not (= (q i) base))
                  (not (= fly (q j)))
@@ -708,6 +708,7 @@
             (not a!115)
             (not a!116)
             (not a!117)))))' />
+-->
 	
 	
 	<property equn='false' type='safety' />

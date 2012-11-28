@@ -106,12 +106,13 @@
 -->
 <!--
 	<property equn='forall i ((q[i] == baseR) implies (x[i] &lt;= LB))' type='safety' comment='' />
-	<property equn='forall i ((x[i] &lt;= LTOTAL))' type='safety' comment='' />
 	<property equn='forall i j (((q[i] == baseR or q[i] == baseL or q[i] == final) and (q[j] == baseR or q[j] == baseL or q[j] == final) and x[i] &gt; x[j] and b[i] == 1 and b[j] == 1) implies (x[i] &gt;= (LTOTAL - x[j]) / (a) * (b - a)))' type='safety' comment='inductive invariant of safety' />
 	<property equn='forall i j ((i != j and (q[i] == baseR or q[i] == baseL or q[i] == final) and (q[j] == baseR or q[j] == baseL or q[j] == final) and x[i] &gt; x[j] and b[i] == 1 and b[j] == 1) implies (x[i] &gt;= x[j] + LS))' type='safety' />
 -->
+	<property equn='forall i ((x[i] &lt;= LTOTAL))' type='safety' comment='' />
+
 	
-	<property equn='forall i j ((i != j and (q[i] == baseR or q[i] == baseL or q[i] == final) and (q[j] == baseR or q[j] == baseL or q[j] == final) and x[i] &gt; x[j]) implies (x[i] &gt;= x[j] + LS))' type='safety' />
+	<property equn='forall i j ((i != j and (q[i] == baseR or q[i] == baseL or q[i] == final or q[i] == missL or q[i] == missR) and (q[j] == baseR or q[j] == baseL or q[j] == final or q[j] == missL or q[j] == missR) and x[i] &gt; x[j]) implies (x[i] &gt;= x[j] + LS))' type='safety' />
 
 	
 	

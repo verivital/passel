@@ -120,7 +120,7 @@
 			<dai variable='x[i]' equn='x[i]_dot = 0.0'/>
 		</mode>
 		
-		<mode id='14' name='taxi' initial='False'>
+		<mode id='13' name='taxi' initial='False'>
 			<dai variable='x[i]' equn='x[i]_dot = 0.0'/>
 		</mode>
 
@@ -161,7 +161,7 @@ IF virtual(this,side) < 2 &
 An aircraft holding at 2kft is allowed to initiate the approach only if 
 1. there are less than two aircraft on base (ie, at most 1), and
 PVS conditional:  IF length(this`base(opposite(side))) <= 1 & (first?(a) or on_approach?(this,leader(a))) THEN
-			Some confusion---why is the conditional for the opposite side's base length?  Shouldn't it be the sum of the two?
+			Some confusion: why is the conditional for the opposite side's base length?  Shouldn't it be the sum of the two?
 2. it is the first aircraft in sequence or its leader is already on the T (i.e., in base left, base right, or final)
 -->
 		

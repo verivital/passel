@@ -24,7 +24,126 @@ namespace passel.controller.smt.z3
             //this.slvr = this.MkSolver();
             //this.slvr = this.MkSimpleSolver();
             // doesn't seem to allow nested tactics.... (apply (then simplify propagate-values split-clause propagate-ineqs))
+
+            Tactic t;
+            Params p;
+
+            p = this.MkParams();
+            p.Add("pull-nested-quantifiers", true);
+            Tactic tsimplify = this.With(this.MkTactic("simplify"), p);
+            tsimplify = this.OrElse(tsimplify, this.MkTactic("skip"));
+
+            p = this.MkParams();
+            p.Add("qe-nonlinear", true);
+            Tactic tqe = this.With(this.MkTactic("qe"), p);
+            tqe = this.OrElse(tqe, this.MkTactic("skip"));
+
+            //p = this.MkParams();
+            //Tactic tfm = this.With(this.MkTactic("fm"), p);
+            //tfm = this.OrElse(tfm, this.MkTactic("skip"));
+
+            p = this.MkParams();
+            //p.Add("pull-cheap-ite", true);
+            Tactic tctxsimplify = this.With(this.MkTactic("ctx-simplify"), p);
+            tctxsimplify = this.OrElse(tctxsimplify, this.MkTactic("skip"));
+
+            p = this.MkParams();
+            Tactic tpreprocess = this.MkTactic("sat-preprocess");
+            tpreprocess = this.OrElse(tpreprocess, this.MkTactic("skip"));
+
+            // some bug with distribute-forall, all become false
+            p = this.MkParams();
+            //Tactic tdistributeForall = this.MkTactic("distribute-forall"); // all false
+            string[] alltactics = TacticNames;
+            //Tactic tdistributeForall = this.MkTactic("add-bounds"); // all false
+            //Tactic tdistributeForall = this.MkTactic("qfnra");
+            //Tactic tdistributeForall = this.MkTactic("qflra"); 
+
+            string[] ts = { "nlsat", "split-clause", "der", "normalize-bounds", "qfnra", "qflra", "symmetry-reduce", "qfnia", "qflia", "diff-neq", "purify-arith", "max-bv-sharing", "elim-term-ite", "propagate-values", "elim-and", "elim-uncnstr" };
+            //string[] ts = { "nlsat", "qe-sat", "split-clause", "der", "normalize-bounds", "qfnra", "qflra", "symmetry-reduce", "qfnia", "qflia", "diff-neq", "purify-arith", "max-bv-sharing", "elim-term-ite", "propagate-values", "elim-and", "elim-uncnstr" };
+
+            //string[] ts = { "nlsat", "qe-sat", "diff-neq", "purify-arith" };
+            //string[] ts = { "nlsat", "qe-sat" };
+            //string[] ts = {  "qe-sat" };
+
+            List<Tactic> lts = new List<Tactic>();
+            foreach (var a in ts)
+            {
+                lts.Add(this.OrElse(this.MkTactic(a), this.MkTactic("skip")));
+            }
+
+            //tdistributeForall = this.OrElse(tdistributeForall, this.MkTactic("skip"));
+
+            p = this.MkParams();
+            Tactic tvsubst = this.MkTactic("vsubst");
+            tvsubst = this.OrElse(tvsubst, this.MkTactic("skip"));
+
+            p = this.MkParams();
+            p.Add("produce-models", true);
+            p.Add("candidate-models", true);
+            p.Add("mbqi", true);
+            p.Add("auto-config", false);
+            p.Add("ematching", true);
+            p.Add("pull-nested-quantifiers", true);
+
+            p.Add("hi-div0", true);
+            p.Add("relevancy", true);
+            p.Add("qi-eager-threshold", 1000);
+            p.Add("qi-lazy-threshold", 1000);
+
+            //pull-nested-quantifiers
+            Tactic tsmt = this.With(this.MkTactic("smt"), p);
+            //tsmt = this.OrElse(tsmt, this.MkTactic("skip"));
+
+            //t = this.Repeat(this.ParOr(tqe, tsmt));
+            //t = this.With(this.Repeat(this.Then(tqe, tsmt)), p);
+
+
+            p = this.MkParams();
+            p.Add("produce-models", true);
+            p.Add("candidate-models", true);
+            p.Add("mbqi", true);
+            p.Add("auto-config", false);
+            p.Add("ematching", true);
+            p.Add("pull-nested-quantifiers", true);
+
+
+            //t = this.With(this.Repeat(this.Then(tsimplify, tctxsimplify, tdistributeForall, tpreprocess, tqe, tvsubst, tsmt)), p);
+            lts.AddRange(new Tactic[] {tsimplify, tctxsimplify, tpreprocess, tqe, tvsubst, tsmt});
+            Tactic[] tsmore = lts.GetRange(2, lts.Count - 2).ToArray();
+            t = this.With(this.Repeat(this.Then(lts[0], lts[1], tsmore)), p);
+            
+
+            //this.slvr = t.Solver;
+
+
+            /*
+             * NOTES: 2012/11/27
+             * 
+             * Previously, we had been using this.MkSolver(), which would return a default solver with the appropriate tactics as specified by global configuration parameters.
+             * However, more recent versions of Z3 have disabled some of these (particularly the ELIM_QUANT option), which caused problems for some transitions.
+             * 
+             * The key solvers appear to be: smt, qe, and qe-sat
+             */
+
+            this.slvr = this.MkSolver(t);
+
+            System.Console.WriteLine("Custom tactic options:");
+            System.Console.WriteLine(this.slvr.Help);
+            //System.Console.WriteLine(this.slvr.ParameterDescriptions);
+            
             this.slvr = this.MkSolver(); // (par-or smt qe)
+            //System.Console.WriteLine("Default tactic options:");
+            //System.Console.WriteLine(this.slvr.Help);
+            //ParamDescrs pd = this.slvr.ParameterDescriptions;
+            //System.Console.WriteLine(this.slvr.ParameterDescriptions);
+            
+            
+
+            //Params origParams = this.slvr.Parameters;
+
+
+
             //this.slvr.Parameters.Add("mbqi", true);
         }
 
@@ -1050,7 +1169,7 @@ namespace passel.controller.smt.z3
          */
         public Expr timeNoFlowIdentity(Expr indexForall)
         {
-            List<Expr> f = new List<Expr>();
+            List<BoolExpr> f = new List<BoolExpr>();
 
             // set equality on all non-clock variables
             switch (Controller.Instance.DataOption)
@@ -1107,7 +1226,7 @@ namespace passel.controller.smt.z3
 
             if (f.Count > 1)
             {
-                return Controller.Instance.Z3.MkAnd((BoolExpr[])f.ToArray());
+                return Controller.Instance.Z3.MkAnd(f.ToArray());
             }
             else if (f.Count == 1)
             {
@@ -1155,6 +1274,7 @@ namespace passel.controller.smt.z3
         {
             return this.MkITE( this.MkLe((ArithExpr)a, (ArithExpr)b), a, b);
         }
+
 
         /**
          * Check a term

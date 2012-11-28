@@ -280,8 +280,14 @@ dynamics_variable
 	;
 
 indexed_variable
+	:	ID ( '[' additiveExpression  ']' ) -> ^(INDEXED_VARIABLE ID? additiveExpression? )
+	;
+
+/*
+indexed_variable
 	:	a=ID ( '[' (b=ID | b=INTEGER) ']' | '[' indexed_variable ']' ) -> ^(INDEXED_VARIABLE $a $b* indexed_variable*)
 	;
+*/
 
 // declare after all the other tokens
 variable

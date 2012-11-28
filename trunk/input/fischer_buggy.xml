@@ -73,8 +73,6 @@
 <property equn='true' type='safety' />
 <property equn='false' type='safety' />
 <property equn='forall i j (i &gt;= 1 and i &lt;= N and j &gt;= 1 and j &lt;= N)' type='safety' />
-<property equn='forall i (q[i] &gt;= 0 and q[i] &lt;= 3)' type='safety' />
-<property equn='forall i (q[i] &lt; 0 and q[i] &gt; 3)' type='safety' />
 
 <!-- inductive invariants and strengthening from sri paper -->
 

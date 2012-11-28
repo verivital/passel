@@ -10,7 +10,7 @@
 	<assumption equn='LS &gt; 0.0' comment='the safety spacing is positive' />
 	<assumption equn='LB &gt; 0.0' comment='the base zone length is positive'/>
 	<assumption equn='LB &gt; 100.0*LS' comment='the base length is at least as large as the safety spacing'/>
-	<assumption equn='N &gt;= 2 and N &lt;= 100' comment='there are at least 2 aircraft in the system' />
+	<assumption equn='N &gt;= 2 and N &lt;= 5' comment='there are at least 2 aircraft in the system' />
 
 	<automaton name='default_automaton'>
 		<variable name='x[i]' type='nnreal' update_type='Continuous' />
