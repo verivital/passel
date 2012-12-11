@@ -62,11 +62,8 @@
 <!--
 	<property equn='forall i ((q[i] == base) implies (x[i] &lt;= LB))' type='safety' comment='' />
 	<property equn='forall i ((x[i] &lt;= LB))' type='safety' comment='' />
+	<property equn='forall i j ((q[i] == base and q[j] == base and x[i] &gt; x[j] and b[i] == 1 and b[j] == 1) implies (x[i] &gt;= (LB - x[j]) / (a) * (b - a)))' type='safety' comment='inductive invariant of safety' />	
 -->
-
-
-
-	<property equn='forall i j ((q[i] == base and q[j] == base and x[i] &gt; x[j] and b[i] == 1 and b[j] == 1) implies (x[i] &gt;= (LB - x[j]) / (a) * (b - a)))' type='safety' comment='inductive invariant of safety' />
 	<property equn='forall i j ((i != j and q[i] == base and q[j] == base and x[i] &gt; x[j] and b[i] == 1 and b[j] == 1) implies (x[i] &gt;= x[j] + LS))' type='safety' />
 
 	

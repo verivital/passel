@@ -15,7 +15,7 @@ namespace passel.model
        /**
          * Variable data types
          */
-        public enum VarType { real, nnreal, posreal, nat, nnnat, posnat, integer, index, boolean };
+        public enum VarType { location, real, nnreal, posreal, nat, nnnat, posnat, integer, index, boolean };
 
         /**
          * Variable update types: continuuos flow with time, while discrete are only updated by actions
@@ -23,9 +23,12 @@ namespace passel.model
         public enum VarUpdateType { continuous, discrete };
 
         private String _name;
+        public String NamePrimed;
         private String _rate;
         private VarType _type;
         private VarUpdateType _update_type;
+
+        public Sort TypeSort;
 
         /**
          * function declarations for uninterpreted function models
@@ -47,7 +50,33 @@ namespace passel.model
 
         public Variable(String name, String rate, VarType type)
         {
+            switch (type)
+            {
+                case VarType.boolean:
+                    this.TypeSort = controller.Controller.Instance.Z3.BoolSort;
+                    break;
+                case VarType.index:
+                    this.TypeSort = controller.Controller.Instance.Z3.IntSort;
+                    break;
+                case VarType.real:
+                case VarType.nnreal:
+                case VarType.posreal:
+                    this.TypeSort = controller.Controller.Instance.Z3.RealSort;
+                    break;
+                case VarType.integer:
+                case VarType.nat:
+                case VarType.nnnat:
+                case VarType.posnat:
+                    this.TypeSort = controller.Controller.Instance.Z3.IntSort;
+                    break;
+                case VarType.location:
+                    this.TypeSort = controller.Controller.Instance.LocType;
+                    break;
+                default:
+                    throw new Exception("Bad sort");
+            }
             this._name = name;
+            this.NamePrimed = name + controller.Controller.PRIME_SUFFIX;
             this._rate = rate;
             this._type = type;
         }

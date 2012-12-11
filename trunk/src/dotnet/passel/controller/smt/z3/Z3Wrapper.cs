@@ -29,12 +29,27 @@ namespace passel.controller.smt.z3
             Params p;
 
             p = this.MkParams();
+            p.Add("qe-nonlinear", true);
+            p.Add("produce-models", true);
+            p.Add("candidate-models", true);
+            p.Add("mbqi", true);
+            p.Add("auto-config", false);
+            p.Add("ematching", true);
             p.Add("pull-nested-quantifiers", true);
+            p.Add("distribute-forall", true);
+            p.Add("pi-pull-quantifiers", true);
+
+            p.Add("hi-div0", true);
+            p.Add("relevancy", true);
+            p.Add("qi-eager-threshold", 1000);
+            p.Add("qi-lazy-threshold", 1000);
             Tactic tsimplify = this.With(this.MkTactic("simplify"), p);
             tsimplify = this.OrElse(tsimplify, this.MkTactic("skip"));
 
-            p = this.MkParams();
-            p.Add("qe-nonlinear", true);
+            //p = this.MkParams();
+
+
+
             Tactic tqe = this.With(this.MkTactic("qe"), p);
             tqe = this.OrElse(tqe, this.MkTactic("skip"));
 
@@ -42,54 +57,43 @@ namespace passel.controller.smt.z3
             //Tactic tfm = this.With(this.MkTactic("fm"), p);
             //tfm = this.OrElse(tfm, this.MkTactic("skip"));
 
-            p = this.MkParams();
+            //p = this.MkParams();
             //p.Add("pull-cheap-ite", true);
             Tactic tctxsimplify = this.With(this.MkTactic("ctx-simplify"), p);
             tctxsimplify = this.OrElse(tctxsimplify, this.MkTactic("skip"));
 
-            p = this.MkParams();
-            Tactic tpreprocess = this.MkTactic("sat-preprocess");
+            //p = this.MkParams();
+            Tactic tpreprocess = this.With(this.MkTactic("sat-preprocess"), p);
             tpreprocess = this.OrElse(tpreprocess, this.MkTactic("skip"));
 
             // some bug with distribute-forall, all become false
-            p = this.MkParams();
-            //Tactic tdistributeForall = this.MkTactic("distribute-forall"); // all false
+            //p = this.MkParams();
+            Tactic tdistributeForall = this.With(this.MkTactic("distribute-forall"), p); // all false
             string[] alltactics = TacticNames;
             //Tactic tdistributeForall = this.MkTactic("add-bounds"); // all false
             //Tactic tdistributeForall = this.MkTactic("qfnra");
             //Tactic tdistributeForall = this.MkTactic("qflra"); 
 
-            string[] ts = { "nlsat", "split-clause", "der", "normalize-bounds", "qfnra", "qflra", "symmetry-reduce", "qfnia", "qflia", "diff-neq", "purify-arith", "max-bv-sharing", "elim-term-ite", "propagate-values", "elim-and", "elim-uncnstr" };
+            //string[] ts = { "nlsat", "split-clause", "der", "normalize-bounds", "qfnra", "qflra", "symmetry-reduce", "qfnia", "qflia", "diff-neq", "purify-arith", "max-bv-sharing", "elim-term-ite", "propagate-values", "elim-and", "elim-uncnstr" };
             //string[] ts = { "nlsat", "qe-sat", "split-clause", "der", "normalize-bounds", "qfnra", "qflra", "symmetry-reduce", "qfnia", "qflia", "diff-neq", "purify-arith", "max-bv-sharing", "elim-term-ite", "propagate-values", "elim-and", "elim-uncnstr" };
 
             //string[] ts = { "nlsat", "qe-sat", "diff-neq", "purify-arith" };
             //string[] ts = { "nlsat", "qe-sat" };
             //string[] ts = {  "qe-sat" };
 
-            List<Tactic> lts = new List<Tactic>();
-            foreach (var a in ts)
-            {
-                lts.Add(this.OrElse(this.MkTactic(a), this.MkTactic("skip")));
-            }
+            //List<Tactic> lts = new List<Tactic>();
+            //foreach (var a in ts)
+            //{
+            //    lts.Add(this.OrElse(this.MkTactic(a), this.MkTactic("skip")));
+            //}
 
             //tdistributeForall = this.OrElse(tdistributeForall, this.MkTactic("skip"));
 
-            p = this.MkParams();
-            Tactic tvsubst = this.MkTactic("vsubst");
+            //p = this.MkParams();
+            Tactic tvsubst = this.With(this.MkTactic("vsubst"), p);
             tvsubst = this.OrElse(tvsubst, this.MkTactic("skip"));
 
-            p = this.MkParams();
-            p.Add("produce-models", true);
-            p.Add("candidate-models", true);
-            p.Add("mbqi", true);
-            p.Add("auto-config", false);
-            p.Add("ematching", true);
-            p.Add("pull-nested-quantifiers", true);
-
-            p.Add("hi-div0", true);
-            p.Add("relevancy", true);
-            p.Add("qi-eager-threshold", 1000);
-            p.Add("qi-lazy-threshold", 1000);
+            
 
             //pull-nested-quantifiers
             Tactic tsmt = this.With(this.MkTactic("smt"), p);
@@ -99,22 +103,17 @@ namespace passel.controller.smt.z3
             //t = this.With(this.Repeat(this.Then(tqe, tsmt)), p);
 
 
-            p = this.MkParams();
-            p.Add("produce-models", true);
-            p.Add("candidate-models", true);
-            p.Add("mbqi", true);
-            p.Add("auto-config", false);
-            p.Add("ematching", true);
-            p.Add("pull-nested-quantifiers", true);
+            //p = this.MkParams();
 
 
-            //t = this.With(this.Repeat(this.Then(tsimplify, tctxsimplify, tdistributeForall, tpreprocess, tqe, tvsubst, tsmt)), p);
-            lts.AddRange(new Tactic[] {tsimplify, tctxsimplify, tpreprocess, tqe, tvsubst, tsmt});
-            Tactic[] tsmore = lts.GetRange(2, lts.Count - 2).ToArray();
-            t = this.With(this.Repeat(this.Then(lts[0], lts[1], tsmore)), p);
+
+            t = this.With(this.Repeat(this.Then(tsimplify, tctxsimplify, tdistributeForall, tpreprocess, tqe, tvsubst, tsmt)), p);
+            //lts.AddRange(new Tactic[] {tsimplify, tctxsimplify, tpreprocess, tqe, tvsubst, tsmt});
+            //Tactic[] tsmore = lts.GetRange(2, lts.Count - 2).ToArray();
+            //t = this.With(this.Repeat(this.Then(lts[0], lts[1], tsmore)), p);
             
 
-            //this.slvr = t.Solver;
+            this.slvr = t.Solver;
 
 
             /*
@@ -126,7 +125,7 @@ namespace passel.controller.smt.z3
              * The key solvers appear to be: smt, qe, and qe-sat
              */
 
-            this.slvr = this.MkSolver(t);
+            //this.slvr = this.MkSolver(t);
 
             System.Console.WriteLine("Custom tactic options:");
             System.Console.WriteLine(this.slvr.Help);
@@ -816,14 +815,7 @@ namespace passel.controller.smt.z3
                                     string sidx = ((char)idx).ToString();
                                     string varname = Regex.Replace(v.Key, "[\\d+]", ""); // strip all numbers TODO: generalize to allow numbers in variable names
                                     KeyValuePair<string,string> kv = new KeyValuePair<string, string>(varname, sidx);
-                                    if (varname == "q")
-                                    {
-                                        origReplaced = origReplaced.Substitute(v.Value, Controller.Instance.Q[sidx]);
-                                    }
-                                    else
-                                    {
-                                        origReplaced = origReplaced.Substitute(v.Value, Controller.Instance.IndexedVariables[kv]);
-                                    }
+                                    origReplaced = origReplaced.Substitute(v.Value, Controller.Instance.IndexedVariables[kv]);
                                 }
                             }
                             break;
@@ -882,8 +874,10 @@ namespace passel.controller.smt.z3
 
         /**
          * Unprime all variables, replace with state at round k, and others with state at round k-1
+         * 
+         * TODO: refactor and merge with other unprime
          */
-        public void unprimeAllVariables(ref Expr origReplaced, int k)
+        public void unprimeAllVariables(ref Expr origReplaced, uint k)
         {
             switch (Controller.Instance.DataOption)
             {
@@ -901,13 +895,13 @@ namespace passel.controller.smt.z3
                         // replace unprimed by pre-state index
                         foreach (var v in Controller.Instance.DataU.IndexedVariableDecl)
                         {
-                            FuncDecl preState = Controller.Instance.Z3.MkFuncDecl(v.Key + (k-1).ToString(), v.Value.Domain, v.Value.Range);
+                            FuncDecl preState = Controller.Instance.Z3.MkFuncDecl(v.Key + (k).ToString(), v.Value.Domain, v.Value.Range);
                             replaceFuncDecl(ref origReplaced, origReplaced, v.Value, preState, false);
                         }
                         // replace primed by post-state index (todo: merge with previous loop)
                         foreach (var v in Controller.Instance.DataU.IndexedVariableDeclPrimed)
                         {
-                            FuncDecl postState = Controller.Instance.Z3.MkFuncDecl(v.Key + k.ToString(), v.Value.Domain, v.Value.Range);
+                            FuncDecl postState = Controller.Instance.Z3.MkFuncDecl(v.Key + (k+1).ToString(), v.Value.Domain, v.Value.Range);
                             replaceFuncDecl(ref origReplaced, origReplaced, v.Value, postState, false);
                         }
                         break;
@@ -916,10 +910,50 @@ namespace passel.controller.smt.z3
 
             foreach (var v in Controller.Instance.GlobalVariables) // uses primed from earlier revision before global variables added in more coherent manner (were parameters with update_type)
             {
-                Expr preState = Controller.Instance.Z3.MkConst(v.Key + (k-1).ToString(), v.Value.Sort); // todo: make sure constructed as appropriately typed sorts, not uninterpreted...
-                Expr postState = Controller.Instance.Z3.MkConst(v.Key + k.ToString(), v.Value.Sort);
+                Expr preState = Controller.Instance.Z3.MkConst(v.Key + (k).ToString(), v.Value.Sort); // todo: make sure constructed as appropriately typed sorts, not uninterpreted...
+                Expr postState = Controller.Instance.Z3.MkConst(v.Key + (k+1).ToString(), v.Value.Sort);
                 origReplaced = origReplaced.Substitute(v.Value, preState);
                 origReplaced = origReplaced.Substitute(Controller.Instance.GlobalVariablesPrimed[v.Key], postState);
+            }
+        }
+
+
+        /**
+         * Unprime all variables, replace with state at round k, and others with state at round k-1
+         * 
+         * TODO: refactor and merge with other unprime
+         */
+        public void unprimeAllVariablesReachability(ref Expr origReplaced, uint k, uint kFrom)
+        {
+            switch (Controller.Instance.DataOption)
+            {
+                case Controller.DataOptionType.array:
+                    {
+                        foreach (var v in Controller.Instance.DataA.IndexedVariableDeclPrimed)
+                        {
+                            // todo: fix for array modeling
+                        }
+                        break;
+                    }
+                case Controller.DataOptionType.uninterpreted_function:
+                default:
+                    {
+                        // replace unprimed by pre-state index
+                        foreach (var v in Controller.Instance.DataU.IndexedVariableDecl)
+                        {
+                            FuncDecl preState = Controller.Instance.Z3.MkFuncDecl(v.Key + (k).ToString(), v.Value.Domain, v.Value.Range);
+                            FuncDecl preStateFrom = Controller.Instance.Z3.MkFuncDecl(v.Key + (kFrom).ToString(), v.Value.Domain, v.Value.Range);
+                            replaceFuncDecl(ref origReplaced, origReplaced, preStateFrom, preState, false);
+                        }
+                        break;
+                    }
+            }
+
+            foreach (var v in Controller.Instance.GlobalVariables) // uses primed from earlier revision before global variables added in more coherent manner (were parameters with update_type)
+            {
+                Expr preState = Controller.Instance.Z3.MkConst(v.Key + (k).ToString(), v.Value.Sort); // todo: make sure constructed as appropriately typed sorts, not uninterpreted...
+                Expr preStateFrom = Controller.Instance.Z3.MkConst(v.Key + (kFrom).ToString(), v.Value.Sort); // todo: make sure constructed as appropriately typed sorts, not uninterpreted...
+                origReplaced = origReplaced.Substitute(preStateFrom, preState);           
             }
         }
 
@@ -935,8 +969,14 @@ namespace passel.controller.smt.z3
          * Identity function for all processes not making a transition
          * I.e., forall j \neq i . q[j]' = q[j] /\ \ldots /\ g' = g, if global var g is not modified in transition of i
          */
-        public Expr forallIdentity(Expr indexMakingMove, List<String> globalVariableResets, List<String> indexVariableResets, List<String> universalIndexVariableResets, Expr uguardReset)
+        public Expr forallIdentity(Expr indexMakingMove, List<String> globalVariableResets, List<String> indexVariableResets, List<String> universalIndexVariableResets, Expr uguardReset, params uint[] paramsList)
         {
+            uint N = 0;
+            if (paramsList != null && paramsList.Length > 0)
+            {
+                N = paramsList[0];
+            }
+
             List<BoolExpr> f = new List<BoolExpr>();
             List<BoolExpr> outside_forall = new List<BoolExpr>();
             List<Expr> bound = new List<Expr>();
@@ -1044,15 +1084,38 @@ namespace passel.controller.smt.z3
                 switch (Controller.Instance.IndexOption)
                 {
                     case Controller.IndexOptionType.integer:
-                        ret = Controller.Instance.Z3.MkForall(bound.ToArray(), Controller.Instance.Z3.MkImplies((BoolExpr)distinct, (BoolExpr)fand)); // todo: check order of this distinct...in antecedent or consequent?
+                        ret = Controller.Instance.Z3.MkForall(bound.ToArray(), Controller.Instance.Z3.MkImplies((BoolExpr)distinct, (BoolExpr)fand));
                         break;
                     case Controller.IndexOptionType.naturalOneToN:
-                        ibds.Add((BoolExpr)distinct);
-                        ret = Controller.Instance.Z3.MkForall(bound.ToArray(), Controller.Instance.Z3.MkImplies(Controller.Instance.Z3.MkAnd(ibds.ToArray()), (BoolExpr)fand)); // todo: check order of this distinct...in antecedent or consequent?
+                        if (N == 0) // symbolic 
+                        {
+                            ibds.Add((BoolExpr)distinct);
+                            ret = Controller.Instance.Z3.MkForall(bound.ToArray(), Controller.Instance.Z3.MkImplies(Controller.Instance.Z3.MkAnd(ibds.ToArray()), (BoolExpr)fand));
+                        }
+                        else // expanded
+                        {
+                            List<BoolExpr> forallList = new List<BoolExpr>();
+                            for (uint i = 1; i <= N; i++)
+                            {
+                                uint ihack = 0;
+                                uint.TryParse(indexMakingMove.ToString(), out ihack);
+
+                                if (i == ihack)
+                                {
+                                    continue;
+                                }
+
+                                // todo next: indexing checking
+                                //BoolExpr fandCopy = (BoolExpr)this.MkImplies((BoolExpr)distinct, (BoolExpr)fand).Substitute(bound[0], this.MkInt(i));
+                                BoolExpr fandCopy = (BoolExpr)fand.Substitute(bound[0], this.MkInt(i));
+                                forallList.Add(fandCopy);
+                            }
+                            ret = this.MkAnd(forallList.ToArray());
+                        }
                         break;
                     case Controller.IndexOptionType.enumeration:
                     default:
-                        ret = Controller.Instance.Z3.MkForall(bound.ToArray(), Controller.Instance.Z3.MkImplies((BoolExpr)distinct, (BoolExpr)fand)); // todo: check order of this distinct...in antecedent or consequent?
+                        ret = Controller.Instance.Z3.MkForall(bound.ToArray(), Controller.Instance.Z3.MkImplies((BoolExpr)distinct, (BoolExpr)fand));
                         break;
                 }
             }
@@ -1061,10 +1124,10 @@ namespace passel.controller.smt.z3
                 switch (Controller.Instance.IndexOption)
                 {
                     case Controller.IndexOptionType.integer:
-                        ret = Controller.Instance.Z3.MkForall(bound.ToArray(), fand); // todo: check order of this distinct...in antecedent or consequent?
+                        ret = Controller.Instance.Z3.MkForall(bound.ToArray(), fand);
                         break;
                     case Controller.IndexOptionType.naturalOneToN:
-                        ret = Controller.Instance.Z3.MkForall(bound.ToArray(), Controller.Instance.Z3.MkImplies(Controller.Instance.Z3.MkAnd((BoolExpr[])ibds.ToArray()), (BoolExpr)fand)); // todo: check order of this distinct...in antecedent or consequent?
+                        ret = Controller.Instance.Z3.MkForall(bound.ToArray(), Controller.Instance.Z3.MkImplies(Controller.Instance.Z3.MkAnd((BoolExpr[])ibds.ToArray()), (BoolExpr)fand));
                         break;
                     case Controller.IndexOptionType.enumeration:
                     default:
@@ -1615,8 +1678,7 @@ namespace passel.controller.smt.z3
                                     // hack to detect location to print the mode name if it exists
                                     if (i > 0 && s.Contains("q[") && args[i - 1].ToString().StartsWith("(q"))
                                     {
-                                        // only display first letter of location in caps (e.g., for SATS)
-                                        //s += Controller.Instance.LocationNumTermToName[args[i]].Substring(0,1).ToUpper(); // todo: add error handling (buggy with bitvectors)
+                                        s += Controller.Instance.LocationNumTermToName[args[i]];
                                     }
                                     else
                                     {
