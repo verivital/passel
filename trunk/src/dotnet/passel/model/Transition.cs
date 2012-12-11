@@ -33,8 +33,8 @@ namespace passel.model
             set {
                 this._parent = value;
                 Expr hidxinner = Controller.Instance.Z3.MkIntConst("h");
-                this.TransitionTermGlobal = (BoolExpr)Controller.Instance.Sys.makeTransitionTerm(this, null, hidxinner); // no local vars
-                this.TransitionTerm = (BoolExpr)Controller.Instance.Sys.makeTransitionTerm(this, value, hidxinner); // with local vars
+                this.TransitionTermGlobal = (BoolExpr)Controller.Instance.Sys.makeTransitionTerm(this, null, hidxinner, null); // no local vars
+                this.TransitionTerm = (BoolExpr)Controller.Instance.Sys.makeTransitionTerm(this, value, hidxinner, null); // with local vars
             }
         }
 
@@ -46,8 +46,8 @@ namespace passel.model
 
             // todo next: switch if not int type: , Controller.Instance.IndexType
             Expr hidxinner = Controller.Instance.Z3.MkIntConst("h");
-            this.TransitionTermGlobal = (BoolExpr)Controller.Instance.Sys.makeTransitionTerm(this, null, hidxinner); // no local vars
-            this.TransitionTerm = (BoolExpr)Controller.Instance.Sys.makeTransitionTerm(this, this.Parent, hidxinner); // with local vars
+            this.TransitionTermGlobal = (BoolExpr)Controller.Instance.Sys.makeTransitionTerm(this, null, hidxinner, null); // no local vars
+            this.TransitionTerm = (BoolExpr)Controller.Instance.Sys.makeTransitionTerm(this, this.Parent, hidxinner, null); // with local vars
         }
         
         public Transition(ConcreteLocation p, AState nextState) : this(p)
@@ -114,7 +114,7 @@ namespace passel.model
             foreach (AState l in this._nextStates)
             {
                 //post.Add(Controller.Instance.Z3.MkEq(Controller.Instance.QPrimed["i"], Controller.Instance.Z3.MkConst(l.Value.ToString(), Controller.Instance.LocType)));
-                post.Add(Controller.Instance.Z3.MkEq(Controller.Instance.QPrimed["i"], Controller.Instance.Z3.MkConst(l.Label, Controller.Instance.LocType)));
+                post.Add(Controller.Instance.Z3.MkEq(Controller.Instance.IndexedVariablesPrimed[new KeyValuePair<string, string>("q" + Controller.PRIME_SUFFIX, "i")], Controller.Instance.Z3.MkConst(l.Label, Controller.Instance.LocType)));
             }
             if (post.Count > 1)
             {

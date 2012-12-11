@@ -140,11 +140,11 @@ namespace passel.model
         {
             if (this._concretizationPrimed == null)
             {
-                this._concretizationPrimed = this._concretization;
+                this._concretizationPrimed = this._concretization;/*
                 foreach (var pair in Controller.Instance.Q)
                 {
                     this._concretizationPrimed = this._concretizationPrimed.Substitute(pair.Value, Controller.Instance.QPrimed[pair.Key]);
-                }
+                }*/
                 foreach (var pair in Controller.Instance.IndexedVariables)
                 {
                     this._concretizationPrimed = this._concretizationPrimed.Substitute(pair.Value, Controller.Instance.IndexedVariablesPrimed[new KeyValuePair<String, String>(pair.Key.Key + "'", pair.Key.Value)]);

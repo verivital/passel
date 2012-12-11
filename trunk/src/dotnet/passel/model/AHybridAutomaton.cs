@@ -13,6 +13,9 @@ using passel.controller.parsing.math;
 
 namespace passel.model
 {
+    enum outmode { MODE_SPACEEX, MODE_PHAVER, MODE_HYTECH, MODE_UPPAAL };
+
+
     /**
      * Hybrid automaton object
      */
@@ -30,6 +33,8 @@ namespace passel.model
         {
             this.Parent = parent;
             this.Name = name;
+
+            this.addIndexedVariable("q", Variable.VarType.location, Variable.VarUpdateType.discrete); // control location added by default
         }
 
         public String Name;
@@ -198,6 +203,58 @@ namespace passel.model
 
             switch (v.Type)
             {
+                case Variable.VarType.location:
+                    {
+                        switch (Controller.Instance.DataOption)
+                        {
+                            case Controller.DataOptionType.array:
+                                {
+                                    Sort locSort = Controller.Instance.Z3.MkArraySort(Controller.Instance.IndexType, Controller.Instance.IntType);
+                                    ArrayExpr q = (ArrayExpr)Controller.Instance.Z3.MkConst("q", locSort); // control location; todo: should map to finite control state (just hack to use integers for now)
+                                    Controller.Instance.DataA.IndexedVariableDecl.Add("q", q);
+                                    ArrayExpr qPrime = (ArrayExpr)Controller.Instance.Z3.MkConst("q" + Controller.PRIME_SUFFIX, locSort); ; // control location; todo: should map to finite control state (just hack to use integers for now)
+                                    Controller.Instance.DataA.IndexedVariableDeclPrimed.Add("q", qPrime);
+
+                                    // apply each index to the control location function
+                                    foreach (var pair in Controller.Instance.Indices)
+                                    {
+                                        if (!Controller.Instance.DataA.IndexedVariableDecl.ContainsValue(v.ValueA))
+                                        {
+                                             Controller.Instance.DataA.IndexedVariableDecl.Add(v.Name, v.ValueA);
+                                             Controller.Instance.DataA.IndexedVariableDeclPrimed.Add(v.Name, v.ValuePrimedA);
+                                        }
+                                    }
+                                    break;
+                                }
+                            case Controller.DataOptionType.uninterpreted_function:
+                            default:
+                                {
+                                    //FuncDecl q = Controller.Instance.Z3.MkFuncDecl("q", Controller.Instance.IndexType, Controller.Instance.LocType); // control location; todo: should map to finite control state (just hack to use integers for now)
+                                    //Controller.Instance.DataU.IndexedVariableDecl.Add("q", q);
+                                    //FuncDecl qPrime = Controller.Instance.Z3.MkFuncDecl("q" + Controller.PRIME_SUFFIX, Controller.Instance.IndexType, Controller.Instance.LocType); // control location; todo: should map to finite control state (just hack to use integers for now)
+                                    //Controller.Instance.DataU.IndexedVariableDeclPrimed.Add("q", qPrime);
+
+                                    v.Value = Controller.Instance.Z3.MkFuncDecl(v.Name, Controller.Instance.IndexType, Controller.Instance.LocType);
+                                    v.ValuePrimed = Controller.Instance.Z3.MkFuncDecl(v.Name + Controller.PRIME_SUFFIX, Controller.Instance.IndexType, Controller.Instance.LocType);
+
+                                    // add function declaration to global function declarations
+                                    if (!Controller.Instance.DataU.IndexedVariableDecl.ContainsValue(v.Value))
+                                    {
+                                        Controller.Instance.DataU.IndexedVariableDecl.Add(v.Name, v.Value);
+                                        Controller.Instance.DataU.IndexedVariableDeclPrimed.Add(v.Name, v.ValuePrimed);
+                                    }
+
+                                    //v.ValueRate = Controller.Instance.Z3.MkFuncDecl(v.Name + Controller.DOT_SUFFIX, Controller.Instance.IntType, Controller.Instance.IntType); // todo: only do this if continuous update_type
+                                    foreach (var pair in Controller.Instance.Indices)
+                                    {
+                                        Controller.Instance.IndexedVariables.Add(new KeyValuePair<String, String>(v.Name, pair.Key), Controller.Instance.Z3.MkApp(v.Value, pair.Value));
+                                        Controller.Instance.IndexedVariablesPrimed.Add(new KeyValuePair<String, String>(v.Name + Controller.PRIME_SUFFIX, pair.Key), Controller.Instance.Z3.MkApp(v.ValuePrimed, pair.Value));
+                                    }
+                                    break;
+                                }
+                        }
+                        break;
+                    }
                 case Variable.VarType.boolean:
                     {
                         switch (Controller.Instance.DataOption)
@@ -449,7 +506,7 @@ namespace passel.model
                 // disjunction of all states specified as initial
                 if (acl.Initial)
                 {
-                    initialStates.Add(Controller.Instance.Z3.MkEq(Controller.Instance.Q["i"], acl.ValueTerm));
+                    initialStates.Add(Controller.Instance.Z3.MkEq(Controller.Instance.IndexedVariables[new KeyValuePair<string, string>("q", "i")], acl.ValueTerm));
                 }
             }
 
@@ -559,6 +616,852 @@ namespace passel.model
                         break;
                     }
             }
+        }
+
+        /**
+        * Generate a specification of N (for a fixed natural number) automata for Phaver
+        */
+        public String outputPhaverN(uint N, String output_path)
+        {
+            String spec = "";
+            String tmp = "";
+
+            ConcreteHybridAutomaton h = (ConcreteHybridAutomaton)this;
+
+            outmode mode = outmode.MODE_PHAVER;
+
+            System.Console.WriteLine("START: Generating phaver input file from Passel description for N = " + N);
+
+            const string PHAVER_AUTOMATON = "automaton";
+            const string PHAVER_VAR_CONTR = "contr_var";
+            const string PHAVER_VAR_INPUT = "input_var";
+            const string PHAVER_SYNC_LABEL = "synclabs";
+            const string PHAVER_ENDLINE = ";";
+            const string PHAVER_SEPARATOR = ":";
+            const string PHAVER_LOCATION = "loc";
+            const string PHAVER_INVARIANT = "while";
+            const string PHAVER_GUARD = "when";
+            const string PHAVER_SYNC = "sync";
+
+            string out_automaton;
+            string out_var_contr;
+            string out_var_input;
+            string out_endline;
+            string out_sync;
+            string out_sync_label;
+            string out_location;
+            string out_invariant;
+            string out_guard;
+            string out_separator;
+
+            List<String> globalSyncLabels = new List<string>();
+            Dictionary<String, IList<Variable>> globalSyncLabelsToResetGlobals = new Dictionary<string, IList<Variable>>();  // map global sync labels to global variables (for identity resets)
+
+            string newline = "\n";
+
+            switch (mode)
+            {
+                case outmode.MODE_PHAVER:
+                default:
+                    {
+                        out_automaton = PHAVER_AUTOMATON;
+                        out_var_contr = PHAVER_VAR_CONTR;
+                        out_var_input = PHAVER_VAR_INPUT;
+                        out_endline = PHAVER_ENDLINE;
+                        out_separator = PHAVER_SEPARATOR;
+                        out_sync = PHAVER_SYNC;
+                        out_sync_label = PHAVER_SYNC_LABEL;
+                        out_location = PHAVER_LOCATION;
+                        out_invariant = PHAVER_INVARIANT;
+                        out_guard = PHAVER_GUARD;
+
+                        break;
+                    }
+            }
+
+            spec += "REACH_USE_CONVEX_HULL = false; // not possible because of global variables" + newline +
+                    "REACH_MAX_ITER = 0; " + newline +
+                    "REACH_USE_BBOX = false;" + newline +
+                //"USE_HIOA_AUTOMATA = true;" + newline +
+                    "COMPOSE_USE_CONVEX_HULL_FOR_REACH = false;" + newline +
+                    "COMPOSE_WITH_REACH_MIN = true;" + newline +
+                    "CHEAP_CONTAIN_RETURN_OTHERS = false;" + newline + newline;
+
+            // global constants
+            if (Controller.Instance.Params.Count > 0)
+            {
+                foreach (var p in Controller.Instance.Params)
+                {
+                    spec += p.Key + " := ";
+                    if (Controller.Instance.ParamsAssumps.ContainsKey(p.Key))
+                    {
+                        spec += Controller.Instance.Z3.ToStringFormatted(Controller.Instance.ParamsAssumps[p.Key].Args[1], controller.smt.z3.Z3Wrapper.PrintFormatMode.phaver, true);
+                        // TODO: HACK, ASSUMES ASSUMPTION IS OF THE FORM: PARAMNAME RELATION PARAMVALUE, e.g., N == 3
+                    }
+                    else
+                    {
+                        if (p.Key == "N")
+                        {
+                            spec += N;
+                        }
+                        else
+                        {
+                            spec += "1 /* default value, unspecified in source */";
+                        }
+                    }
+                    spec += ";" + newline;
+                }
+            }
+            spec += newline;
+
+            // generate N automata
+            for (int i = 1; i <= N; i++)
+            {
+                // TODO: ADD FUNCTION EVAL AND REMOVE THIS
+                /* STARL STUFF
+                double x0, y0, xwp, ywp, xr, yr;
+                double r = 1;
+                x0 = r * Math.Cos((2 * Math.PI) * ((double)i / (double)Controller.Instance.IndexNValue));
+                y0 = r * Math.Sin((2 * Math.PI) * ((double)i / (double)Controller.Instance.IndexNValue));
+
+                double delta_max = 0.1;
+                double delta_init = 0;
+
+                double delta = 0.0001;
+                x0 = Math.Round(x0, 6);
+                y0 = Math.Round(y0, 6);
+
+                int k = 1;
+                xwp = r * Math.Cos((2 * Math.PI) * ((double)(i+k) / (double)Controller.Instance.IndexNValue));
+                ywp = r * Math.Sin((2 * Math.PI) * ((double)(i+k) / (double)Controller.Instance.IndexNValue));
+
+                xwp = Math.Round(xwp, 6);
+                ywp = Math.Round(ywp, 6);
+
+                double delta_rate = 0.05;
+
+                xr = (xwp - x0);
+                yr = (ywp - y0);
+
+                double xrl, xru, yrl, yru;
+
+                xr = Math.Round(xr, 6);
+                yr = Math.Round(yr, 6);
+
+                xrl = xr - delta_rate;
+                xru = xr + delta_rate;
+                yrl = yr - delta_rate;
+                yru = yr + delta_rate;
+                 */
+
+                bool hasUguard = false;
+                bool hasPointer = false;
+
+                foreach (var l in h.Locations)
+                {
+                    foreach (var t in l.Transitions)
+                    {
+                        if (t.UGuard != null)
+                        {
+                            hasUguard = true;
+                            break;
+                        }
+                    }
+                    if (hasUguard)
+                    {
+                        break;
+                    }
+                }
+
+                // local pointer/index variables
+                foreach (var v in h.Variables)
+                {
+                    if (v.Type == Variable.VarType.index)
+                    {
+                        hasPointer = true;
+                        break;
+                    }
+                }
+
+
+                spec += out_automaton + " ";
+                spec += "agent" + i.ToString() + newline;
+
+                // local variables for A_i 
+                if (h.Variables.Count > 0)
+                {
+                    spec += out_var_contr + " " + out_separator + " ";
+                    foreach (var v in h.Variables)
+                    {
+                        spec += v.Name + "_" + i.ToString() + ",";
+                    }
+                    spec = spec.Substring(0, spec.Length - 1) + out_endline + newline;
+                }
+
+                // input variables for A_i: globals or universal guards
+                if (this.Parent.Variables.Count > 0 || (hasUguard && N >= 2))
+                {
+                    spec += out_var_input + " " + out_separator + " ";
+
+                    if (this.Parent.Variables.Count > 0)
+                    {
+                        foreach (var v in this.Parent.Variables) // globals
+                        {
+                            spec += v.Name + ",";
+                        }
+                    }
+
+                    if (hasUguard || hasPointer)
+                    {
+                        // share all variables of all other processes, so we can conjunct them
+                        for (uint j = 1; j <= N; j++)
+                        {
+                            if (i != j)
+                            {
+                                foreach (var v in h.Variables)
+                                {
+                                    spec += v.Name + "_" + j.ToString() + ",";
+                                }
+                            }
+                        }
+                    }
+
+                    spec = spec.Substring(0, spec.Length - 1) + out_endline + newline;
+                }
+
+                spec += out_sync_label + " " + out_separator + " " + " tau, ";
+                // generate sync label for each transition: iterate over all locations and transitions
+                List<String> synclabels = new List<string>();
+                foreach (var l in h.Locations)
+                {
+                    foreach (var t in l.Transitions)
+                    {
+                        // todo: generate label only if transition is not named
+                        foreach (var ns in t.NextStates)
+                        {
+                            String synclab = l.Label + ns.Label + i.ToString();
+
+                            if (synclabels.Contains(synclab))
+                            {
+                                synclab += synclabels.Count(
+                                        delegate(String s)
+                                        {
+                                            return s == synclab;
+                                        }).ToString();
+                            }
+
+                            spec += synclab + ", ";
+                            synclabels.Add(synclab);
+                        }
+                    }
+                }
+                spec = spec.Substring(0, spec.Length - 2) + out_endline + newline;
+
+                foreach (var l in h.Locations)
+                {
+                    spec += out_location + " " + l.Label + out_separator + " " + out_invariant + " ";
+
+                    //todo: convert to appropriate format: l.Invariant;
+                    if (l.Invariant != null)
+                    {
+                        tmp = Controller.Instance.Z3.ToStringFormatted(l.Invariant, controller.smt.z3.Z3Wrapper.PrintFormatMode.phaver, true);
+                        tmp = tmp.Replace("[i]", "_" + i.ToString());
+                        spec += tmp;
+                        spec += " & ";
+                    }
+                    /*
+                                        if (l.Stop != null)
+                                        {
+                                            // needs to be closure of negation... switch based on strict / nonstrict cases, but how to do in general?
+                                            tmp = z3.ToStringFormatted( z3.MkNot((BoolExpr)l.Stop), controller.smt.z3.Z3Wrapper.PrintFormatMode.phaver, true);
+                                            tmp = tmp.Replace("[i]", "_" + i.ToString());
+                                            spec += tmp;
+                                            spec += " & ";
+                                        }
+                     */
+
+                    if (l.Invariant != null || l.Stop != null)
+                    {
+                        spec = spec.Substring(0, spec.Length - 3);
+                    }
+                    else
+                    {
+                        /* STARL stuff
+                        double lb, ub;
+                        lb = -r - delta_max;
+                        ub = r + delta_max;
+                        spec += " x_" + i + " >= " + lb + " & x_" + i + " <= " + ub + " & y_" + i + " >= " + lb + " & y_" + i + " <= " + ub + " ";
+                         */
+
+                        //double wpdelta = 0.05;
+                        //spec += " & (x" + i + " < " + (xwp - wpdelta) + " | x" + i + " > " + (xwp + wpdelta) + " | y" + i + " < " + (ywp - wpdelta) + " | y" + i + " > " + (ywp + wpdelta) + ") ";
+
+                        spec += " true ";
+                    }
+
+                    spec += " wait { ";
+
+                    int lbefore = spec.Length;
+                    foreach (var f in l.Flows)
+                    {
+                        // avoid global variables
+                        if (Controller.Instance.GlobalVariables.ContainsKey(f.Variable.Name))
+                        {
+                            continue;
+                        }
+
+                        //todo: convert flow appropriately
+                        switch (f.DynamicsType)
+                        {
+                            case Flow.DynamicsTypes.rectangular:
+                                {
+                                    tmp = f.Variable.Name + "_" + i.ToString() + "' >= " + f.RectRateA.ToString() + " & " + f.Variable + "_" + i.ToString() + "' <= " + f.RectRateB.ToString(); // todo : add rates
+                                    break;
+                                }
+                            case Flow.DynamicsTypes.constant:
+                                {
+                                    tmp = f.Variable.Name + "_" + i.ToString() + "' == 0";
+                                    break;
+                                }
+                            case Flow.DynamicsTypes.timed: // pass through
+                            default:
+                                {
+                                    tmp = f.Variable.Name + "_" + i.ToString() + "' == " + f.RectRateA;
+
+                                    /* STARL STUFF
+                                    if (f.Variable.Name == "x")
+                                    {
+                                        //tmp = f.Variable.Name + "_" + i + "' == " + xr;
+                                        tmp =  f.Variable.Name + "_" + i + "' >= " + xrl + " & ";
+                                        tmp += f.Variable.Name + "_" + i + "' <= " + xru;
+                                    }
+                                    if (f.Variable.Name == "y")
+                                    {
+                                        //tmp = f.Variable.Name + "_" + i + "' == " + yr;
+                                        tmp =  f.Variable.Name + "_" + i + "' >= " + yrl + " & ";
+                                        tmp += f.Variable.Name + "_" + i + "' <= " + yru;
+                                    }
+                                     */
+
+                                    break;
+                                }
+                        }
+                        //tmp = z3.ToStringFormatted(f., controller.smt.z3.Z3Wrapper.PrintFormatMode.phaver);
+
+                        tmp = tmp.Replace("[i]", "_" + i.ToString());
+                        spec += tmp;
+                        spec += " & ";
+                    }
+
+                    foreach (var v in h.Variables)
+                    {
+                        // set all discrete variables to have constant (0) dynamics
+                        if (v.UpdateType == Variable.VarUpdateType.discrete)
+                        {
+                            spec += v.Name + "_" + i.ToString() + "' == 0 & ";
+                        }
+                    }
+
+                    if (spec.Length != lbefore)
+                    {
+                        spec = spec.Substring(0, spec.Length - 3);
+                    }
+                    else
+                    {
+                        spec += " True ";
+                    }
+                    spec += " }" + newline;
+
+                    if (l.Transitions.Count > 0)
+                    {
+                        foreach (var t in l.Transitions)
+                        {
+                            // todo: generate label only if transition is not named
+                            foreach (var ns in t.NextStates)
+                            {
+                                // generate sync label
+                                spec += "\t when ";
+                                if (t.Guard == null && (t.UGuard == null || (t.UGuard != null && N < 2)) && l.Invariant == null && l.Stop == null)
+                                {
+                                    spec += " true ";
+                                }
+                                else
+                                {
+                                    if (t.Guard != null)
+                                    {
+                                        Expr tmpt = t.Guard;
+                                        Expr indexConst = Controller.Instance.Z3.MkNumeral(i, Controller.Instance.IndexType);
+                                        tmpt = tmpt.Substitute(Controller.Instance.Indices["i"], indexConst); // replace i with actual number i (e.g., i by 1, i by 2, etc)
+                                        tmp = Controller.Instance.Z3.ToStringFormatted(tmpt, controller.smt.z3.Z3Wrapper.PrintFormatMode.phaver, true); // todo: format appropriately
+
+                                        bool notnull = false;
+                                        if (hasPointer)
+                                        {
+                                            String tmpc = tmp; // copy
+                                            for (uint j = 1; j <= N; j++)
+                                            {
+                                                if (i != j)
+                                                {
+                                                    tmp = tmpc;
+                                                    foreach (var v in h.Variables)
+                                                    {
+                                                        if (v.Type == Variable.VarType.index)
+                                                        {
+                                                            if (tmp.Contains("! (" + v.Name + "[" + i + "] == 0)"))
+                                                            {
+                                                                if (!notnull)
+                                                                {
+                                                                    spec += "("; // add on first only
+                                                                }
+                                                                notnull = true; // true for any => true for all
+
+                                                                tmp = tmp.Replace("[" + v.Name + "[" + i + "]]", "_" + j); // replace p[i] with j's actually index, e.g., x[p[i]] -> x_j /\ p[i] = j
+                                                                tmp += " & " + v.Name + "[" + i + "] == " + j;
+                                                            }
+                                                        }
+                                                    }
+                                                    tmp = tmp.Replace("[i]", "_" + i.ToString());
+                                                    tmp = tmp.Replace("[" + i.ToString() + "]", "_" + i.ToString());
+                                                    if (notnull)
+                                                    {
+                                                        spec += "(" + tmp + ")";
+                                                        spec += " | ";
+                                                    }
+                                                }
+                                            }
+                                            if (notnull)
+                                            {
+                                                spec = spec.Substring(0, spec.Length - " | ".Length); // remove last or
+                                                spec += ")";
+                                            }
+                                            else
+                                            {
+                                                spec += tmp;
+                                            }
+                                        }
+                                        spec += " & ";
+
+                                        
+                                    }
+                                    if (l.Invariant != null)
+                                    {
+                                        Expr tmpt = l.Invariant;
+                                        Expr indexConst = Controller.Instance.Z3.MkNumeral(i, Controller.Instance.IndexType);
+                                        tmpt = tmpt.Substitute(Controller.Instance.Indices["i"], indexConst); // replace i with actual number i (e.g., i by 1, i by 2, etc)
+                                        tmp = Controller.Instance.Z3.ToStringFormatted(tmpt, controller.smt.z3.Z3Wrapper.PrintFormatMode.phaver, true); // todo: format appropriately
+                                        tmp = tmp.Replace("[i]", "_" + i.ToString());
+                                        tmp = tmp.Replace("[" + i.ToString() + "]", "_" + i.ToString());
+                                        spec += tmp;
+                                        spec += " & ";
+                                    }
+
+                                    if (t.UGuard != null & N >= 2)
+                                    {
+                                        Expr indexConst = Controller.Instance.Z3.MkNumeral(i, Controller.Instance.IndexType);
+
+                                        tmp = "";
+                                        for (uint j = 1; j <= N; j++)
+                                        {
+                                            if (i != j)
+                                            {
+                                                Expr tmpt = t.UGuard;
+                                                Expr jIndexConst = Controller.Instance.Z3.MkNumeral(j, Controller.Instance.IndexType);
+                                                tmpt = tmpt.Substitute(Controller.Instance.Indices["j"], jIndexConst); // replace j by j value
+                                                tmp += "(" + Controller.Instance.Z3.ToStringFormatted(tmpt, controller.smt.z3.Z3Wrapper.PrintFormatMode.phaver, true) + ")"; // todo: format appropriately
+
+
+                                                if (hasPointer)
+                                                {
+                                                    foreach (var v in h.Variables)
+                                                    {
+                                                        if (v.Type == Variable.VarType.index)
+                                                        {
+                                                            tmp = tmp.Replace("[" + v.Name + "[" + i.ToString() + "]]", "_" + j.ToString() + " & " + v.Name + "[" + i.ToString() + "] == " + j); // replace p[i] with j's actually index, e.g., x[p[i]] -> x_j /\ p[i] = j
+                                                        }
+                                                    }
+                                                }
+
+                                                tmp = tmp.Replace("[j]", "_" + j.ToString());
+                                                tmp = tmp.Replace("[" + j.ToString() + "]", "_" + j.ToString());
+
+                                                tmp += " & ";
+                                            }
+                                        }
+                                        if (tmp.Length > 0) // loop ran at least once with i != j
+                                        {
+                                            tmp = tmp.Substring(0, tmp.Length - " & ".Length); // remove and
+                                        }
+                                        tmp = tmp.Replace("[i]", "_" + i.ToString());
+                                        tmp = tmp.Replace("[" + i.ToString() + "]", "_" + i.ToString());
+                                        spec += tmp;
+                                        spec += " & ";
+                                    }
+                                    /*
+                                    if (hasPointer)
+                                    {
+                                        Expr indexConst = z3.MkNumeral(i, Controller.Instance.IndexType);
+
+                                        tmp = "";
+                                        for (uint j = 1; j <= N; j++)
+                                        {
+                                            //if (i != j) // TODO: exclude self? maybe... in general i guess a pointer p_i could be equal to i, we don't exclude this
+                                            //{
+                                                Expr tmpt = t.UGuard;
+                                                Expr jIndexConst = z3.MkNumeral(j, Controller.Instance.IndexType);
+                                                tmpt = tmpt.Substitute(Controller.Instance.Indices["j"], jIndexConst); // replace j by j value
+                                                tmp += "(" + z3.ToStringFormatted(tmpt, controller.smt.z3.Z3Wrapper.PrintFormatMode.phaver, true) + ")"; // todo: format appropriately
+                                                tmp = tmp.Replace("[j]", "_" + j.ToString());
+                                                tmp = tmp.Replace("[" + j.ToString() + "]", "_" + j.ToString());
+                                                tmp += " & ";
+                                            //}
+                                        }
+                                        if (tmp.Length > 0) // loop ran at least once with i != j
+                                        {
+                                            tmp = tmp.Substring(0, tmp.Length - " & ".Length); // remove and
+                                        }
+                                        tmp = tmp.Replace("[i]", "_" + i.ToString());
+                                        tmp = tmp.Replace("[" + i.ToString() + "]", "_" + i.ToString());
+                                        //spec += tmp;
+                                        //spec += " & ";
+                                    }*/
+
+                                    // phaver semantics differ: just ensure that the invariant contains the negation of the stopping condition
+                                    // if we DON'T do this, phaver will do weird stuff on invariants, e.g., it will allow an invariant to go UP TO the value, let it take the transition, and still remain in the state, which differs from our semantics
+                                    /*if (l.Stop != null)
+                                    {
+                                        Expr tmpt = l.Stop;
+                                        Expr indexConst = z3.MkNumeral(i, Controller.Instance.IndexType);
+                                        tmpt = tmpt.Substitute(Controller.Instance.Indices["i"], indexConst); // replace i with actual number i (e.g., i by 1, i by 2, etc)
+                                        tmp = "!(" + z3.ToStringFormatted(tmpt, controller.smt.z3.Z3Wrapper.PrintFormatMode.phaver) + ")"; // todo: format appropriately
+                                        tmp = tmp.Replace("[i]", "_" + i.ToString());
+                                        tmp = tmp.Replace("[" + i.ToString() + "]", "_" + i.ToString());
+                                        spec += tmp + " & ";
+                                    }*/
+                                    spec = spec.Substring(0, spec.Length - " & ".Length);
+                                }
+
+                                string synclab = l.Label + ns.Label + i.ToString(); // unique label for all
+
+                                if (globalSyncLabelsToResetGlobals.ContainsKey(synclab)) // already added this label, add a counter to end of label
+                                {
+                                    synclab += globalSyncLabelsToResetGlobals.Keys.Count(
+                                        delegate(String s)
+                                        {
+                                            return s == synclab;
+                                        }).ToString();
+                                }
+
+                                spec += " sync " + synclab + " ";
+                                if (t.Reset != null)
+                                {
+                                    Expr tmpt = t.Reset;
+                                    Expr indexConst = Controller.Instance.Z3.MkNumeral(i, Controller.Instance.IndexType);
+                                    tmpt = tmpt.Substitute(Controller.Instance.Indices["i"], indexConst); // replace i with actual number i (e.g., i by 1, i by 2, etc)
+                                    tmp = Controller.Instance.Z3.ToStringFormatted(tmpt, controller.smt.z3.Z3Wrapper.PrintFormatMode.phaver); // todo: format appropriately
+                                    tmp = tmp.Replace("[i]", "_" + i.ToString());
+                                    tmp = tmp.Replace("[" + i.ToString() + "]", "_" + i.ToString());
+                                    IList<Variable> globals = new List<Variable>();
+                                    IList<Variable> locals = new List<Variable>();
+
+                                    // TODO: REFACTOR NEXT TO TRANSITION CONSTRUCTOR AND ADD A LIST OF LOCAL/GLOBAL VARIABLE NAMES RESET IN THAT TRANSITION
+                                    // find globals reset in t.Reset
+                                    foreach (var v in this.Parent.Variables)
+                                    {
+                                        if (Controller.Instance.Z3.findTerm(t.Reset, Controller.Instance.GlobalVariablesPrimed[v.Name], true)) // todo: add accessor in this.Variables for the expression...
+                                        {
+                                            globalSyncLabels.Add(synclab);
+                                            continue;
+                                        }
+                                        else
+                                        {
+                                            globals.Add(v); // set identity
+                                        }
+                                    }
+                                    globalSyncLabelsToResetGlobals.Add(synclab, globals); // add variables for identity
+                                    // find locals reset in t.Reset
+                                    foreach (var v in h.Variables)
+                                    {
+                                        if (Controller.Instance.Z3.findTerm(t.Reset, Controller.Instance.IndexedVariablesPrimed[new KeyValuePair<string, string>(v.Name + Controller.PRIME_SUFFIX, "i")], true)) // todo: add accessor in this.Variables for the expression...
+                                        {
+                                            continue;
+                                        }
+                                        else
+                                        {
+                                            locals.Add(v);
+                                        }
+                                    }
+
+                                    string id = makePhaverIdentity(globals, locals, i); // add identity resets for all variables not actually reset;
+                                    if (id.Length > 0)
+                                    {
+                                        tmp += " & " + id;
+                                    }
+                                    spec += " do {" + tmp + " } ";
+                                }
+                                else // if no reset, set all identities
+                                {
+                                    spec += " do {" + makePhaverIdentity(this.Parent.Variables, h.Variables, i) + "} ";
+                                } // end reset
+                                spec += " goto " + ns.Label + out_endline + newline;
+                            }
+                        }
+
+                        // add self-loop (tau) transition; must have identity on all local variables (or it will introduce conservative non-determinism, which may lead to violation of properties)
+                        spec += "\t when true sync tau do {" + makePhaverIdentity(this.Parent.Variables, h.Variables, i) + "} goto " + l.Label + ";" + newline;
+                    }
+                    else
+                    {
+                        spec += " ;" + newline;
+                    }
+                }
+
+                //todo: initially idle & true;
+                spec += newline + "initially ";
+
+                foreach (var l in h.Locations)
+                {
+                    if (l.Initial)
+                    {
+                        spec += l.Label + " & "; // todo: assumes only one
+                    }
+                }
+
+
+                if (Controller.Instance.IndexedVariables.Count == 0)
+                {
+                    tmp = "True";
+                }
+                else
+                {
+                    Expr tmpi = h.Initial;
+                    Expr iConst = Controller.Instance.Z3.MkNumeral(i, Controller.Instance.IndexType);
+                    tmpi = tmpi.Substitute(Controller.Instance.Indices["i"], iConst); // replace i with actual number i (e.g., i by 1, i by 2, etc)
+
+                    // todo: huge hack
+                    while (tmpi.ASTKind != Z3_ast_kind.Z3_QUANTIFIER_AST && tmpi.NumArgs > 0)
+                    {
+                        tmpi = tmpi.Args[0];
+                    }
+                    if (tmpi.ASTKind == Z3_ast_kind.Z3_QUANTIFIER_AST)
+                    {
+                        tmpi = ((Quantifier)tmpi).Body;
+                    }
+                    if (tmpi.FuncDecl.DeclKind == Z3_decl_kind.Z3_OP_IMPLIES || tmpi.FuncDecl.DeclKind == Z3_decl_kind.Z3_OP_OR) // may have simplified implies to not or form
+                    {
+                        tmpi = tmpi.Args[1];
+                    }
+
+                    tmp = Controller.Instance.Z3.ToStringFormatted(tmpi, controller.smt.z3.Z3Wrapper.PrintFormatMode.phaver, true); // todo: format appropriately
+                    tmp = tmp.Replace("[i]", "_" + i.ToString());
+                    tmp = tmp.Replace("[#0]", "_" + i.ToString()); // z3 3.2 format
+                    tmp = tmp.Replace("[(:var 0)]", "_" + i.ToString()); // z3 4.0 format
+                }
+                spec += tmp;
+
+                // STARL STUFF
+                //spec += "x_" + i + " >= " + (x0 - delta_init) + " & x_" + i + " <= " + (x0 + delta_init) + " & y_" + i + " >= " + (y0 - delta_init) + " & y_" + i + " <= " + (y0 + delta_init);
+
+                spec += ";" + newline + newline;
+
+                // todo next: generalize
+                //spec += " rem & True;" + newline + newline;
+                spec += "end" + newline + newline;
+            }
+
+            // create global/shared variable automaton (need to do after local automaton creation to get appropriate sync labels)
+            if (this.Parent.Variables.Count > 0)
+            {
+                spec += out_automaton + " global" + newline;
+
+                spec += out_var_contr + " " + out_separator + " ";
+                foreach (var v in this.Parent.Variables) // globals (controlled by global automaton)
+                {
+                    spec += v.Name + ",";
+                }
+                spec = spec.Substring(0, spec.Length - 1) + out_endline + newline;
+
+                spec += "synclabs: tau,";
+
+                globalSyncLabels = globalSyncLabels.Distinct().ToList(); // remove duplicates
+                foreach (var v in globalSyncLabels)
+                {
+                    spec += v + ",";
+                }
+                spec = spec.Substring(0, spec.Length - 1); // strip last comma
+                spec += ";" + newline;
+
+                spec += "loc default: while True wait { ";
+
+                foreach (var v in this.Parent.Variables)
+                {
+                    if (v.UpdateType == Variable.VarUpdateType.discrete)
+                    {
+                        spec += v.Name + "' == 0 & ";
+                    }
+                    else
+                    {
+                        // todo: timed vs. rect
+                        spec += v.Name + "' == " + "1" + " & ";
+                    }
+                }
+                spec = spec.Substring(0, spec.Length - 3) + "}" + newline;
+
+                spec += "\t when True sync tau do { " + makePhaverIdentity(this.Parent.Variables, new List<Variable>(), 0) + " } goto default;" + newline; // note identity here over globals only (e.g., g' == g, no x[i]' == x[i])
+
+                foreach (var v in globalSyncLabels)
+                {
+                    string id = makePhaverIdentity(globalSyncLabelsToResetGlobals[v], new List<Variable>(), 0);
+                    spec += "\t when True sync " + v + " do { " + (id.Length > 0 ? id : "true") + " } goto default;" + newline; // note identity here (e.g., g' == g)
+                }
+                spec += newline;
+
+                // TODO: for each synchronization label (action) of the local automata, if they modify a global variable x, add a sync label for that local action
+                //       ALSO: if this action DOES NOT modify some other variables, set identity here
+                //       E.g.: if action a modifies x, but not y, then reset should be y' == y, with no constraint on x' (or copy the reset if its not over the local variables of A_i making the move, i.e., if x' == 0, set it)
+
+                //spec += "initially $ & True;" + newline + newline;
+
+                Expr tmpi = h.Initial;
+                tmpi = tmpi.Args[0].Args[1]; // assumes (forall i ...) and GLOBAL
+                String gitmp = Controller.Instance.Z3.ToStringFormatted(tmpi, controller.smt.z3.Z3Wrapper.PrintFormatMode.phaver, true); // todo: format appropriately
+                spec += "initially default & " + gitmp + ";" + newline + newline;
+
+                spec += "end" + newline + newline;
+            }
+
+            spec += "sys = ";
+            if (this.Parent.Variables.Count > 0)
+            {
+                spec += " global & ";
+            }
+
+            for (int i = 1; i <= N; i++)
+            {
+                spec += " agent" + i.ToString() + " & ";
+            }
+            spec = spec.Substring(0, spec.Length - 3);
+            spec += ";" + newline + newline;
+            spec += "sys.print(\"" + output_path + "system/" + h.Name + "_N=" + Controller.Instance.IndexNValue + ".csys" + "\", 0);" + newline;
+
+            spec += "reg = sys.reachable;" + newline;
+
+            spec += "reg.print(\"" + output_path + "reach/" + h.Name + "_N=" + Controller.Instance.IndexNValue + ".reach" + "\", 0);" + newline;
+
+            string globalNames = ","; // start with comma
+            foreach (var v in this.Parent.Variables)
+            {
+                globalNames += v.Name + ",";
+            }
+            globalNames = globalNames.Substring(0, globalNames.Length - 1); // note length always > 0 since initially comma (even if var empty): remove last ,
+
+            for (int i = 1; i <= N; i++)
+            {
+                for (int j = 1; j <= N; j++)
+                {
+                    if (j == i && j != 1)
+                    {
+                        continue;
+                    }
+
+                    string ij = i.ToString() + j.ToString();
+                    /*spec += "regm" + ij + " = reg;" + newline;
+                    if (j == 1)
+                    {
+                        spec += "regm" + ij + ".project_to(x_" + i.ToString() + globalNames + ");" + newline;
+                    }
+                    else
+                    {
+                        spec += "regm" + ij + ".project_to(x_" + i.ToString() + ",x_" + j.ToString() + globalNames + ");" + newline;
+                    }
+                    spec += "regm" + ij + ".print(\"" + h.Name + "_ii_reach_N" + Controller.Instance.IndexNValue + "projected" + ij + "\", 0);" + newline;
+                     */
+                }
+            }
+
+            //spec += "reg.print(\"" + h.Name + "_ii_reach_N" + Controller.Instance.IndexNValue + "\", 0);" + newline;
+
+            /* STARL
+            for (int i = 1; i <= N; i++)
+            {
+                spec += "reg" + i + " = reg;" + newline;
+                spec += "reg" + i + ".project_to(x_" + i + "," + "y_" + i + ");" + newline;
+                spec += "reg" + i + ".print(\"ii_reach_poly_N" + Controller.Instance.IndexNValue + "_" + i + "\", 2);" + newline;
+            }*/
+
+            //spec += "forbidden = sys.{};" + newline;
+            // for fischer / mutual exclusion algorithms
+            /*
+            spec += "forbidden = sys.{";
+            for (uint i = 1; i <= N; i++)
+            {
+                for (uint j = i + 1; j <= N; j++)
+                {
+                    spec += "$~" + makeBadString("crit", i, j, N) + " & True," + newline; // TODO: set a bad bit on states in input file?
+                }
+            }
+            spec = spec.Substring(0, spec.Length - 2) + "};" + newline;
+             */
+            /*
+             * forbidden=sys.{
+                $~CS~CS~$~$~$ & True ,
+                $~$~CS~CS~$~$ & True ,
+                $~$~$~CS~CS~$ & True ,
+                $~$~$~$~CS~CS & True 
+                };
+             */
+            /*
+            spec += "reg.intersection_assign(forbidden);" + newline;
+            spec += "echo \"\";" + newline;
+            spec += "echo \"Reachable forbidden states:\";" + newline;
+            spec += "reg.print(\"" + h.Name + "_ii_reach_bad\", 0);" + newline;
+            spec += "echo \"\";" + newline;
+            spec += "echo \"Reachable forbidden states empty?\";" + newline;
+            spec += "reg.is_empty;" + newline;
+             */
+
+            return spec;
+        }
+
+        /**
+         * Return phaver identity for tau transitions
+         */
+        String makePhaverIdentity(IList<Variable> globals, IList<Variable> locals, int id)
+        {
+            String identity = "";
+
+            foreach (var v in globals)
+            {
+                identity += v.Name + "' == " + v.Name + " & ";
+            }
+
+            foreach (var v in locals)
+            {
+                identity += v.Name + "_" + id + "' == " + v.Name + "_" + id + " & ";
+            }
+            if (identity.Length > 3)
+            {
+                identity = identity.Substring(0, identity.Length - 3); // remove last " & " added
+            }
+            return identity;
+        }
+
+
+        String makeBadString(String statename, uint i, uint j, uint N)
+        {
+            String s = "";
+            for (uint ti = 1; ti <= N; ti++)
+            {
+                if (ti == i || ti == j)
+                {
+                    s += "crit~";
+                }
+                else
+                {
+                    s += "$~";
+                }
+            }
+            s = s.Substring(0, s.Length - 1);
+            return s;
         }
     }
 }

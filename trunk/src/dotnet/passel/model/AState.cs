@@ -60,7 +60,7 @@ namespace passel.model
 
             //Controller.Instance.Z3.Assumptions.Add(Controller.Instance.Z3.MkEq(this.ValueTerm, Controller.Instance.Z3.MkInt(value)));
 
-            this._statePredicate = Controller.Instance.Z3.MkEq(Controller.Instance.Q["i"], this.ValueTerm);
+            this._statePredicate = Controller.Instance.Z3.MkEq(Controller.Instance.IndexedVariables[new KeyValuePair<string,string>("q","i")], this.ValueTerm);
 
             // add label to value map
             if (label == "")

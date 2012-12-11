@@ -47,7 +47,7 @@ namespace passel.model
             this._count = new Counter(c);
             this._predicate = predicate;
             //this._predicate = Controller.Instance.Z3.Simplify(this._predicate);
-            this._statePredicate = Controller.Instance.Z3.MkEq(Controller.Instance.Q["i"], Controller.Instance.Z3.MkInt(value));
+            this._statePredicate = Controller.Instance.Z3.MkEq(Controller.Instance.IndexedVariables[new KeyValuePair<string,string>("q", "i")], Controller.Instance.Z3.MkInt(value));
             //this._statePredicate = Controller.Instance.Z3.Simplify(this._statePredicate);
 
             this._environmentPredicate = Controller.Instance.Z3.MkAnd(new BoolExpr[] { Controller.Instance.Z3.MkNot(Controller.Instance.Z3.MkEq(Controller.Instance.Indices["i"], Controller.Instance.Indices["j"])), (BoolExpr)this._statePredicate, (BoolExpr)this._predicate });

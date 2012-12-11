@@ -44,13 +44,13 @@ namespace passel.controller
          * Special variable for control states / locations (modes)
          * - All other variables go into the _vars dictionary
          */
-        private IDictionary<String, Expr> _q;
+        //private IDictionary<String, Expr> _q;
 
         /**
          * Special variable for control states / locations (modes)
          * - All other variables go into the _vars dictionary
          */
-        private IDictionary<String, Expr> _qPrimed;
+        //private IDictionary<String, Expr> _qPrimed;
         
         /**
          * Indexed variables: input, e.g., (x i) returns the function corresponding to variable x at process i
@@ -210,8 +210,8 @@ namespace passel.controller
          */
         private void InitializeZ3()
         {
-            this._q = new Dictionary<String, Expr>();
-            this._qPrimed = new Dictionary<String, Expr>();
+            //this._q = new Dictionary<String, Expr>();
+            //this._qPrimed = new Dictionary<String, Expr>();
             this._ivars = new Dictionary<KeyValuePair<String, String>, Expr>();
             this._ivarsPrimed = new Dictionary<KeyValuePair<String, String>, Expr>();
             this._params = new Dictionary<String, Expr>();
@@ -278,7 +278,7 @@ namespace passel.controller
 
 
 
-            this.Config.Add("ELIM_QUANTIFIERS", "true"); // if we fix N to be small, we can rely on MBQI, but if we have N large or unbounded, we may need Q.E.
+            //this.Config.Add("ELIM_QUANTIFIERS", "true"); // if we fix N to be small, we can rely on MBQI, but if we have N large or unbounded, we may need Q.E.
             this.Config.Add("ELIM_NLARITH_QUANTIFIERS", "true");
             this.Config.Add("ELIM_BOUNDS", "true");
             this.Config.Add("QI_LAZY_INSTANTIATION", "true");
@@ -569,21 +569,21 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
 
         /**
          * Indexed control locations / modes
-         */
+         
         public IDictionary<String, Expr> Q
         {
             get { return this._q; }
             set { this._q = value; }
-        }
+        }*/
 
         /**
          * Primed (for resets) Indexed control locations / modes
-         */
+         
         public IDictionary<String, Expr> QPrimed
         {
             get { return this._qPrimed; }
             set { this._qPrimed = value; }
-        }
+        }*/
 
         /**
          * Gettor and settor for indexed variables
@@ -1116,42 +1116,6 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
                 redirectConsole(LogFilename);
 
                 Console.Write("File: {0}\n\r\n\r", Instance.InputFilePath);
-
-                switch (Instance.DataOption)
-                {
-                    case DataOptionType.array:
-                        {
-                            Sort locSort = Instance.Z3.MkArraySort(Instance.IndexType, Instance.IntType);
-                            ArrayExpr q = (ArrayExpr)Instance.Z3.MkConst("q", locSort); // control location; todo: should map to finite control state (just hack to use integers for now)
-                            Instance.DataA.IndexedVariableDecl.Add("q", q);
-                            ArrayExpr qPrime = (ArrayExpr)Instance.Z3.MkConst("q" + Controller.PRIME_SUFFIX, locSort); ; // control location; todo: should map to finite control state (just hack to use integers for now)
-                            Instance.DataA.IndexedVariableDeclPrimed.Add("q", qPrime);
-
-                            // apply each index to the control location function
-                            foreach (var pair in Instance.Indices)
-                            {
-                                Instance.Q.Add(pair.Key, Instance.Z3.MkSelect(q, pair.Value));
-                                Instance.QPrimed.Add(pair.Key, Instance.Z3.MkSelect(qPrime, pair.Value));
-                            }
-                            break;
-                        }
-                    case DataOptionType.uninterpreted_function:
-                    default:
-                        {
-                            FuncDecl q = Instance.Z3.MkFuncDecl("q", Instance.IndexType, Instance.LocType); // control location; todo: should map to finite control state (just hack to use integers for now)
-                            Instance.DataU.IndexedVariableDecl.Add("q", q);
-                            FuncDecl qPrime = Instance.Z3.MkFuncDecl("q" + Controller.PRIME_SUFFIX, Instance.IndexType, Instance.LocType); // control location; todo: should map to finite control state (just hack to use integers for now)
-                            Instance.DataU.IndexedVariableDeclPrimed.Add("q", qPrime);
-
-                            // apply each index to the control location function
-                            foreach (var pair in Instance.Indices)
-                            {
-                                Instance.Q.Add(pair.Key, Instance.Z3.MkApp(q, pair.Value));
-                                Instance.QPrimed.Add(pair.Key, Instance.Z3.MkApp(qPrime, pair.Value));
-                            }
-                            break;
-                        }
-                }
 
                 ParseHyXML.ParseFile(Instance.InputFilePath); // create Sys object
 
@@ -1791,7 +1755,7 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
         {
             if (Instance.IndexNValue > 0)
             {
-                String out_phaver = Instance.Sys.outputPhaverN(Instance.IndexNValue, Instance.PhaverPathLinux);
+                String out_phaver = Instance.Sys.HybridAutomata[0].outputPhaverN(Instance.IndexNValue, Instance.PhaverPathLinux); // todo: generalize if more than 1 automaton
                 StreamWriter writer = new StreamWriter(phaver_out_filename);
                 writer.Write(out_phaver);
                 writer.Close();
