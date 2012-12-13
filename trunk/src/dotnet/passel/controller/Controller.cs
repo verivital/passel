@@ -278,7 +278,7 @@ namespace passel.controller
 
 
 
-            //this.Config.Add("ELIM_QUANTIFIERS", "true"); // if we fix N to be small, we can rely on MBQI, but if we have N large or unbounded, we may need Q.E.
+            this.Config.Add("ELIM_QUANTIFIERS", "true"); // if we fix N to be small, we can rely on MBQI, but if we have N large or unbounded, we may need Q.E.
             this.Config.Add("ELIM_NLARITH_QUANTIFIERS", "true");
             this.Config.Add("ELIM_BOUNDS", "true");
             this.Config.Add("QI_LAZY_INSTANTIATION", "true");

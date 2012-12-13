@@ -113,7 +113,7 @@ namespace passel.controller.smt.z3
             //t = this.With(this.Repeat(this.Then(lts[0], lts[1], tsmore)), p);
             
 
-            this.slvr = t.Solver;
+            //this.slvr = t.Solver;
 
 
             /*
@@ -127,8 +127,8 @@ namespace passel.controller.smt.z3
 
             //this.slvr = this.MkSolver(t);
 
-            System.Console.WriteLine("Custom tactic options:");
-            System.Console.WriteLine(this.slvr.Help);
+            //System.Console.WriteLine("Custom tactic options:");
+            //System.Console.WriteLine(this.slvr.Help);
             //System.Console.WriteLine(this.slvr.ParameterDescriptions);
             
             this.slvr = this.MkSolver(); // (par-or smt qe)
