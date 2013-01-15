@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 
+using passel.controller;
+
 using Microsoft.Z3;
 
 namespace passel.model
@@ -18,9 +20,9 @@ namespace passel.model
         public enum VarType { location, real, nnreal, posreal, nat, nnnat, posnat, integer, index, boolean };
 
         /**
-         * Variable update types: continuuos flow with time, while discrete are only updated by actions
+         * Variable update types: continuuos flow with time, while discrete are only updated by actions; constants are never updated
          */
-        public enum VarUpdateType { continuous, discrete };
+        public enum VarUpdateType { continuous, discrete, constant };
 
         private String _name;
         public String NamePrimed;
@@ -44,33 +46,35 @@ namespace passel.model
         private ArrayExpr _valuePrimedA;
         private ArrayExpr _valueRateA;
 
-        public Variable()
-        {
-        }
+        public String InitialString;
+        public Expr Initially;
 
-        public Variable(String name, String rate, VarType type)
+        /**
+         * 
+         */
+        public Variable(String name, String rate, VarType type, VarUpdateType update_type, String initial)
         {
             switch (type)
             {
                 case VarType.boolean:
-                    this.TypeSort = controller.Controller.Instance.Z3.BoolSort;
+                    this.TypeSort = Controller.Instance.Z3.BoolSort;
                     break;
                 case VarType.index:
-                    this.TypeSort = controller.Controller.Instance.Z3.IntSort;
+                    this.TypeSort = Controller.Instance.Z3.IntSort;
                     break;
                 case VarType.real:
                 case VarType.nnreal:
                 case VarType.posreal:
-                    this.TypeSort = controller.Controller.Instance.Z3.RealSort;
+                    this.TypeSort = Controller.Instance.Z3.RealSort;
                     break;
                 case VarType.integer:
                 case VarType.nat:
                 case VarType.nnnat:
                 case VarType.posnat:
-                    this.TypeSort = controller.Controller.Instance.Z3.IntSort;
+                    this.TypeSort = Controller.Instance.Z3.IntSort;
                     break;
                 case VarType.location:
-                    this.TypeSort = controller.Controller.Instance.LocType;
+                    this.TypeSort = Controller.Instance.LocType;
                     break;
                 default:
                     throw new Exception("Bad sort");
@@ -79,6 +83,21 @@ namespace passel.model
             this.NamePrimed = name + controller.Controller.PRIME_SUFFIX;
             this._rate = rate;
             this._type = type;
+            this.InitialString = initial;
+            this.UpdateType = update_type;
+        }
+
+        /**
+         * Finish instantiating class objects --- needs to be called after subclass constructors (and is called by them accordingly)
+         */
+        protected void finishConstruction()
+        {
+            if (this.InitialString != null)
+            {
+                Antlr.Runtime.Tree.CommonTree tmptree = passel.controller.parsing.math.Expression.Parse(this.InitialString);
+                //passel.controller.parsing.math.Expression.FixTypes(ref tmptree);
+                this.Initially = passel.controller.parsing.math.ast.LogicalExpression.CreateTerm(tmptree);
+            }
         }
 
         public override String ToString()

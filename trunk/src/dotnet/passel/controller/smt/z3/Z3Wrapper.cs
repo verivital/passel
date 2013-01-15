@@ -8,6 +8,7 @@ using Microsoft.Z3;
 using passel.model;
 
 using passel.controller;
+using passel.controller.output;
 using System.Text.RegularExpressions;
 
 namespace passel.controller.smt.z3
@@ -564,8 +565,8 @@ namespace passel.controller.smt.z3
         {
             // TODO: SPECIAL CARE MUST BE TAKEN DEFINITELY FOR INDEX-VALUED GLOBAL VARIABLES, AND POSSIBLY ALSO FOR INDEXED CONTROL LOCATION VARIABLES....
 
-            System.Console.WriteLine("Property before generalization: ");
-            System.Console.WriteLine(f.ToString() + "\n\r\n\r");
+            Debug.Write("Property before abstracting index variables: ");
+            Debug.Write(f.ToString() + "\n\r\n\r");
 
             Expr iidx = this.MkIntConst("i");
             Expr jidx = this.MkIntConst("j");
@@ -766,8 +767,8 @@ namespace passel.controller.smt.z3
                 }
             }
 
-            System.Console.WriteLine("Property after generalization: ");
-            System.Console.WriteLine(f.ToString() + "\n\r\n\r");
+            Debug.Write("Property after abstracting index variables: ", Debug.VERBOSE_STEPS);
+            Debug.Write(f.ToString() + "\n\r\n\r", Debug.VERBOSE_STEPS);
 
             return f;
         }
@@ -1342,25 +1343,13 @@ namespace passel.controller.smt.z3
         /**
          * Check a term
          */
-        public Boolean checkTerm(Expr t, out Model model, out Expr[] core, params Boolean[] options)
+        public Boolean checkTerm(Expr t, out Model model, out Expr[] core)
         {
             model = null;
             core = null;
-            Boolean debug = false;
-            try
-            {
-                debug = options[0];
-            }
-            catch
-            {
-            }
             Boolean ret = false;
 
-            if (debug)
-            {
-                //Console.WriteLine("Term:\n\r" + t.ToString());
-            }
-            //Console.WriteLine("Term:\n\r" + t.ToString());
+            Debug.Write("Term:\n\r" + t.ToString(), Debug.VERBOSE_ALL);
 
             //this.slvr = this.MkSolver(); // WAY slower
             //this.slvr.Assert(this.Assumptions.ToArray());
@@ -1378,36 +1367,25 @@ namespace passel.controller.smt.z3
             switch (this.slvr.Check())
             {
                 case Status.UNSATISFIABLE:
-                    if (debug)
-                    {
-                        Console.WriteLine("unsat");
-                    }
+                    Debug.Write("unsat", Debug.VERBOSE_STEPS);
                     ret = false;
                     core = slvr.UnsatCore;
                     break;
                 case Status.UNKNOWN:
-                    if (debug)
-                    {
-                        Console.WriteLine("unknown");
-                        Console.WriteLine("Term:\n\r" + t.ToString());
-                    }
+                    Debug.Write("WARNING: unknown", Debug.MINIMAL);
+                    Debug.Write("Term:\n\r" + t.ToString(), Debug.MINIMAL);
                     ret = true; // may occur semantics
                     break;
                 case Status.SATISFIABLE:
-                    if (debug)
-                    {
-                        Console.WriteLine("sat");
-                        //Console.WriteLine(slvr.Model.ToString());
-                    }
+                    Debug.Write("sat", Debug.VERBOSE_STEPS);
+                    Debug.Write("model: \n\r" + slvr.Model.ToString(), Debug.VERBOSE_ALL);
                     ret = true;
                     model = slvr.Model;
                     break;
             }
 
-            if (debug)
-            {
-                Console.WriteLine(this.slvr.Statistics.ToString());
-            }
+
+            Debug.Write(this.slvr.Statistics.ToString(), Debug.VERBOSE_STATS);
             //statistics = this.StatisticsToString();
 
             this.slvr.Pop(1);
@@ -1418,24 +1396,14 @@ namespace passel.controller.smt.z3
         /**
          * Prove a term (negation is unsat)
          */
-        public Boolean proveTerm(Expr t, out Model model, out Expr[] core, out String statistics, params Boolean[] options)
+        public Boolean proveTerm(Expr t, out Model model, out Expr[] core, out String statistics)
         {
             model = null;
             core = null;
-            Boolean debug = false;
-            try
-            {
-                debug = options[0];
-            }
-            catch
-            {
-            }
+
             Boolean ret = false;
 
-            if (debug)
-            {
-                //Console.WriteLine("Term:\n\r" + t.ToString());
-            }
+            Debug.Write("Term:\n\r" + t.ToString(), Debug.VERBOSE_ALL);
 
             //this.slvr = this.MkSolver(); // WAY slower
             //this.slvr.Assert(this.Assumptions.ToArray());
@@ -1445,44 +1413,32 @@ namespace passel.controller.smt.z3
 
             this.slvr.Assert( this.MkNot((BoolExpr)t)); // proved if negation is unsat
             
-            Console.WriteLine("\n\r\n\rAttempting to prove the following: \n\r" + this.ExprArrayToString(this.slvr.Assertions) + "\n\r\n\r");
+            Debug.Write("\n\r\n\rAttempting to prove the following: \n\r" + this.ExprArrayToString(this.slvr.Assertions) + "\n\r\n\r", Debug.VERBOSE_TERMS);
 
             //switch (this.slvr.Check( this.MkNot((BoolExpr)t) ))
             switch (this.slvr.Check())
             {
                 case Status.UNSATISFIABLE:
-                    if (debug)
-                    {
-                        Console.WriteLine("unsat: proved claim");
-                    }
+                    Debug.Write("unsat: proved claim", Debug.VERBOSE_STEPS);
                     core = slvr.UnsatCore;
                     ret = true; // proved if negation is unsat
                     break;
                 case Status.UNKNOWN:
-                    if (debug)
-                    {
-                        Console.WriteLine("unknown: quantifier elimination failure");
-                        Console.WriteLine("Term:\n\r" + t.ToString());
-                        Console.WriteLine("\n\r\n\r All assertions: \n\r" + this.ExprArrayToString(this.slvr.Assertions) + "\n\r\n\r");
-                    }
+                    Debug.Write("WARNING: unknown", Debug.MINIMAL);
+                    Debug.Write("Term:\n\r" + t.ToString(), Debug.MINIMAL);
+                    Debug.Write("\n\r\n\r All assertions: \n\r" + this.ExprArrayToString(this.slvr.Assertions) + "\n\r\n\r", Debug.MINIMAL);
                     ret = false; // may occur semantics
                     // todo: add breakpoint back and check when this gets hit
                     break;
                 case Status.SATISFIABLE:
                     model = slvr.Model;
-                    if (debug)
-                    {
-                        Console.WriteLine("sat: disproved claim");
-                        //Console.WriteLine(model.ToString());
-                    }
+                    Debug.Write("sat: disproved claim", Debug.VERBOSE_STEPS);
+                    Debug.Write(model.ToString(), Debug.VERBOSE_ALL);
                     ret = false;
                     break;
             }
 
-            if (debug)
-            {
-                Console.WriteLine(this.slvr.Statistics.ToString());
-            }
+            Debug.Write(this.slvr.Statistics.ToString(), Debug.VERBOSE_STATS);
             statistics = this.slvr.Statistics.ToString();
 
             // restore context
@@ -1491,6 +1447,113 @@ namespace passel.controller.smt.z3
             return ret;
         }
 
+        /**
+         * Convert an expression to CNF
+         */
+        public Expr ToCNF(Expr e)
+        {
+            Params sparams = this.MkParams();
+            sparams.Add("elim_and", true);
+            sparams.Add("cache-all", true);
+            sparams.Add("hoist-cmul", true);
+            sparams.Add("hoist-mul", true);
+            sparams.Add("ite-extra-rules", true);
+            sparams.Add("local-ctx", true);
+            sparams.Add("pull-cheap-ite", true);
+
+
+            //split-largest-clause
+            Params cnfparams = this.MkParams();
+            cnfparams.Add("distributivity", true);
+            //Then( With(Tactic('simplify'), elim_and=True), Tactic('elim-term-ite'), Tactic('tseitin-cnf'))
+            //tac2 = Then( With(Tactic('simplify'), elim_and=True), Tactic('elim-term-ite'), With(Tactic('tseitin-cnf'), distributivity=False))
+            // source: http://stackoverflow.com/questions/11806626/error-tactic-failed-operator-not-supported-apply-simplifier-before-invoking/11810623#11810623
+            Tactic tocnf = this.Then(this.With(this.MkTactic("simplify"), sparams), this.MkTactic("elim-uncnstr"), this.MkTactic("elim-term-ite"), this.MkTactic("ctx-solver-simplify"), this.ParAndThen(this.Repeat(this.OrElse(this.MkTactic("split-clause"), this.Skip())), this.MkTactic("propagate-ineqs")), this.With(this.MkTactic("tseitin-cnf"), cnfparams));
+            //Tactic tocnf = this.Then(this.MkTactic("ctx-simplify"), this.With(this.MkTactic("simplify"), sparams), this.MkTactic("ctx-solver-simplify"), this.MkTactic("elim-term-ite"), this.ParAndThen(this.Repeat(this.OrElse(this.MkTactic("split-clause"), this.Skip())), this.MkTactic("propagate-ineqs")), this.With(this.MkTactic("tseitin-cnf"), cnfparams));
+            //Tactic tocnf = this.Then(this.With(this.MkTactic("simplify"), sparams), this.MkTactic("ctx-solver-simplify"), this.MkTactic("elim-term-ite"), this.MkTactic("propagate-ineqs"), this.With(this.MkTactic("tseitin-cnf"), cnfparams));
+            Goal ecnf = this.MkGoal();
+            ecnf.Assert(this.AssumptionsUniversal.ToArray()); // data type assumptions
+            ecnf.Assert((BoolExpr)e);
+            ApplyResult result = tocnf.Apply(ecnf);
+            //Expr re = this.MkOr(result.Subgoals.SelectMany(sg => sg.Formulas).ToArray()); // doesn't work
+            List<BoolExpr> sgfs = new List<BoolExpr>();
+            uint sgi = 0;
+            foreach (var sg in result.Subgoals)
+            {
+                BoolExpr tmpc = this.MkAnd(sg.Formulas.ToArray());
+                Model m;
+                Expr[] core;
+                if (!checkTerm(tmpc, out m, out core)) // remove unsats
+                {
+                    sgi++;
+                    continue;
+                }
+                else
+                {
+                    if (tmpc.ToString().Contains("k!"))
+                    {
+                        Debug.Write("WARNING: conversion to DNF introduced new variables, attempting to automatically rewrite them to previous model values, but errors may occur.", Debug.MINIMAL);
+                        Model conv = result.ConvertModel(sgi, m);
+                        conv = conv;
+
+                        foreach (var orig in m.Decls)
+                        {
+                            // found the difference, use old value
+                            if (!conv.Decls.Contains(orig))
+                            {
+                                Debug.Write("Converting from " + orig.ToString());
+                                foreach (var converted in conv.Decls)
+                                {
+                                    if (converted != orig && !m.Decls.Contains(converted))
+                                    {
+                                        //tmpc = tmpc.Substitute((Expr)orig, (Expr)converted);
+                                        //FuncInterp test0 = m.FuncInterp(orig);
+                                        Expr test1 = m.ConstInterp(orig);
+                                        
+                                        //FuncInterp test2 = conv.FuncInterp(converted);
+                                        Expr test3 = conv.ConstInterp(converted);
+                                        test1 = test1;
+                                        test3 = test3;
+
+                                        Expr eqc = this.MkEq(converted.Apply(), test3);
+                                        Expr eqo = this.MkEq(orig.Apply(), test1);
+
+                                        eqc = eqc;
+                                        eqo = eqo;
+
+                                        tmpc = (BoolExpr)tmpc.Substitute(eqo, eqc);
+                                        tmpc = (BoolExpr)tmpc.Substitute(orig.Apply(), eqc); // could be a bit only
+                                    }
+                                }
+                            }
+                        }
+
+                    }
+                    sgfs.Add(tmpc);
+                }
+                sgi++;
+            }
+            Expr re = this.MkOr(sgfs.ToArray());
+            return re; 
+        }
+
+
+        /**
+         * Convert an expression to DNF, assuming it is in CNF
+         */
+        public Expr ToDNF(Expr e)
+        {
+            //tac3 = Then( Tactic('simplify'), Repeat(OrElse(Tactic('split-clause'), Tactic('skip'))))
+            Tactic tocnf = this.Then(this.MkTactic("simplify"), this.Repeat(this.OrElse(this.MkTactic("split-clause"), this.MkTactic("skip"))));
+            Goal ecnf = this.MkGoal();
+            ecnf.Assert((BoolExpr)this.ToCNF(e)); // convert to CNF first
+            Expr result = this.MkAnd(tocnf.Apply(ecnf).Subgoals.SelectMany(a => a.Formulas).ToArray());
+            return result;
+        }
+
+        /**
+         * Convert an expression array to strings
+         */
         public String ExprArrayToString(Expr[] inp)
         {
             String o = "";
@@ -1505,9 +1568,10 @@ namespace passel.controller.smt.z3
         }
 
         /**
-         * Print a term as a latex string
+         * Print a term as an appropriately formatted string (e.g., latex, phaver, etc.)
+         * 
+         * Limitations: not all terms can be converted to Phaver input syntax
          */
-        
         public String ToStringFormatted(Expr t, PrintFormatMode o, bool paren = false)
         {
             if (t == null)

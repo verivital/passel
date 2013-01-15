@@ -2,25 +2,1052 @@
 
 <holism>
 	<parameter name='N' type='index' comment='number of processes in the system' />
-	<parameter name='a' type='real' comment='smaller constant' />
-	<parameter name='b' type='real' comment='larger constant' />
+	<parameter name='a' assumption='a == 5.0' type='real' comment='smaller constant' />
+	<parameter name='b' assumption='b == 7.0' type='real' comment='larger constant' />
 	
-	<parameter name='c' type='real' comment='lower rate' />
-	<parameter name='d' type='real' comment='upper rate' />
+	<parameter name='c' assumption='c == 1.0' type='real' comment='lower rate' />
+	<parameter name='d' assumption='d == 1.0' type='real' comment='upper rate' />
 	
-	<variable name='g' type='index' update_type='Discrete' comment='lock' />
+	<variable name='g' initially='g == 0' type='index' update_type='Discrete' comment='lock' />
 	
-	<assumption equn='a &gt; 0.0 and b &gt; 0.0 and a &lt; b' comment='a *stictly less than* b for mutual exclusion' />
-	<assumption equn='a == 5.0 and b == 7.0' comment='need actual values for phaver' />
-	<assumption equn='c == 1.0 and d == 1.0' comment='need actual values for phaver' />
+<!--	<assumption equn='a &gt; 0.0 and b &gt; 0.0 and a &lt; b' comment='a *stictly less than* b for mutual exclusion; this can be used without parameter values (but then invariant synthesis will not work, but we need actual values for phaver)' />	-->
 	
-	<assumption equn='N &gt;= 1' comment='' />
+	<assumption equn='N == 3' comment='' />
 
 	<automaton name='fischer_phaver_const'>
-		<variable name='x[i]' type='nnreal' update_type='Continuous' />
-		
-		<initial equn='(forall i (x[i] == 0.0)) and g = 0' />
+		<variable name='x[i]' initially='x[i] == 0.0' type='nnreal' update_type='Continuous' />
 
+<!--
+		<mode id='0' name='rem' initial='True'>
+			<dai variable='x[i]' equn='x[i]_dot = 0.0'/>
+		</mode>
+-->
+		
+		<mode id='1' name='test' initial='True'>
+			<dai variable='x[i]' equn='x[i]_dot = 0.0'/>
+		</mode>
+
+		<mode id='2' name='set' initial='False'>
+			<invariant equn='x[i] &lt;= a' />
+			<stop equn='x[i] &gt;= a' />
+			<dai variable='x[i]' equn='x[i]_dot &gt;= c and x[i]_dot &lt;= d'/>
+		</mode>
+		
+		<mode id='3' name='check' initial='False'>
+			<dai variable='x[i]' equn='x[i]_dot &gt;= c and x[i]_dot &lt;= d'/>
+		</mode>
+		
+		<mode id='4' name='cs' initial='False'>
+			<dai variable='x[i]' equn='x[i]_dot = 0.0'/>
+		</mode>
+<!--
+		<mode id='5' name='reset' initial='False'>
+			<dai variable='x[i]' equn='x[i]_dot = 0.0'/>
+		</mode>
+-->
+		
+<!--
+		<transition source='rem' destination='test'>
+			<action equn='x[i]&apos; = 0.0'/>
+		</transition>
+-->
+
+<!--		
+		<transition source='test' destination='test'>
+			<guard equn='g != 0' />
+			<action equn='x[i]&apos; = 0.0'/>
+		</transition>
+-->
+		
+		<transition source='test' destination='set'>
+			<guard equn='g == 0' />
+			<action equn='x[i]&apos; = 0.0' />
+		</transition>
+
+		<transition source='set' destination='check'>
+			<action equn='g&apos; = i and x[i]&apos; = 0.0'/>
+		</transition>
+
+		<transition source='check' destination='cs'>
+			<guard equn='g == i and x[i] &gt;= b' />
+			<action equn='x[i]&apos; = 0.0'/>
+		</transition>
+		
+		<transition source='check' destination='test'>
+			<guard equn='g != i and x[i] &gt;= b' />
+			<action equn='x[i]&apos; = 0.0'/>
+		</transition>
+		
+		<transition source='cs' destination='test'>
+			<action equn='g&apos; = 0 and x[i]&apos; = 0.0'/>
+		</transition>
+<!--
+		<transition source='reset' destination='test'>
+		</transition>
+-->
+	</automaton>
+
+
+	<property equn='true' type='safety' />
+
+<!--
+	<property equn='forall i ((q[i] == set) implies (x[i] &lt;= a))' type='safety' />
+	<property equn='forall i j ((i != j and q[i] == check and g == i and q[j] == set) implies ((b - a) &gt; (x[i] - x[j])))' type='safety' /> 
+-->
+	
+	
+<!--	<property equn='forall i j ((i != j and q[i] == check and g == i and q[j] == set) implies ((b - (x[i] + (d-c)/d)) &gt; (a - (x[j] + (d-c)/c))))' type='safety' /> -->
+
+	
+	<property equn='forall i j ((q[i] == cs) implies (g == i and q[j] != set))' type='safety' />
+
+	<property equn='forall i j ((i != j) implies (q[i] != cs or q[j] != cs))' type='safety' />
+	<property equn='forall i j ((i != j and q[i] == cs) implies (q[j] != cs))' type='safety' />
+
+	
+<!--
+<property format='smt' equn='(forall ((i Int) (j Int))
+  (=&gt; (and (&gt;= i 1) (&lt;= i N) (&gt;= j 1) (&lt;= j N) (distinct i j))
+      (or (and (= (q i) test) (= (q j) test) (= (x j) 0.0) (= (x i) 0.0))
+          (and (= (q i) set)
+               (= (q j) test)
+               (&gt;= (x i) 0.0)
+               (&lt;= (x i) 5.0)
+               (= (x j) 0.0))
+          (and (= (q i) test)
+               (= (q j) set)
+               (&gt;= (x j) 0.0)
+               (&lt;= (x j) 5.0)
+               (= (x i) 0.0))
+          (and (= (q i) test) (= (q j) check) (= (x i) 0.0) (&gt;= (x j) 0.0))
+          (and (= (q i) set)
+               (= (q j) set)
+               (&gt;= (x i) 0.0)
+               (&lt;= (x i) 5.0)
+               (&gt;= (x j) 0.0)
+               (&lt;= (x j) 5.0))
+          (and (= (q i) check)
+               (= (q j) set)
+               (or (and (not (&lt;= 7.0 (+ (x i) (* (- 1.0) (x j)))))
+                        (not (&lt;= 0.0 (+ (* (- 1.0) (x i)) (x j))))
+                        (not (&lt;= 5.0 (x j))))
+                   (and (&lt;= (+ (x j) (* (- 1.0) (x i))) (- 7.0))
+                        (not (&lt;= 12.0 (x i)))))
+               (not (&gt;= (x i) 12.0))
+               (not (= g i))
+               (not (= g j))
+               (&gt;= (x j) 0.0))
+          (and (= (q i) check)
+               (= (q j) set)
+               (or (not (&lt;= (x j) 0.0)) (&gt;= (x j) 0.0))
+               (not (&lt;= (+ (* (- 1.0) (x i)) (x j)) (- 7.0)))
+               (not (&gt;= (+ (* (- 1.0) (x i)) (x j)) 0.0))
+               (not (&gt;= (x i) 12.0))
+               (&lt;= (x j) 5.0)
+               (not (= g i))
+               (not (= g j)))
+          (and (= (q i) check)
+               (= (q j) set)
+               (&gt;= (x j) (x i))
+               (not (= g i))
+               (not (= g j))
+               (&lt;= (x j) 5.0)
+               (not (&lt;= (x i) 0.0)))
+          (and (= (q i) check)
+               (= (q j) set)
+               (not (&lt;= (x i) (x j)))
+               (or (not (&lt;= 5.0 (x i))) (&lt;= (x i) 5.0))
+               (not (= g i))
+               (not (= g j))
+               (&gt;= (x j) 0.0))
+          (and (= (q i) check)
+               (= (q j) set)
+               (&gt;= (x j) (x i))
+               (or (not (&lt;= 5.0 (x i))) (&lt;= (x i) 5.0))
+               (&lt;= (x j) 5.0)
+               (&gt;= (x i) 0.0))
+          (and (= (q i) check)
+               (= (q j) set)
+               (&gt;= (x i) (+ 7.0 (x j)))
+               (or (not (&lt;= (x i) 7.0)) (&gt;= (x i) 7.0))
+               (&gt;= (x j) 0.0)
+               (&lt;= (x j) 5.0))
+          (and (= (q i) set)
+               (= (q j) check)
+               (not (&lt;= (+ (* (- 1.0) (x i)) (x j)) 0.0))
+               (not (&gt;= (+ (* (- 1.0) (x i)) (x j)) 7.0))
+               (not (&lt;= (x i) 0.0))
+               (&lt;= (x i) 5.0)
+               (not (&lt;= (x j) 0.0))
+               (not (&gt;= (x j) 12.0))
+               (not (= g i))
+               (not (= g j)))
+          (and (= (q i) set)
+               (= (q j) check)
+               (or (not (&lt;= 5.0 (x i))) (&lt;= (x i) 5.0))
+               (not (&lt;= (+ (* (- 1.0) (x i)) (x j)) 0.0))
+               (not (&gt;= (+ (* (- 1.0) (x i)) (x j)) 7.0))
+               (&gt;= (x i) 0.0)
+               (not (&lt;= (x j) 0.0))
+               (not (= g i))
+               (not (= g j)))
+          (and (= (q i) set)
+               (= (q j) check)
+               (&gt;= (x i) (x j))
+               (&lt;= (x i) 5.0)
+               (&gt;= (x j) 0.0))
+          (and (= (q i) set)
+               (= (q j) check)
+               (&gt;= (x j) (+ 7.0 (x i)))
+               (&gt;= (x i) 0.0)
+               (&lt;= (x i) 5.0))
+          (and (= (q i) set)
+               (= (q j) set)
+               (not (&lt;= (x i) (x j)))
+               (&lt;= (x i) 5.0)
+               (not (= g i))
+               (not (= g j))
+               (&gt;= (x j) 0.0))
+          (and (= (q i) set)
+               (= (q j) set)
+               (&gt;= (x j) (x i))
+               (&gt;= (x i) 0.0)
+               (not (= g i))
+               (not (= g j))
+               (&lt;= (x j) 5.0))
+          (and (= (q i) set)
+               (= (q j) set)
+               (or (not (&lt;= (x i) 0.0)) (&gt;= (x i) 0.0))
+               (&gt;= (x j) 0.0)
+               (&lt;= (x j) 5.0)
+               (&lt;= (x i) 5.0))
+          (and (= (q i) check)
+               (= (q j) set)
+               (&gt;= (x j) 0.0)
+               (&lt;= (x j) 5.0)
+               (not (= g i))
+               (not (= g j))
+               (not (&gt;= (+ (x j) (* (- 1.0) (x i))) (- 12.0)))
+               (not (&lt;= (x i) 12.0)))
+          (and (= (q i) check)
+               (= (q j) set)
+               (&gt;= (x i) (+ 7.0 (x j)))
+               (&gt;= (x j) 0.0)
+               (&lt;= (x j) 5.0)
+               (not (= g i))
+               (not (= g j)))
+          (and (= (q i) check)
+               (= (q j) set)
+               (not (&lt;= (x j) (+ (- 7.0) (x i))))
+               (or (and (not (&lt;= (x j) 0.0)) (not (&lt;= (x i) 5.0)))
+                   (and (&gt;= (x j) 0.0) (not (&lt;= (x i) 5.0))))
+               (&lt;= (x j) 5.0))
+          (and (= (q i) check)
+               (= (q j) set)
+               (&gt;= (x j) (x i))
+               (&gt;= (x i) 0.0)
+               (= g i)
+               (&lt;= (x j) 5.0))
+          (and (= (q i) check)
+               (= (q j) set)
+               (not (&lt;= (x i) (x j)))
+               (or (and (not (&lt;= 5.0 (+ (x i) (* (- 1.0) (x j)))))
+                        (not (&lt;= (x j) 0.0)))
+                   (and (&lt;= (+ (x i) (* (- 1.0) (x j))) 5.0) (&gt;= (x j) 0.0)))
+               (&lt;= (x j) 5.0))
+          (and (= (q i) check)
+               (= (q j) set)
+               (or (and (not (&lt;= 5.0 (+ (x j) (* (- 1.0) (x i)))))
+                        (not (&lt;= (x i) (- 10.0)))
+                        (&lt;= (x i) 12.0))
+                   (and (&lt;= (+ (x j) (* (- 1.0) (x i))) 5.0)
+                        (not (&lt;= (x i) (- 10.0)))
+                        (not (&lt;= 12.0 (x i)))))
+               (not (&lt;= (x i) 0.0))
+               (not (&gt;= (x i) 12.0))
+               (not (&lt;= (+ (* (- 1.0) (x i)) (x j)) (- 7.0)))
+               (not (&gt;= (+ (* (- 1.0) (x i)) (x j)) 0.0))
+               (&gt;= (x j) 0.0)
+               (&lt;= (x j) 5.0)
+               (not (= g i))
+               (not (= g j)))
+          (and (= (q i) check)
+               (= (q j) set)
+               (not (&lt;= (+ (* (- 1.0) (x i)) (x j)) (- 7.0)))
+               (not (&gt;= (+ (* (- 1.0) (x i)) (x j)) 0.0))
+               (not (&lt;= (x i) 0.0))
+               (not (&gt;= (x i) 12.0))
+               (&gt;= (x j) 0.0)
+               (&lt;= (x j) 5.0)
+               (not (= g i))
+               (not (= g j)))
+          (and (= (q i) check)
+               (= (q j) set)
+               (&gt;= (x j) (x i))
+               (or (not (&lt;= (x i) (- 5.0))) (&gt;= (x i) (- 5.0)))
+               (&lt;= (x j) 5.0)
+               (&gt;= (x i) 0.0))
+          (and (= (q i) check)
+               (= (q j) set)
+               (&gt;= (x j) (x i))
+               (&lt;= (x j) 5.0)
+               (&gt;= (x i) 0.0))
+          (and (= (q i) check)
+               (= (q j) set)
+               (&gt;= (x i) (+ 7.0 (x j)))
+               (&gt;= (x j) 0.0)
+               (&lt;= (x j) 5.0))
+          (and (= (q i) set)
+               (= (q j) check)
+               (or (not (&lt;= (x i) 0.0)) (&gt;= (x i) 0.0))
+               (not (&lt;= (+ (* (- 1.0) (x i)) (x j)) 0.0))
+               (not (&gt;= (+ (* (- 1.0) (x i)) (x j)) 7.0))
+               (&lt;= (x i) 5.0)
+               (not (&gt;= (x j) 12.0)))
+          (and (= (q i) set)
+               (= (q j) check)
+               (&gt;= (x i) (x j))
+               (&lt;= (x i) 5.0)
+               (= g j)
+               (&gt;= (x j) 0.0))
+          (and (= (q i) set)
+               (= (q j) check)
+               (= (x i) (x j))
+               (or (and (not (&lt;= (x i) (- 7.0))) (not (&lt;= 5.0 (x i))))
+                   (and (not (&lt;= 12.0 (x i))) (&gt;= (x i) 5.0)))
+               (&gt;= (x i) 0.0)
+               (&lt;= (x i) 5.0)
+               (not (= g i))
+               (not (= g j)))
+          (and (= (q i) set)
+               (= (q j) check)
+               (&gt;= (x i) 0.0)
+               (&lt;= (x i) 5.0)
+               (not (&lt;= (+ (* (- 1.0) (x i)) (x j)) 0.0))
+               (not (&gt;= (+ (* (- 1.0) (x i)) (x j)) 7.0))
+               (not (&lt;= (x j) 0.0))
+               (not (&gt;= (x j) 12.0))
+               (not (= g i))
+               (not (= g j)))
+          (and (= (q i) set)
+               (= (q j) check)
+               (&gt;= (x j) (+ 7.0 (x i)))
+               (or (and (not (&lt;= (x i) (- 7.0))) (not (&lt;= 5.0 (x i))))
+                   (and (not (&lt;= 12.0 (x i))) (&gt;= (x i) 5.0)))
+               (&gt;= (x i) 0.0)
+               (&lt;= (x i) 5.0)
+               (not (= g i))
+               (not (= g j)))
+          (and (= (q i) set)
+               (= (q j) check)
+               (&gt;= (x i) (x j))
+               (or (not (&lt;= (x i) 0.0)) (&gt;= (x i) 0.0))
+               (&lt;= (x i) 5.0)
+               (&gt;= (x j) 0.0))
+          (and (= (q i) set)
+               (= (q j) check)
+               (&gt;= (x j) (+ 7.0 (x i)))
+               (or (not (&lt;= (x i) 0.0)) (&gt;= (x i) 0.0))
+               (&lt;= (x i) 5.0))
+          (and (= (q i) set)
+               (= (q j) set)
+               (not (&lt;= (x j) (x i)))
+               (not (= g i))
+               (not (= g j))
+               (&lt;= (x j) 5.0)
+               (&gt;= (x i) 0.0))
+          (and (= (q i) set)
+               (= (q j) set)
+               (&gt;= (x i) (x j))
+               (not (= g i))
+               (not (= g j))
+               (&lt;= (x i) 5.0)
+               (&gt;= (x j) 0.0))
+          (and (= (q i) check)
+               (= (q j) check)
+               (not (&lt;= (+ (* (- 1.0) (x i)) (x j)) (- 7.0)))
+               (not (&gt;= (+ (* (- 1.0) (x i)) (x j)) (- 5.0)))
+               (not (&lt;= (x i) 12.0))
+               (&gt;= (x j) 7.0)
+               (not (= g i))
+               (not (= g j)))
+          (and (= (q i) check)
+               (= (q j) check)
+               (not (&lt;= (+ (* (- 1.0) (x i)) (x j)) 5.0))
+               (not (&gt;= (+ (* (- 1.0) (x i)) (x j)) 7.0))
+               (&gt;= (x i) 7.0)
+               (not (&lt;= (x j) 12.0))
+               (not (= g i))
+               (not (= g j)))
+          (and (= (q i) check)
+               (= (q j) check)
+               (not (&lt;= (+ (* (- 1.0) (x i)) (x j)) (- 7.0)))
+               (not (&gt;= (+ (* (- 1.0) (x i)) (x j)) (- 5.0)))
+               (not (&lt;= (x i) 5.0))
+               (&gt;= (x j) 0.0)
+               (= g j))
+          (and (= (q i) check)
+               (= (q j) check)
+               (not (&lt;= (+ (* (- 1.0) (x i)) (x j)) 5.0))
+               (not (&gt;= (+ (* (- 1.0) (x i)) (x j)) 7.0))
+               (&gt;= (x i) 0.0)
+               (not (&lt;= (x j) 5.0))
+               (= g i))
+          (and (= (q i) check)
+               (= (q j) check)
+               (&gt;= (+ (* (- 1.0) (x i)) (x j)) (- 5.0))
+               (&lt;= (+ (* (- 1.0) (x i)) (x j)) 5.0)
+               (&gt;= (x i) 0.0)
+               (&gt;= (x j) 0.0))
+          (and (= (q i) check)
+               (= (q j) check)
+               (&gt;= (x j) (+ 7.0 (x i)))
+               (&gt;= (x i) 0.0))
+          (and (= (q i) check)
+               (= (q j) check)
+               (&gt;= (x i) (+ 7.0 (x j)))
+               (&gt;= (x j) 0.0))
+          (and (= (q i) set)
+               (= (q j) cs)
+               (&gt;= (x i) 0.0)
+               (&lt;= (x i) 5.0)
+               (= (x j) 0.0)
+               (not (= g i))
+               (not (= g j)))
+          (and (= (q i) set)
+               (= (q j) cs)
+               (&gt;= (x i) 0.0)
+               (&lt;= (x i) 5.0)
+               (= (x j) 0.0)
+               (= g j))
+          (and (= (q i) check)
+               (= (q j) cs)
+               (&gt;= (x i) 7.0)
+               (not (&gt;= (x i) 14.0))
+               (= (x j) 0.0)
+               (not (= g i))
+               (not (= g j)))
+          (and (= (q i) check)
+               (= (q j) cs)
+               (= (x j) 0.0)
+               (not (= g i))
+               (not (= g j))
+               (&gt;= (x i) 14.0))
+          (and (= (q i) check)
+               (= (q j) cs)
+               (= (x j) 0.0)
+               (= g i)
+               (&gt;= (x i) 0.0))
+          (and (= (q i) check)
+               (= (q j) cs)
+               (&gt;= (x i) 0.0)
+               (not (&gt;= (x i) 7.0))
+               (= (x j) 0.0)
+               (= g j))
+          (and (= (q i) check)
+               (= (q j) cs)
+               (= (x j) 0.0)
+               (= g j)
+               (&gt;= (x i) 7.0))
+          (and (= (q i) set)
+               (= (q j) cs)
+               (= (x j) 0.0)
+               (not (= g i))
+               (not (= g j))
+               (&gt;= (x i) 0.0)
+               (not (&gt;= (x i) 5.0)))
+          (and (= (q i) set)
+               (= (q j) cs)
+               (or (not (&lt;= (x i) 0.0)) (&gt;= (x i) 0.0))
+               (= (x j) 0.0)
+               (not (= g i))
+               (not (= g j))
+               (&lt;= (x i) 5.0))
+          (and (= (q i) check)
+               (= (q j) cs)
+               (or (and (&gt;= (x i) 14.0) (not (&lt;= 19.0 (x i))))
+                   (and (&lt;= (x i) 14.0) (not (&lt;= (x i) 7.0)))
+                   (not (&lt;= 14.0 (x i))))
+               (&gt;= (x i) 7.0)
+               (not (&gt;= (x i) 19.0))
+               (= (x j) 0.0)
+               (not (= g i))
+               (not (= g j)))
+          (and (= (q i) check)
+               (= (q j) cs)
+               (or (not (&lt;= (x i) 14.0)) (&gt;= (x i) 14.0))
+               (= (x j) 0.0)
+               (not (= g i))
+               (not (= g j)))
+          (and (= (q i) check)
+               (= (q j) cs)
+               (or (not (&lt;= 5.0 (x i))) (&lt;= (x i) 5.0))
+               (= (x j) 0.0)
+               (= g i)
+               (&gt;= (x i) 0.0))
+          (and (= (q i) check)
+               (= (q j) cs)
+               (or (not (&lt;= 5.0 (x i))) (&lt;= (x i) 5.0))
+               (= (x j) 0.0)
+               (= g j)
+               (&gt;= (x i) 0.0))
+          (and (= (q i) check)
+               (= (q j) cs)
+               (or (not (&lt;= (x i) 7.0)) (&gt;= (x i) 7.0))
+               (= (x j) 0.0)
+               (= g j))
+          (and (= (q i) set)
+               (= (q j) cs)
+               (or (not (&lt;= (x i) 0.0)) (&gt;= (x i) 0.0))
+               (= (x j) 0.0)
+               (&lt;= (x i) 5.0))
+          (and (= (q i) set)
+               (= (q j) cs)
+               (or (not (&lt;= (x i) 0.0)) (&gt;= (x i) 0.0))
+               (= (x j) 0.0)
+               (= g j)
+               (&lt;= (x i) 5.0))
+          (and (= (q i) check)
+               (= (q j) cs)
+               (not (&lt;= (x i) 12.0))
+               (= (x j) 0.0)
+               (= g j))
+          (and (= (q i) check)
+               (= (q j) cs)
+               (&gt;= (x i) 7.0)
+               (= (x j) 0.0)
+               (= g j))
+          (and (= (q i) check)
+               (= (q j) cs)
+               (or (not (&lt;= (x i) (- 5.0))) (&gt;= (x i) (- 5.0)))
+               (&gt;= (x i) 0.0)
+               (= (x j) 0.0)
+               (= g i))
+          (and (= (q i) check) (= (q j) cs) (&gt;= (x i) 0.0) (= (x j) 0.0))
+          (and (= (q i) check)
+               (= (q j) cs)
+               (or (not (&lt;= (x i) 7.0)) (&gt;= (x i) 7.0))
+               (= (x j) 0.0))
+          (and (= (q i) check)
+               (= (q j) cs)
+               (or (and (not (&lt;= (x i) (- 5.0))) (&lt;= (x i) 7.0))
+                   (and (&gt;= (x i) (- 5.0)) (not (&lt;= 7.0 (x i)))))
+               (&gt;= (x i) 0.0)
+               (not (&gt;= (x i) 7.0))
+               (= (x j) 0.0)
+               (= g j))
+          (and (= (q i) check)
+               (= (q j) cs)
+               (or (not (&lt;= (x i) (- 3.0))) (&gt;= (x i) (- 3.0)))
+               (&gt;= (x i) 7.0)
+               (= (x j) 0.0)
+               (= g j))
+          (and (= (q i) set)
+               (= (q j) test)
+               (not (&lt;= (x i) (- 7.0)))
+               (&gt;= (x i) 0.0)
+               (&lt;= (x i) 5.0)
+               (= (x j) 0.0)
+               (not (= g i))
+               (not (= g j)))
+          (and (= (q i) set)
+               (= (q j) test)
+               (or (not (&lt;= (x i) 0.0)) (&gt;= (x i) 0.0))
+               (= (x j) 0.0)
+               (&lt;= (x i) 5.0))
+          (and (= (q i) check)
+               (= (q j) cs)
+               (&gt;= (x i) 7.0)
+               (not (&gt;= (x i) 14.0))
+               (= (x j) 0.0)
+               (= g j))
+          (and (= (q i) check)
+               (= (q j) cs)
+               (&gt;= (x i) 7.0)
+               (not (&gt;= (x i) 14.0))
+               (= (x j) 0.0))
+          (and (= (q i) check) (= (q j) cs) (= (x j) 0.0) (&gt;= (x i) 14.0))
+          (and (= (q i) check)
+               (= (q j) cs)
+               (= (x j) 0.0)
+               (= g j)
+               (&gt;= (x i) 14.0))
+          (and (= (q i) set)
+               (= (q j) test)
+               (&gt;= (x i) 0.0)
+               (&lt;= (x i) 5.0)
+               (= (x j) 0.0)
+               (not (= g i))
+               (not (= g j)))
+          (and (= (q i) check)
+               (= (q j) test)
+               (&gt;= (x i) 7.0)
+               (not (&gt;= (x i) 14.0))
+               (= (x j) 0.0)
+               (not (= g i))
+               (not (= g j)))
+          (and (= (q i) check)
+               (= (q j) test)
+               (= (x j) 0.0)
+               (not (= g i))
+               (not (= g j))
+               (&gt;= (x i) 14.0))
+          (and (= (q i) check)
+               (= (q j) test)
+               (= (x j) 0.0)
+               (= g i)
+               (&gt;= (x i) 0.0))
+          (and (= (q i) check)
+               (= (q j) test)
+               (&gt;= (x i) 0.0)
+               (not (&gt;= (x i) 7.0))
+               (= (x j) 0.0))
+          (and (= (q i) check) (= (q j) test) (= (x j) 0.0) (&gt;= (x i) 7.0))
+          (and (= (q i) check) (= (q j) test) (= (x j) 0.0) (&gt;= (x i) 0.0))
+          (and (= (q i) cs) (= (q j) test) (= (x j) 0.0) (= (x i) 0.0) (= g i))
+          (and (= (q i) cs) (= (q j) test) (= (x j) 0.0) (= (x i) 0.0))
+          (and (= (q i) test)
+               (= (q j) test)
+               (= (x j) 0.0)
+               (= (x i) 0.0)
+               (not (= g i))
+               (not (= g j)))
+          (and (= (q i) check)
+               (= (q j) set)
+               (not (&lt;= (+ (* (- 1.0) (x i)) (x j)) (- 14.0)))
+               (&lt;= (+ (* (- 1.0) (x i)) (x j)) (- 7.0))
+               (&gt;= (x i) 7.0)
+               (not (&gt;= (x i) 19.0))
+               (&gt;= (x j) 0.0)
+               (&lt;= (x j) 5.0)
+               (not (= g i))
+               (not (= g j)))
+          (and (= (q i) check)
+               (= (q j) set)
+               (&gt;= (x i) (+ 14.0 (x j)))
+               (&gt;= (x j) 0.0)
+               (&lt;= (x j) 5.0)
+               (not (= g i))
+               (not (= g j)))
+          (and (= (q i) check)
+               (= (q j) set)
+               (&gt;= (x j) (x i))
+               (= g i)
+               (&lt;= (x j) 5.0)
+               (&gt;= (x i) 0.0))
+          (and (= (q i) check)
+               (= (q j) check)
+               (not (&lt;= (+ (* (- 1.0) (x i)) (x j)) (- 7.0)))
+               (not (&gt;= (+ (* (- 1.0) (x i)) (x j)) (- 5.0)))
+               (not (&lt;= (x i) 12.0))
+               (&gt;= (x j) 7.0))
+          (and (= (q i) check)
+               (= (q j) check)
+               (not (&lt;= (+ (* (- 1.0) (x i)) (x j)) 5.0))
+               (not (&gt;= (+ (* (- 1.0) (x i)) (x j)) 7.0))
+               (&gt;= (x i) 7.0)
+               (not (&lt;= (x j) 12.0)))
+          (and (= (q i) check)
+               (= (q j) check)
+               (&gt;= (+ (* (- 1.0) (x i)) (x j)) (- 5.0))
+               (&lt;= (+ (* (- 1.0) (x i)) (x j)) 0.0)
+               (&gt;= (x i) 0.0)
+               (&gt;= (x j) 0.0)
+               (= g j))
+          (and (= (q i) check)
+               (= (q j) check)
+               (&gt;= (+ (* (- 1.0) (x i)) (x j)) 0.0)
+               (&lt;= (+ (* (- 1.0) (x i)) (x j)) 5.0)
+               (&gt;= (x i) 0.0)
+               (&gt;= (x j) 0.0)
+               (= g i))
+          (and (= (q i) check)
+               (= (q j) check)
+               (&gt;= (x j) (+ 7.0 (x i)))
+               (= g i)
+               (&gt;= (x i) 0.0))
+          (and (= (q i) check)
+               (= (q j) check)
+               (&gt;= (x i) (+ 7.0 (x j)))
+               (= g j)
+               (&gt;= (x j) 0.0))
+          (and (= (q i) check)
+               (= (q j) check)
+               (&gt;= (x i) 0.0)
+               (not (&gt;= (x i) 7.0))
+               (&gt;= (+ (* (- 1.0) (x i)) (x j)) (- 5.0))
+               (&lt;= (+ (* (- 1.0) (x i)) (x j)) 5.0)
+               (&gt;= (x j) 0.0)
+               (not (&gt;= (x j) 12.0)))
+          (and (= (q i) check)
+               (= (q j) check)
+               (&gt;= (x j) (+ 7.0 (x i)))
+               (&gt;= (x i) 0.0)
+               (not (&gt;= (x i) 7.0)))
+          (and (= (q i) check)
+               (= (q j) check)
+               (&gt;= (+ (* (- 1.0) (x i)) (x j)) (- 5.0))
+               (&lt;= (+ (* (- 1.0) (x i)) (x j)) 5.0)
+               (&gt;= (x i) 7.0)
+               (&gt;= (x j) 2.0))
+          (and (= (q i) check)
+               (= (q j) check)
+               (&gt;= (x j) (+ 7.0 (x i)))
+               (&gt;= (x i) 7.0))
+          (and (= (q i) test)
+               (= (q j) set)
+               (&gt;= (x j) 0.0)
+               (&lt;= (x j) 5.0)
+               (= (x i) 0.0)
+               (not (= g i))
+               (not (= g j)))
+          (and (= (q i) test)
+               (= (q j) check)
+               (= (x i) 0.0)
+               (not (= g i))
+               (not (= g j))
+               (&gt;= (x j) 7.0))
+          (and (= (q i) test)
+               (= (q j) check)
+               (= (x i) 0.0)
+               (= g j)
+               (&gt;= (x j) 0.0))
+          (and (= (q i) set)
+               (= (q j) check)
+               (&gt;= (x j) (+ 7.0 (x i)))
+               (&gt;= (x i) 0.0)
+               (&lt;= (x i) 5.0)
+               (not (= g i))
+               (not (= g j)))
+          (and (= (q i) set)
+               (= (q j) check)
+               (&gt;= (x i) (x j))
+               (= g j)
+               (&lt;= (x i) 5.0)
+               (&gt;= (x j) 0.0))
+          (and (= (q i) test) (= (q j) cs) (= (x j) 0.0) (= (x i) 0.0) (= g j))
+          (and (= (q i) test) (= (q j) cs) (= (x j) 0.0) (= (x i) 0.0))
+          (and (= (q i) test)
+               (= (q j) cs)
+               (= (x j) 0.0)
+               (= (x i) 0.0)
+               (not (= g i))
+               (not (= g j)))
+          (and (= (q i) cs)
+               (= (q j) check)
+               (= (x i) 0.0)
+               (= g i)
+               (&gt;= (x j) 7.0))
+          (and (= (q i) cs) (= (q j) check) (= (x i) 0.0) (&gt;= (x j) 7.0))
+          (and (= (q i) cs)
+               (= (q j) set)
+               (&gt;= (x j) 0.0)
+               (&lt;= (x j) 5.0)
+               (= (x i) 0.0)
+               (not (= g i))
+               (not (= g j)))
+          (and (= (q i) cs)
+               (= (q j) set)
+               (&gt;= (x j) 0.0)
+               (&lt;= (x j) 5.0)
+               (= (x i) 0.0)
+               (= g i))
+          (and (= (q i) cs)
+               (= (q j) check)
+               (= (x i) 0.0)
+               (not (= g i))
+               (not (= g j))
+               (&gt;= (x j) 7.0))
+          (and (= (q i) cs)
+               (= (q j) check)
+               (= (x i) 0.0)
+               (= g j)
+               (&gt;= (x j) 0.0))
+          (and (= (q i) cs)
+               (= (q j) check)
+               (&gt;= (x j) 0.0)
+               (not (&gt;= (x j) 7.0))
+               (= (x i) 0.0)
+               (= g i))
+          (and (= (q i) cs)
+               (= (q j) set)
+               (= (x i) 0.0)
+               (not (= g i))
+               (not (= g j))
+               (&gt;= (x j) 0.0)
+               (not (&gt;= (x j) 5.0)))
+          (and (= (q i) cs)
+               (= (q j) set)
+               (or (not (&lt;= (x j) 0.0)) (&gt;= (x j) 0.0))
+               (= (x i) 0.0)
+               (not (= g i))
+               (not (= g j))
+               (&lt;= (x j) 5.0))
+          (and (= (q i) cs)
+               (= (q j) check)
+               (or (not (&lt;= (x j) 7.0)) (&gt;= (x j) 7.0))
+               (= (x i) 0.0)
+               (not (= g i))
+               (not (= g j)))
+          (and (= (q i) cs)
+               (= (q j) check)
+               (or (not (&lt;= 5.0 (x j))) (&lt;= (x j) 5.0))
+               (= (x i) 0.0)
+               (= g j)
+               (&gt;= (x j) 0.0))
+          (and (= (q i) cs)
+               (= (q j) check)
+               (= (x i) 0.0)
+               (= g i)
+               (&gt;= (x j) 0.0))
+          (and (= (q i) cs)
+               (= (q j) set)
+               (or (not (&lt;= (x j) 0.0)) (&gt;= (x j) 0.0))
+               (= (x i) 0.0)
+               (&lt;= (x j) 5.0))
+          (and (= (q i) cs)
+               (= (q j) check)
+               (or (not (&lt;= (x j) 0.0)) (&gt;= (x j) 0.0))
+               (= (x i) 0.0))
+          (and (= (q i) cs) (= (q j) cs) (= (x j) 0.0) (= (x i) 0.0) (= g j))
+          (and (= (q i) cs) (= (q j) cs) (= (x j) 0.0) (= (x i) 0.0) (= g i))
+          (and (= (q i) cs)
+               (= (q j) test)
+               (= (x j) 0.0)
+               (= (x i) 0.0)
+               (not (= g i))
+               (not (= g j)))
+          (and (= (q i) check)
+               (= (q j) test)
+               (or (&lt;= (x i) 5.0)
+                   (and (not (&lt;= 12.0 (x i))) (&gt;= (x i) 5.0))
+                   (not (&lt;= 12.0 (x i))))
+               (not (&lt;= (x i) 0.0))
+               (not (&gt;= (x i) 12.0))
+               (= (x j) 0.0)
+               (not (= g i))
+               (not (= g j)))
+          (and (= (q i) check)
+               (= (q j) test)
+               (or (not (&lt;= 5.0 (x i))) (&lt;= (x i) 5.0))
+               (= (x j) 0.0)
+               (&gt;= (x i) 0.0))
+          (and (= (q i) check)
+               (= (q j) test)
+               (or (not (&lt;= (x i) 7.0)) (&gt;= (x i) 7.0))
+               (= (x j) 0.0))
+          (and (= (q i) check)
+               (= (q j) test)
+               (not (&lt;= (x i) 12.0))
+               (= (x j) 0.0)
+               (not (= g i))
+               (not (= g j)))
+          (and (= (q i) check)
+               (= (q j) test)
+               (&gt;= (x i) 7.0)
+               (= (x j) 0.0)
+               (not (= g i))
+               (not (= g j)))
+          (and (= (q i) check)
+               (= (q j) test)
+               (&gt;= (x i) 0.0)
+               (= (x j) 0.0)
+               (= g i))
+          (and (= (q i) check)
+               (= (q j) test)
+               (not (&lt;= (x i) 5.0))
+               (= (x j) 0.0))
+          (and (= (q i) check)
+               (= (q j) test)
+               (or (not (&lt;= (x i) (- 5.0))) (&gt;= (x i) (- 5.0)))
+               (&gt;= (x i) 0.0)
+               (= (x j) 0.0))
+          (and (= (q i) check)
+               (= (q j) check)
+               (or (not (&lt;= (x j) 7.0)) (&gt;= (x j) 7.0))
+               (not (&lt;= (+ (* (- 1.0) (x i)) (x j)) (- 7.0)))
+               (not (&gt;= (+ (* (- 1.0) (x i)) (x j)) (- 5.0)))
+               (not (= g i))
+               (not (= g j)))
+          (and (= (q i) check)
+               (= (q j) check)
+               (or (not (&lt;= (x i) 7.0)) (&gt;= (x i) 7.0))
+               (not (&lt;= (+ (* (- 1.0) (x i)) (x j)) 5.0))
+               (not (&gt;= (+ (* (- 1.0) (x i)) (x j)) 7.0))
+               (not (= g i))
+               (not (= g j)))
+          (and (= (q i) check)
+               (= (q j) check)
+               (not (&lt;= (x i) (+ 5.0 (x j))))
+               (or (and (not (&lt;= 12.0 (x i))) (not (&lt;= 5.0 (x j))))
+                   (and (not (&lt;= 12.0 (x i))) (&lt;= (x j) 5.0)))
+               (= g j)
+               (&gt;= (x j) 0.0))
+          (and (= (q i) check)
+               (= (q j) check)
+               (or (not (&lt;= 5.0 (x i))) (&lt;= (x i) 5.0))
+               (not (&lt;= (+ (* (- 1.0) (x i)) (x j)) 5.0))
+               (not (&gt;= (+ (* (- 1.0) (x i)) (x j)) 7.0))
+               (&gt;= (x i) 0.0)
+               (not (&lt;= (x j) 5.0))
+               (= g i))
+          (and (= (q i) check)
+               (= (q j) check)
+               (&gt;= (x j) (+ (- 5.0) (x i)))
+               (or (and (not (&lt;= 0.0 (+ (* (- 1.0) (x i)) (x j))))
+                        (not (&lt;= 5.0 (x j))))
+                   (and (not (&lt;= 0.0 (+ (* (- 1.0) (x i)) (x j))))
+                        (&lt;= (x j) 5.0)))
+               (= g j)
+               (&gt;= (x j) 0.0))
+          (and (= (q i) check)
+               (= (q j) check)
+               (or (and (not (&lt;= 7.0 (+ (* (- 1.0) (x j)) (x i))))
+                        (&gt;= (x i) 7.0)
+                        (not (&lt;= 12.0 (x i))))
+                   (and (not (&lt;= (x j) 0.0)) (&lt;= (x i) 7.0))
+                   (and (&gt;= (x j) 0.0) (not (&lt;= 7.0 (x i)))))
+               (not (&lt;= (x i) 0.0))
+               (not (&gt;= (x i) 12.0))
+               (&gt;= (+ (* (- 1.0) (x i)) (x j)) (- 5.0))
+               (&lt;= (+ (* (- 1.0) (x i)) (x j)) 5.0)
+               (not (&lt;= (x j) (- 5.0)))
+               (not (&gt;= (x j) 17.0))
+               (not (= g i))
+               (not (= g j)))
+          (and (= (q i) check)
+               (= (q j) check)
+               (&gt;= (x j) (+ 7.0 (x i)))
+               (or (&lt;= (x i) 5.0)
+                   (and (not (&lt;= 12.0 (x i))) (&gt;= (x i) 5.0))
+                   (not (&lt;= 12.0 (x i))))
+               (not (&lt;= (x i) 0.0))
+               (not (&gt;= (x i) 12.0))
+               (not (= g i))
+               (not (= g j)))
+          (and (= (q i) check)
+               (= (q j) check)
+               (&gt;= (x i) (+ (- 5.0) (x j)))
+               (or (not (&lt;= 5.0 (x i))) (&lt;= (x i) 5.0))
+               (&gt;= (x j) 0.0)
+               (&gt;= (x i) 0.0))
+          (and (= (q i) check)
+               (= (q j) check)
+               (or (not (&lt;= (x i) 7.0)) (&gt;= (x i) 7.0))
+               (&gt;= (+ (* (- 1.0) (x i)) (x j)) (- 5.0))
+               (&lt;= (+ (* (- 1.0) (x i)) (x j)) 5.0))
+          (and (= (q i) check)
+               (= (q j) check)
+               (&gt;= (x j) (+ 7.0 (x i)))
+               (or (not (&lt;= 5.0 (x i))) (&lt;= (x i) 5.0))
+               (&gt;= (x i) 0.0))
+          (and (= (q i) check)
+               (= (q j) check)
+               (&gt;= (x j) (+ 7.0 (x i)))
+               (or (not (&lt;= (x i) 7.0)) (&gt;= (x i) 7.0)))
+          (and (= (q i) check)
+               (= (q j) check)
+               (&gt;= (x i) (+ 7.0 (x j)))
+               (or (not (&lt;= (x i) 7.0)) (&gt;= (x i) 7.0))
+               (&gt;= (x j) 0.0))
+          (and (= (q i) check)
+               (= (q j) check)
+               (= g j)
+               (&gt;= (x j) 0.0)
+               (not (&gt;= (+ (x j) (* (- 1.0) (x i))) (- 12.0)))
+               (not (&lt;= (x i) 12.0)))
+          (and (= (q i) check)
+               (= (q j) check)
+               (or (not (&lt;= (x j) 7.0)) (&gt;= (x j) 7.0))
+               (not (&lt;= (+ (* (- 1.0) (x i)) (x j)) (- 7.0)))
+               (not (&gt;= (+ (* (- 1.0) (x i)) (x j)) (- 5.0))))
+          (and (= (q i) check)
+               (= (q j) check)
+               (or (not (&lt;= (x i) 7.0)) (&gt;= (x i) 7.0))
+               (not (&lt;= (+ (* (- 1.0) (x i)) (x j)) 5.0))
+               (not (&gt;= (+ (* (- 1.0) (x i)) (x j)) 7.0)))
+          (and (= (q i) check)
+               (= (q j) check)
+               (or (and (not (&lt;= (- 5.0) (+ (x j) (* (- 1.0) (x i)))))
+                        (&lt;= (+ (* (- 1.0) (x j)) (x i)) 10.0))
+                   (and (not (&lt;= 12.0 (+ (x i) (* (- 1.0) (x j)))))
+                        (&lt;= (+ (* (- 1.0) (x i)) (x j)) (- 10.0))
+                        (not (&lt;= (x j) (- 5.0))))
+                   (and (not (&lt;= 12.0 (+ (x i) (* (- 1.0) (x j)))))
+                        (not (&lt;= (- 10.0) (+ (* (- 1.0) (x i)) (x j))))
+                        (&gt;= (x j) (- 5.0))))
+               (not (&lt;= (x i) 5.0))
+               (&gt;= (x j) 0.0)
+               (= g j))
+          (and (= (q i) check)
+               (= (q j) check)
+               (not (&lt;= (+ (* (- 1.0) (x i)) (x j)) (- 7.0)))
+               (not (&gt;= (+ (* (- 1.0) (x i)) (x j)) (- 5.0)))
+               (not (&lt;= (x i) 5.0))
+               (&gt;= (x j) 0.0))
+          (and (= (q i) check)
+               (= (q j) check)
+               (&gt;= (x i) 0.0)
+               (not (&lt;= (+ (* (- 1.0) (x i)) (x j)) 5.0))
+               (not (&gt;= (+ (* (- 1.0) (x i)) (x j)) 7.0))
+               (not (&lt;= (x j) 5.0)))
+          (and (= (q i) check)
+               (= (q j) check)
+               (&gt;= (x i) 0.0)
+               (&gt;= (+ (* (- 1.0) (x i)) (x j)) (- 5.0))
+               (&lt;= (+ (* (- 1.0) (x i)) (x j)) 0.0)
+               (&gt;= (x j) 0.0)
+               (= g j))
+          (and (= (q i) check)
+               (= (q j) check)
+               (not (&lt;= (x i) 5.0))
+               (&gt;= (+ (* (- 1.0) (x i)) (x j)) (- 5.0))
+               (&lt;= (+ (* (- 1.0) (x i)) (x j)) 5.0)
+               (not (&lt;= (x j) 0.0)))
+          (and (= (q i) check)
+               (= (q j) check)
+               (&gt;= (x j) (+ 7.0 (x i)))
+               (not (&lt;= (x i) 5.0)))
+          (and (= (q i) check)
+               (= (q j) check)
+               (&gt;= (x i) 0.0)
+               (&gt;= (+ (* (- 1.0) (x i)) (x j)) 0.0)
+               (&lt;= (+ (* (- 1.0) (x i)) (x j)) 5.0)
+               (&gt;= (x j) 0.0)
+               (= g i))
+          (and (= (q i) check)
+               (= (q j) check)
+               (&gt;= (x j) (+ 7.0 (x i)))
+               (&gt;= (x i) 0.0)
+               (= g i))
+          (and (= (q i) check)
+               (= (q j) check)
+               (not (&lt;= (x i) 5.0))
+               (not (&lt;= (+ (* (- 1.0) (x i)) (x j)) (- 7.0)))
+               (not (&gt;= (+ (* (- 1.0) (x i)) (x j)) (- 5.0)))
+               (&gt;= (x j) 0.0)
+               (= g j))
+          (and (= (q i) check)
+               (= (q j) check)
+               (or (not (&lt;= (x i) (- 5.0))) (&gt;= (x i) (- 5.0)))
+               (&gt;= (x i) 0.0)
+               (&gt;= (+ (* (- 1.0) (x i)) (x j)) (- 5.0))
+               (&lt;= (+ (* (- 1.0) (x i)) (x j)) 5.0)
+               (&gt;= (x j) 0.0))
+          (and (= (q i) check)
+               (= (q j) check)
+               (&gt;= (x j) (+ 7.0 (x i)))
+               (or (not (&lt;= (x i) (- 5.0))) (&gt;= (x i) (- 5.0)))
+               (&gt;= (x i) 0.0)))))' assumed='1' type='safety' />
+-->
+
+
+
+
+
+<!--
+	<automaton name='fischer_phaver_const'>
+		<variable name='x[i]' initially='x[i] == 0.0' type='nnreal' update_type='Continuous' />
 
 		<mode id='0' name='idle' initial='True'>
 			<dai variable='x[i]' equn='x[i]_dot = 0.0'/>
@@ -36,7 +1063,7 @@
 			<dai variable='x[i]' equn='x[i]_dot == 1.0'/>
 		</mode>
 		
-		<mode id='3' name='CS' initial='False'>
+		<mode id='3' name='cs' initial='False'>
 			<dai variable='x[i]' equn='x[i]_dot = 0.0'/>
 		</mode>
 		
@@ -49,7 +1076,7 @@
 			<action equn='g&apos; = i and x[i]&apos; = 0.0'/>
 		</transition>
 
-		<transition source='check' destination='CS'>
+		<transition source='check' destination='cs'>
 			<guard equn='g == i and x[i] &gt;= b' />
 		</transition>
 		
@@ -58,17 +1085,19 @@
 			<action equn='x[i]&apos; = 0.0'/>
 		</transition>
 		
-		<transition source='CS' destination='idle'>
+		<transition source='cs' destination='idle'>
 			<action equn='g&apos; = 0 and x[i]&apos; = 0.0'/>
 		</transition>
 	</automaton>
+-->
 
 
-	<property equn='true' type='safety' />
 
+
+<!--
 	<property equn='forall i ((q[i] == start) implies (x[i] &lt;= a))' type='safety' />
 
-	<property equn='forall i ((q[i] == CS) implies (x[i] &gt;= b))' type='safety' />
+	<property equn='forall i ((q[i] == cs) implies (x[i] &gt;= b))' type='safety' />
 	
 	
 	<property equn='forall i ((q[i] == start) implies (x[i] &lt; a))' type='safety' />
@@ -82,34 +1111,22 @@
 	
 	<property equn='forall i j ((i != j and q[i] == check and x[j] &gt;= x[i]) implies (g == i))' type='safety' />
 	
-	<property equn='forall i ((q[i] == CS) implies (g != 0))' type='safety' />
+	<property equn='forall i ((q[i] == cs) implies (g != 0))' type='safety' />
 	
 	<property equn='forall i ((q[i] != idle) implies (g != 0))' type='safety' />
 	
-	
-	
 
 	
+	<property equn='forall i ((q[i] == cs) implies (g == i))' type='safety' />
 	
-	<property equn='forall i j ((i != j and q[i] == CS) implies (q[j] != start))' type='safety' />
-
+	<property equn='forall i j ((i != j and q[i] == cs) implies (q[j] != start))' type='safety' />
 	
-	<property equn='forall i ((q[i] == CS) implies (g == i))' type='safety' />
-	
-	
-	
-	<property equn='forall i j ((i != j and q[i] == CS and g == i) implies (q[j] != CS))' type='safety' comment='non-inductive: there could already be some other process j in CS: need to have if q[i] == CS => g == i' />
-	
-	
-	
-	
-	
-	
+	<property equn='forall i j ((i != j and q[i] == cs and g == i) implies (q[j] != cs))' type='safety' comment='non-inductive: there could already be some other process j in cs: need to have if q[i] == cs => g == i' />
 	
 	
 	
 
-	<property equn='forall i j ((i != j and q[i] == CS and x[j] &lt; b) implies (q[j] != CS))' type='safety' />
+	<property equn='forall i j ((i != j and q[i] == cs and x[j] &lt; b) implies (q[j] != cs))' type='safety' />
 	
 	
 	
@@ -122,45 +1139,29 @@
 	<property equn='forall i ((q[i] == idle or q[i] == start) implies (g == 0))' type='safety' />
 
 
-	<property equn='forall i j ((i != j and q[i] == CS and g == i) implies (q[j] != CS))' type='safety' />
+	<property equn='forall i j ((i != j and q[i] == cs and g == i) implies (q[j] != cs))' type='safety' />
 	
 	
-	<property equn='forall i j ((i != j and q[i] == CS and q[j] == start) implies (x[i] &gt; x[j]))' type='safety' />
+	<property equn='forall i j ((i != j and q[i] == cs and q[j] == start) implies (x[i] &gt; x[j]))' type='safety' />
 	
 	
-	<property equn='forall i j ((i != j and q[i] == CS and q[j] != CS) implies (x[i] &gt; x[j]))' type='safety' />
+	<property equn='forall i j ((i != j and q[i] == cs and q[j] != cs) implies (x[i] &gt; x[j]))' type='safety' />
 
 
 
 
-
-
-
-
-
-
-
-
-
+		
+	
+	<property equn='forall i j ((i != j and q[i] == cs and q[j] != check) implies (g == i))' type='safety' />
 	
 	
+	<property equn='forall i j ((i != j and q[i] == cs and x[j] &lt; a) implies (g == i))' type='safety' />
 	
+	<property equn='forall i ((q[i] == cs) implies (g == i))' type='safety' />
+	<property equn='forall i ((g == i) implies (q[i] == cs))' type='safety' />
+	<property equn='forall i ((g != i) implies (q[i] != cs))' type='safety' />
+-->
 
-
-	<property equn='forall i j ((i != j) implies (q[i] != CS or q[j] != CS))' type='safety' />
-	
-	<property equn='forall i j ((i != j and q[i] == CS) implies (q[j] != CS))' type='safety' />
-	
-	
-	<property equn='forall i j ((i != j and q[i] == CS and q[j] != check) implies (g == i))' type='safety' />
-	
-	
-	<property equn='forall i j ((i != j and q[i] == CS and x[j] &lt; a) implies (g == i))' type='safety' />
-	
-	<property equn='forall i ((q[i] == CS) implies (g == i))' type='safety' />
-	<property equn='forall i ((g == i) implies (q[i] == CS))' type='safety' />
-	<property equn='forall i ((g != i) implies (q[i] != CS))' type='safety' />
-	
 	<property equn='false' type='safety' />
 
 

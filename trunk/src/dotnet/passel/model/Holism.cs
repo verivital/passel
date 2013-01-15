@@ -6,6 +6,7 @@ using System.Text;
 using Microsoft.Z3;
 
 using passel.controller;
+using passel.controller.output;
 using passel.controller.smt;
 using passel.controller.smt.z3;
 
@@ -21,6 +22,8 @@ namespace passel.model
          * Dictionary mapping tuples of <variable name, round, process id> to appropriate expressions (e.g., xk_i, where x is variable name, k is round, and i is index)
          */
         public Dictionary<Tuple<String, uint, uint>, Expr> ReachValues = new Dictionary<Tuple<string, uint, uint>, Expr>();
+
+        public Dictionary<Tuple<String, uint>, Expr> GlobalReachValues = new Dictionary<Tuple<string, uint>, Expr>();
 
         /**
          * Hybrid automata
@@ -177,19 +180,22 @@ namespace passel.model
 
             //z3.Assumptions.RemoveAll(a => a.IsQuantifier);
 
+            this.Properties.RemoveAll(ptmp => ptmp.Status == StatusTypes.toDelete); // remove all useless properties
+
             this.z3.slvr.Assert(this.z3.Assumptions.ToArray()); // assert all the data-type assumptions
             this.z3.slvr.Assert(this.z3.AssumptionsUniversal.ToArray()); // assert all the data-type assumptions
-            
 
-            System.Console.WriteLine("Attempting to prove the following properties as inductive invariants: >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n\r");
+            Debug.Write("Attempting to prove the following properties as inductive invariants: \n\r", Debug.VERBOSE_STEPS);
             foreach (Property pi in this.Properties)
             {
-                System.Console.WriteLine(pi.Formula.ToString() + "\n\r");
-
-                System.Console.WriteLine(pi.Post.ToString() + "\n\r");
+                Debug.Write(pi.Formula.ToString() + "\n\r", Debug.VERBOSE_STEPS);
+                Debug.Write(pi.Post.ToString() + "\n\r", Debug.VERBOSE_ALL);
             }
+            Debug.Write("End property list\n\r", Debug.VERBOSE_STEPS);
 
             Property p = null;
+
+            Debug.Write("STATUS: starting inductive invariance proofs for proof iteration " + proofPass.ToString(), Debug.VERBOSE_STEPS);
 
             while (true)
             { 
@@ -203,6 +209,7 @@ namespace passel.model
                 {
                     p = null;
                     proofPass++;
+                    Debug.Write("STATUS: starting inductive invariance proofs for proof iteration " + proofPass.ToString(), Debug.VERBOSE_STEPS);
                     foreach (var ptmp in this.Properties)
                     {
                         if (ptmp.Status == StatusTypes.disproved)
@@ -220,19 +227,23 @@ namespace passel.model
                         }
                     }
 
-                    System.Console.WriteLine("\n\rProperties proved and used as assumption lemmas: \n\r\n\r");
+                    if (this.Properties.Any(ptmp => ptmp.Status == StatusTypes.inductiveInvariant))
+                    {
+                        Debug.Write("\n\rSTATUS: Properties proved and used as assumption lemmas: \n\r\n\r", Debug.VERBOSE_STEPS);
+                    }
+
                     foreach (var ptmp in this.Properties)
                     {
                         if (ptmp.Status == StatusTypes.inductiveInvariant)
                         {
-                            //System.Console.WriteLine(ptmp.Formula.ToString() + "\n\r\n\r");
+                            Debug.Write(ptmp.Formula.ToString() + "\n\r\n\r", Debug.VERBOSE_STEPS);
                         }
 
                         if (ptmp.Status == StatusTypes.inductive)
                         {
                             foreach (var pt in ptmp.InductiveInvariants)
                             {
-                                //System.Console.WriteLine(pt.ToString() + "\n\r\n\r");
+                                Debug.Write(pt.ToString() + "\n\r\n\r", Debug.VERBOSE_STEPS);
                             }
                         }
                     }
@@ -240,7 +251,7 @@ namespace passel.model
                     z3.slvr.Push(); // PUSH1_POP1
                     z3.slvr.Check();
                     Expr[] a = z3.slvr.Assertions;
-                    System.Console.WriteLine("\n\r\n\rASSUMPTIONS: \n\r" + z3.ExprArrayToString(a) + "\n\r\n\r");
+                    System.Console.WriteLine("\n\r\n\rSTATUS: ASSUMPTIONS: \n\r" + z3.ExprArrayToString(a) + "\n\r\n\r");
 
                     /*
                     Microsoft.Z3.Tactic t = z3.MkTactic();
@@ -249,25 +260,25 @@ namespace passel.model
                     t.Apply(g);
                      */
 
-
                     Status ca = z3.slvr.Check();
                     if (ca == Status.UNKNOWN || ca == Status.UNSATISFIABLE)
                     {
+                        Debug.Write("WARNING: basic assumptions on data types, indices, etc. cannot be satisfied!", Debug.MINIMAL);
                         //throw new Exception("ERROR: basic assumptions on data types, indices, etc. cannot be satisfied!");
                     }
                     try
                     {
                         if (z3.slvr.Model != null)
                         {
-                            System.Console.WriteLine("Model for basic assumptions: \n\r\n\r");
-                            System.Console.WriteLine(z3.slvr.Model.ToString());
+                            Debug.Write("Model for basic assumptions: \n\r\n\r", Debug.VERBOSE_STEPS);
+                            Debug.Write(z3.slvr.Model.ToString(), Debug.VERBOSE_STEPS);
                         }
                         if (z3.slvr.UnsatCore != null)
                         {
-                            Console.WriteLine("Unsat core:\n\r");
+                            Debug.Write("Unsat core:\n\r", Debug.VERBOSE_TERMS);
                             foreach (Expr c in z3.slvr.UnsatCore)
                             {
-                                Console.WriteLine("{0}", c);
+                                Debug.Write(c.ToString(), Debug.VERBOSE_TERMS);
                             }
                         }
                     }
@@ -318,19 +329,23 @@ namespace passel.model
                 Expr[] core = null;
 
                 String tmp_stat;
+                BoolExpr claimInit = z3.MkImplies((BoolExpr)h.Initial, (BoolExpr)p.Formula);
                 // initiation (inductive invariance): if disproved, set as not being inductive invariant
-                if (!z3.proveTerm(z3.MkImplies((BoolExpr)h.Initial, (BoolExpr)p.Formula), out model, out core, out tmp_stat, true))
+                if (!z3.proveTerm(claimInit, out model, out core, out tmp_stat))
                 {
-                    System.Console.WriteLine("INITIAL FAIL");
+                    Debug.Write("STATUS: initial states violated potential invariant", Debug.VERBOSE_STEPS);
+
+                    p.Counterexamples.Add(new Counterexample(z3.slvr.Model, claimInit)); // TODO: fix model generation
+
                     inv = false; // actually, perhaps we only check the invariant if we proved the term?
                     iinv = false;
                     p.Status = StatusTypes.disproved;
                     if (core != null)
                     {
-                        Console.WriteLine("Unsat core:\n\r");
+                        Debug.Write("Unsat core:\n\r", Debug.VERBOSE_TERMS);
                         foreach (Expr c in core)
                         {
-                            Console.WriteLine("{0}", c);
+                            Debug.Write(c.ToString(), Debug.VERBOSE_TERMS);
                         }
                         core = null;
                     }
@@ -349,7 +364,7 @@ namespace passel.model
 
                         //inductiveInvariant = z3.MkAnd((BoolExpr)inductiveInvariant, (BoolExpr)t.TransitionTermGlobal);
                         Expr hidxinner = z3.MkIntConst("h");
-                        Expr transitionTerm = this.makeTransitionTerm(t, null, hidxinner);
+                        Expr transitionTerm = t.makeTransitionTerm(null, hidxinner);
                         inductiveInvariant = z3.MkAnd((BoolExpr)inductiveInvariant, (BoolExpr)transitionTerm);
 
                         // alternative next, get the body and recreate
@@ -357,8 +372,7 @@ namespace passel.model
                         //inductiveInvariant = inductiveInvariant.GetQuantifier().Body & z3.MkExists(0, bound.ToArray(), null, locInvariantAnd);
                         //inductiveInvariant = z3.MkForall(orig.Weight, null, orig.Sorts, orig.Names, inductiveInvariant);
 
-                        //if (z3.checkTerm(inductiveInvariant, out model, out core, true))
-                        //if (z3.proveTerm(inductiveInvariant, out model, out core, true))
+                        //if (z3.checkTerm(inductiveInvariant, out model, out core, true)) // only check enabled transitions
                         if (true)
                         {
                             //z3.checkTerm(inductiveInvariant, out model, out core, true);
@@ -372,28 +386,28 @@ namespace passel.model
 
                             Expr claim = z3.MkImplies((BoolExpr)inductiveInvariant, (BoolExpr)p.Post);
 
-                            Console.WriteLine("\n\r<><><><><> INDUCTIVE INVARIANT START\n\r\n\r");
-                            //Console.WriteLine(claim.ToString() + "\n\r\n\r");
+                            Debug.Write("\n\r<><><><><> INDUCTIVE INVARIANT START\n\r\n\r", Debug.VERBOSE_ALL);
+                            Debug.Write(claim.ToString() + "\n\r\n\r", Debug.VERBOSE_ALL);
                             //if (z3.slvr.Model != null)
                             //{
                             //    Console.WriteLine(z3.slvr.Model.ToString());
                             //}
-                            Console.WriteLine("\n\r<><><><><> INDUCTIVE INVARIANT END\n\r\n\r");
+                            Debug.Write("\n\r<><><><><> INDUCTIVE INVARIANT END\n\r\n\r", Debug.VERBOSE_TERMS);
 
                             //z3.Push();
                             //z3.AssertCnstr(inductiveInvariant);
                             //claim = z3.Simplify(claim);
 
                             //if (z3.proveTerm(p.Post, out model, out core, out tmp_stat, true))
-                            if (z3.proveTerm(claim, out model, out core, out tmp_stat, true))
+                            if (z3.proveTerm(claim, out model, out core, out tmp_stat))
                             {
                                 p.Statistics.Add(tmp_stat);
                                 if (core != null)
                                 {
-                                    Console.WriteLine("Unsat core:\n\r");
+                                    Debug.Write("Unsat core:\n\r", Debug.VERBOSE_TERMS);
                                     foreach (Expr c in core)
                                     {
-                                        Console.WriteLine("{0}", c);
+                                        Debug.Write(c.ToString(), Debug.VERBOSE_TERMS);
                                     }
                                     core = null;
                                 }
@@ -411,7 +425,6 @@ namespace passel.model
                                 //p.Counterexamples.Add(new Counterexample(null, claim)); // TODO: fix model generation
                             }
                             //z3.Pop();
-
                             p.addInductiveInvariant(claim);
                         }
 
@@ -426,7 +439,7 @@ namespace passel.model
                             // todo next: switch index type if not int
                             //Expr hidxinner = z3.MkConst("h", Controller.Instance.IndexType);
                             Expr hidxinner = z3.MkIntConst("h");
-                            Expr transitionTerm = this.makeTransitionTerm(t, l, hidxinner);
+                            Expr transitionTerm = t.makeTransitionTerm(l, hidxinner);
                             //Expr transitionTerm = t.TransitionTerm;
 
                             List<Expr> bound = new List<Expr>();
@@ -518,13 +531,13 @@ namespace passel.model
                                 Expr claim = z3.MkImplies((BoolExpr)inductiveInvariant, (BoolExpr)p.Post); // just inductive invariants
                                 
 
-                                Console.WriteLine("\n\r<><><><><> INDUCTIVE INVARIANT START\n\r\n\r");
-                                //Console.WriteLine(claim.ToString() + "\n\r\n\r");
+                                Debug.Write("\n\r<><><><><> INDUCTIVE INVARIANT START\n\r\n\r", Debug.VERBOSE_ALL);
+                                Debug.Write(claim.ToString() + "\n\r\n\r", Debug.VERBOSE_ALL);
                                 //if (z3.slvr.Model != null)
                                 //{
                                 //    Console.WriteLine(z3.slvr.Model.ToString());
                                 //}
-                                Console.WriteLine("\n\r<><><><><> INDUCTIVE INVARIANT END\n\r\n\r");
+                                Debug.Write("\n\r<><><><><> INDUCTIVE INVARIANT END\n\r\n\r", Debug.VERBOSE_ALL);
 
                                 //z3.slvr.Push();
                                 //z3.slvr.Assert((BoolExpr)inductiveInvariant);
@@ -543,16 +556,15 @@ namespace passel.model
                                 //Console.WriteLine("GENERATED INVARIANT MODEL (explicit quantifiers)\n\r");
                                 //z3.checkTerm(claim, out model, out core, true);
 
-                                if (z3.proveTerm(p.Post, out model, out core, out tmp_stat, true))
-                                //if (z3.proveTerm(claim, out model, out core, out tmp_stat, true))
+                                if (z3.proveTerm(p.Post, out model, out core, out tmp_stat))
                                 {
                                     p.Statistics.Add(tmp_stat);
                                     if (core != null)
                                     {
-                                        Console.WriteLine("Unsat core:\n\r");
+                                        Debug.Write("Unsat core:\n\r", Debug.VERBOSE_TERMS);
                                         foreach (Expr c in core)
                                         {
-                                            Console.WriteLine("{0}", c);
+                                            Debug.Write(c.ToString(), Debug.VERBOSE_TERMS);
                                         }
                                         core = null;
                                     }
@@ -573,70 +585,52 @@ namespace passel.model
 
                                 p.addInductiveInvariant(claim);
                             }
-
                         } // end discrete actions
 
 
-                        // TODO: only check time transition if protocol has at least one continuous variable...
-
-                        // start continuous transition (we add a a part for each location as we iterate over them)
-                        //hidx = z3.MkConst("h", Controller.Instance.IndexType); // make fresh
-                        hidx = z3.MkIntConst("h");
-
-                        if (l.Flows == null || l.Flows.Count == 0 || l.Flows[0].DynamicsType == Flow.DynamicsTypes.constant) // TODO: CHECK ALL FLOWS, THIS WORKS ONLY FOR ONE VAR
+                        // start continuous trajectories
+                        if (h.Variables.Any(v => v.UpdateType == Variable.VarUpdateType.continuous))
                         {
-                            Expr tmpterm = z3.MkImplies((BoolExpr)l.StatePredicate, (BoolExpr)z3.timeNoFlowIdentity(hidx));
-                            tmpterm = tmpterm.Substitute(Controller.Instance.Indices["i"], hidx); // replace i by h
+                            // start continuous transition (we add a a part for each location as we iterate over them)
+                            //hidx = z3.MkConst("h", Controller.Instance.IndexType); // make fresh
+                            hidx = z3.MkIntConst("h");
 
-                            timeall.Add((BoolExpr)tmpterm);
+                            Expr timeii = this.makeFlowsAll(h, p.Formula);
+                            p.addInductiveInvariant(timeii);
 
-                            if (timeall.Count != h.Locations.Count) // only continue if nothing in timed list, otherwise if the last location has null flow, the others will also get skipped
+                            //if (z3.checkTerm(timeii, out model, out core, true))
+                            //if (z3.proveTerm(inductiveInvariant, out model, out core, true))
+                            if (true)
                             {
-                                continue; // no dynamics (e.g., x' == 0), skip time transition
-                            }
+                                timeii = z3.MkImplies((BoolExpr)timeii, (BoolExpr)p.Post);
 
-                            // todo: this makes the most sense, but should we allow the full generality of having an invariant and stopping condition even when we will have identity for time? (i.e., the stop/inv could force a transition, but it would sort of be illegal...)
-                        }
+                                //timeii = z3.MkExists(Controller.Instance.ExistentialConstants.Values.ToArray(), timeii); // todo: only do this for termination properties
 
-                        Expr timeii = this.makeFlowsAll(h, p.Formula);
-                        
-                        p.addInductiveInvariant(timeii);
-
-                        //if (z3.checkTerm(timeii, out model, out core, true))
-                        //if (z3.proveTerm(inductiveInvariant, out model, out core, true))
-                        if (true)
-                        {
-                            //z3.checkTerm(timeii, out model, out core, true);
-
-
-                            timeii = z3.MkImplies((BoolExpr)timeii, (BoolExpr)p.Post);
-
-                            //timeii = z3.MkExists(Controller.Instance.ExistentialConstants.Values.ToArray(), timeii); // todo: only do this for termination properties
-
-                            if (z3.proveTerm(timeii, out model, out core, out tmp_stat, true))
-                            {
-                                p.Statistics.Add(tmp_stat);
-                                // proved inductive invariant (for this location of the timed transition)
-                                if (core != null)
+                                if (z3.proveTerm(timeii, out model, out core, out tmp_stat))
                                 {
-                                    Console.WriteLine("Unsat core:\n\r");
-                                    foreach (Expr c in core)
+                                    p.Statistics.Add(tmp_stat);
+                                    // proved inductive invariant (for this location of the timed transition)
+                                    if (core != null)
                                     {
-                                        Console.WriteLine("{0}", c);
+                                        Debug.Write("Unsat core:\n\r", Debug.VERBOSE_TERMS);
+                                        foreach (Expr c in core)
+                                        {
+                                            Debug.Write(c.ToString(), Debug.VERBOSE_TERMS);
+                                        }
+                                        core = null;
                                     }
-                                    core = null;
+                                    proveCount++;
                                 }
-                                proveCount++;
+                                else
+                                {
+                                    p.Statistics.Add(tmp_stat);
+                                    inv = false;
+                                    iinv = false;
+                                    p.Counterexamples.Add(new Counterexample(z3.slvr.Model, timeii)); // TODO: fix model generation
+                                    //p.Counterexamples.Add(new Counterexample(null, timeii)); // TODO: fix model generation
+                                }
                             }
-                            else
-                            {
-                                p.Statistics.Add(tmp_stat);
-                                inv = false;
-                                iinv = false;
-                                p.Counterexamples.Add(new Counterexample(z3.slvr.Model, timeii)); // TODO: fix model generation
-                                //p.Counterexamples.Add(new Counterexample(null, timeii)); // TODO: fix model generation
-                            }
-                        }
+                        } // end continuous flows
                     }
                 }
 
@@ -649,14 +643,14 @@ namespace passel.model
                 // property is not an inductive invariant
                 if (!iinv)
                 {
-                    Console.WriteLine("\n\r\n\rProperty was NOT an inductive invariant!");
-                    //Console.WriteLine("Property checked was: \n\r" + p.Formula.ToString());
+                    Debug.Write("STATUS: Property was NOT an inductive invariant!", Debug.VERBOSE_STEPS);
+                    Debug.Write("Property checked was: \n\r" + p.Formula.ToString(), Debug.VERBOSE_TERMS);
                     p.Status = StatusTypes.disproved;
                 }
                 else
                 {
-                    Console.WriteLine("\n\r\n\rProperty was an inductive invariant!");
-                    //Console.WriteLine("Property checked was: \n\r" + p.Formula.ToString());
+                    Debug.Write("STATUS: Property was an inductive invariant!", Debug.VERBOSE_STEPS);
+                    Debug.Write("Property checked was: \n\r" + p.Formula.ToString(), Debug.VERBOSE_TERMS);
                     p.Status = StatusTypes.inductiveInvariant;
 
                     switch (p.Type)
@@ -692,7 +686,7 @@ namespace passel.model
                 // property is not inductive (a property may be inductive without being an inductive invariant, e.g., if only the initial condition check fails)
                 if (!inv)
                 {
-                    Console.WriteLine("\n\r\n\rProperty was NOT inductive!");
+                    //Console.WriteLine("\n\r\n\rProperty was NOT inductive!");
                     //Console.WriteLine("Property checked was: \n\r" + p.Formula.ToString());
                     p.Status = StatusTypes.disproved;
                 }
@@ -701,7 +695,7 @@ namespace passel.model
                     // only do this for non-invariants
                     if (!iinv)
                     {
-                        Console.WriteLine("\n\r\n\rProperty was inductive!");
+                        //Console.WriteLine("\n\r\n\rProperty was inductive!");
                         //Console.WriteLine("Property checked was: \n\r" + p.Formula.ToString());
                         p.Status = StatusTypes.inductive;
 
@@ -730,27 +724,21 @@ namespace passel.model
                 //quantInstStr = quantInstStr.Split(':')[1].Split('\n')[0];
                 //p.QuantInstantiations = int.Parse(quantInstStr) - QuantInstantiationsLast;
                 //
-                
-
-
-
-
                 p.Time = Controller.Instance.TimerStats.Elapsed;
                 loops++;
             }
 
-
-            System.Console.WriteLine("\n\r\n\rDISPROVED INVARIANTS >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n\r");
+            Debug.Write("\n\rDISPROVED INVARIANTS >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n\r", Debug.VERBOSE_STEPS);
             foreach (Property pi in this.Properties)
             {
                 if (pi.Status == StatusTypes.disproved)
                 {
-                    System.Console.WriteLine("PROPERTY DISPROVED =====================================================================\n\r");
-                    System.Console.WriteLine(pi.Formula.ToString() + "\n\r\n\r");
+                    Debug.Write("PROPERTY DISPROVED =====================================================================\n\r", Debug.VERBOSE_STEPS);
+                    Debug.Write(pi.Formula.ToString() + "\n\r\n\r", Debug.VERBOSE_STEPS);
 
-                    System.Console.WriteLine("Time: " + String.Format("{0}", pi.Time.TotalSeconds) + "\n\r");
+                    Debug.Write("Time: " + String.Format("{0}", pi.Time.TotalSeconds) + "\n\r", Debug.VERBOSE_STEPS);
 
-                    System.Console.WriteLine("REASONS (counterexample / trace):\n\r");
+                    Debug.Write("REASONS (counterexample / trace):\n\r", Debug.VERBOSE_STEPS);
                     foreach (Counterexample ce in pi.Counterexamples)
                     {
                         if (ce.Model != null)
@@ -779,7 +767,7 @@ namespace passel.model
                         //    System.Console.WriteLine("\n\r\n\r");
                         //}
                     }
-                    System.Console.WriteLine("END PROPERTY DISPROVED =====================================================================\n\r\n\r\n\r\n\r");
+                    Debug.Write("END PROPERTY DISPROVED =====================================================================\n\r\n\r", Debug.VERBOSE_STEPS);
                 }
             }
 
@@ -833,7 +821,7 @@ namespace passel.model
 
 
 
-            System.Console.WriteLine("DISPROVED INVARIANTS SUMMARY WITH SHORT RUNTIME >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n\r");
+            System.Console.WriteLine("DISPROVED INVARIANTS SUMMARY >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n\r");
             int num_dis = 0;
             foreach (Property pi in this.Properties)
             {
@@ -886,7 +874,7 @@ namespace passel.model
 
             System.Console.WriteLine("\n\rSUMMARY\n\r");
             System.Console.WriteLine("Disproved: " + num_dis.ToString());
-            System.Console.WriteLine("Invariant: " + num_inv.ToString());
+            System.Console.WriteLine("Invariant: " + num_inv.ToString() + "\n\r");
             //System.Console.WriteLine("Inductive: " + num_ind.ToString());
 
             /*
@@ -919,24 +907,43 @@ namespace passel.model
 
         public Expr makeFlowsAll(AHybridAutomaton h, Expr prestate, params uint[] paramsList)
         {
+            uint N = 0;
             uint k = 0;
             if (paramsList != null && paramsList.Length > 0)
             {
-                k = paramsList[0];
+                N = paramsList[0];
+                if (paramsList.Length > 1)
+                {
+                    k = paramsList[1];
+                }
             }
 
+            Expr hidx = z3.MkIntConst("h");
 
             List<BoolExpr> timeall = new List<BoolExpr>();
             Expr timeii = prestate;
             foreach (Location l in h.Locations)
             {
-                
-
                 List<BoolExpr> exprlist = new List<BoolExpr>();
                 Expr expr = null;
                 ArithExpr t1 = (ArithExpr)z3.MkRealConst("t_1"); // existential
                 ArithExpr t2 = (ArithExpr)z3.MkRealConst("t_2"); // universal
                 ArithExpr delta = (ArithExpr)z3.MkRealConst("delta"); // existential (for rectangular dynamics)
+
+
+                if (l.Flows == null || l.Flows.Count == 0 || l.Flows[0].DynamicsType == Flow.DynamicsTypes.constant) // TODO: CHECK ALL FLOWS, THIS WORKS ONLY FOR ONE VAR
+                {
+                    Expr tmpterm = z3.MkImplies((BoolExpr)l.StatePredicate, (BoolExpr)z3.timeNoFlowIdentity(hidx));
+                    tmpterm = tmpterm.Substitute(Controller.Instance.Indices["i"], hidx); // replace i by h
+
+                    timeall.Add((BoolExpr)tmpterm);
+
+                    if (timeall.Count != h.Locations.Count) // only continue if nothing in timed list, otherwise if the last location has null flow, the others will also get skipped
+                    {
+                        continue; // no dynamics (e.g., x' == 0), skip time transition
+                    }
+                    // todo: this makes the most sense, but should we allow the full generality of having an invariant and stopping condition even when we will have identity for time? (i.e., the stop/inv could force a transition, but it would sort of be illegal...)
+                }
 
                 // add invariant
                 if (l.Invariant != null)
@@ -987,7 +994,8 @@ namespace passel.model
                         {
                             case Flow.DynamicsTypes.constant:
                                 {
-                                    continue;
+                                    exprlist.Add((BoolExpr)f.Value); // constant specifies equality: x[i] == x'[i]
+                                    break;
                                 }
                             case Flow.DynamicsTypes.rectangular:
                                 {
@@ -1013,7 +1021,6 @@ namespace passel.model
 
                 List<Expr> bt = new List<Expr>();
                 //hidx = z3.MkConst("h", Controller.Instance.IndexType);
-                Expr hidx = z3.MkIntConst("h");
                 bt.Add(hidx);
 
                 if (Controller.Instance.TimeOption == Controller.TimeOptionType.separated)
@@ -1021,7 +1028,20 @@ namespace passel.model
                     exprlist.Add((BoolExpr)l.StatePredicate); // control location, e.g., q[h] == 2
                 }
 
-                expr = z3.MkAnd(exprlist.ToArray());
+                if (exprlist.Count > 1)
+                {
+                    expr = z3.MkAnd(exprlist.ToArray());
+                }
+                else if (exprlist.Count == 1)
+                {
+                    expr = exprlist[0];
+                }
+                else
+                {
+                    //throw new Exception("ERROR: poorly formatted flow condition.");
+                    // no flow conditions at all: do not take time transitions
+                    continue;
+                }
 
                 if (Controller.Instance.TimeOption == Controller.TimeOptionType.conjunction)
                 {
@@ -1041,24 +1061,27 @@ namespace passel.model
                     }
                 }
 
-
-
                 //expr = z3.MkAnd( discreteall.ToArray() );
                 //expr = z3.MkExists(Controller.Instance.ExistentialConstants.Values.ToArray(), expr); // todo: only do this for termination properties
                 //Console.WriteLine("GENERATED INVARIANT MODEL (explicit quantifiers)\n\r");
                 //z3.checkTerm(expr, out model, out core, true);
-
 
                 expr = z3.MkAnd(timeall.ToArray());
 
                 Expr tid = z3.timeIdentity(hidx);
 
                 // for bounded-model checking: do the state rename outside the quantifiers
-                if (k > 0)
+                if (N > 0 || k > 0)
                 {
-                    z3.unprimeAllVariables(ref expr, k);
-                    z3.unprimeAllVariables(ref tid, k);
+                    //z3.unprimeAllVariables(ref expr, k);
+                    //z3.unprimeAllVariables(ref tid, k);
+
+                    expr = replacePrimeReach(expr, hidx, N, k);
+                    tid = replacePrimeReach(tid, hidx, N, k);
+
                 }
+
+
 
                 // quantifier order (code in reverse order next as we build them up one after another)
                 // exists t_1 . forall i . exists delta . forall t_2
@@ -1074,29 +1097,38 @@ namespace passel.model
                 }
 
                 expr = z3.MkExists(new Expr[] { delta }, expr);
-                BoolExpr idxConstraint = z3.MkAnd(z3.MkGe((ArithExpr)hidx, (ArithExpr)Controller.Instance.IndexOne), z3.MkLe((ArithExpr)hidx, (ArithExpr)Controller.Instance.IndexN));
 
-                switch (Controller.Instance.IndexOption)
+                if (N > 0 || k > 0)
                 {
-                    case Controller.IndexOptionType.naturalOneToN:
-                        {
-                            switch (Controller.Instance.ExistsOption)
+                    // todo: repeat copies
+                    expr = z3.MkAnd((BoolExpr)expr, (BoolExpr)tid);
+                }
+                else
+                {
+                    BoolExpr idxConstraint = z3.MkAnd(z3.MkGe((ArithExpr)hidx, (ArithExpr)Controller.Instance.IndexOne), z3.MkLe((ArithExpr)hidx, (ArithExpr)Controller.Instance.IndexN));
+
+                    switch (Controller.Instance.IndexOption)
+                    {
+                        case Controller.IndexOptionType.naturalOneToN:
                             {
-                                case Controller.ExistsOptionType.and:
-                                    expr = z3.MkForall(bt.ToArray(), z3.MkImplies(idxConstraint, z3.MkAnd((BoolExpr)expr, (BoolExpr)tid)));
-                                    break;
-                                case Controller.ExistsOptionType.implies:
-                                default:
-                                    expr = z3.MkForall(bt.ToArray(), z3.MkImplies(idxConstraint, z3.MkAnd((BoolExpr)expr, (BoolExpr)tid)));
-                                    break;
+                                switch (Controller.Instance.ExistsOption)
+                                {
+                                    case Controller.ExistsOptionType.and:
+                                        expr = z3.MkForall(bt.ToArray(), z3.MkImplies(idxConstraint, z3.MkAnd((BoolExpr)expr, (BoolExpr)tid)));
+                                        break;
+                                    case Controller.ExistsOptionType.implies:
+                                    default:
+                                        expr = z3.MkForall(bt.ToArray(), z3.MkImplies(idxConstraint, z3.MkAnd((BoolExpr)expr, (BoolExpr)tid)));
+                                        break;
+                                }
+                                break;
                             }
+                        case Controller.IndexOptionType.integer:
+                        case Controller.IndexOptionType.enumeration:
+                        default:
+                            expr = z3.MkForall(bt.ToArray(), z3.MkAnd((BoolExpr)expr, (BoolExpr)tid));
                             break;
-                        }
-                    case Controller.IndexOptionType.integer:
-                    case Controller.IndexOptionType.enumeration:
-                    default:
-                        expr = z3.MkForall(bt.ToArray(), z3.MkAnd((BoolExpr)expr, (BoolExpr)tid));
-                        break;
+                    }
                 }
 
                 switch (Controller.Instance.ExistsOption)
@@ -1114,6 +1146,54 @@ namespace passel.model
                 timeii = z3.MkAnd((BoolExpr)timeii, (BoolExpr)expr);
             }
             return timeii;
+        }
+
+        public Expr replacePrimeReach(Expr expr, Expr idx, uint N, uint k)
+        {
+            List<BoolExpr> transAll = new List<BoolExpr>();
+            // expand quantifier manually
+            BoolExpr copy = (BoolExpr)Controller.Instance.Z3.copyExpr(expr);
+            for (uint i = 1; i <= N; i++)
+            {
+                Expr numidx = Controller.Instance.Z3.MkInt(i);
+                //Expr trans = locInvariantAnd.Substitute(idx, numidx); // instantiate i
+                //transAll.Add(z3.MkAnd(z3.MkEq(idx, numidx), (BoolExpr)locInvariantAnd)); // simply set symbol idx = value idx
+                copy = (BoolExpr)Controller.Instance.Z3.copyExpr(expr);
+
+                foreach (var v in Controller.Instance.Sys.Variables)
+                {
+                    copy = (BoolExpr)copy.Substitute(Controller.Instance.GlobalVariables[v.Name], Controller.Instance.Sys.GlobalReachValues[new Tuple<string, uint>(v.Name, k)]); // substitute to constant (needed for doing q.e.)
+                    copy = (BoolExpr)copy.Substitute(Controller.Instance.GlobalVariablesPrimed[v.Name], Controller.Instance.Sys.GlobalReachValues[new Tuple<string, uint>(v.Name, k + 1)]); // substitute to constant (needed for doing q.e.)
+                }
+
+                foreach (var v in Controller.Instance.Sys.HybridAutomata[0].Variables) // TODO: generalize
+                {
+                    //copy.Substitute(z3.MkApp(v.Value, idx), z3.MkApp(v.Value, numidx)); // substitute to function
+                    //idx = Controller.Instance.Z3.MkIntConst("i");
+                    copy = (BoolExpr)copy.Substitute(Controller.Instance.IndexedVariables[new KeyValuePair<string,string>(v.Name, idx.ToString())], Controller.Instance.Sys.ReachValues[new Tuple<string, uint, uint>(v.Name, k, i)]); // substitute to constant (needed for doing q.e.)
+                    copy = (BoolExpr)copy.Substitute(Controller.Instance.IndexedVariablesPrimed[new KeyValuePair<string, string>(v.Name + Controller.PRIME_SUFFIX, idx.ToString())], Controller.Instance.Sys.ReachValues[new Tuple<string, uint, uint>(v.Name, k + 1, i)]); // substitute to constant (needed for doing q.e.)
+                }
+                copy = (BoolExpr)copy.Substitute(idx, numidx); // must be outside variable loop
+
+                //copy = Controller.Instance.Z3.MkAnd(copy, (BoolExpr)Controller.Instance.Z3.forallIdentity(Controller.Instance.Z3.MkInt(i), globalVariableResets, indexVariableResets, universalIndexVariableResets, this.UGuard, N));
+                /*
+                for (uint j = 1; j <= N; j++)
+                {
+                    if (j == i)
+                    {
+                        continue;
+                    }
+                    foreach (var v in Controller.Instance.Sys.HybridAutomata[0].Variables) // TODO: generalize
+                    {
+                        copy = (BoolExpr)copy.Substitute(Controller.Instance.Z3.MkApp(v.Value, Controller.Instance.Z3.MkInt(j)), Controller.Instance.Sys.ReachValues[new Tuple<string, uint, uint>(v.Name, k, j)]); // substitute to constant (needed for doing q.e.)
+                        copy = (BoolExpr)copy.Substitute(Controller.Instance.Z3.MkApp(v.ValuePrimed, Controller.Instance.Z3.MkInt(j)), Controller.Instance.Sys.ReachValues[new Tuple<string, uint, uint>(v.Name, k + 1, j)]); // substitute to constant (needed for doing q.e.)
+                    }
+                }*/
+                transAll.Add(copy);
+            }
+            expr = Controller.Instance.Z3.MkAnd(transAll.ToArray());
+            //return copy;
+            return expr;
         }
 
         /**
@@ -1140,202 +1220,6 @@ namespace passel.model
             return true;
         }
 
-
-        /**
-         * Make terms corresponding to pre and post-state for a transition (can be local or global transition)
-         */
-        public Expr makeTransitionTerm(Transition t, ConcreteLocation l, Expr idx, params uint[] paramList)
-        {
-            uint N = 0;
-            uint quant = 0;
-            uint k = 0;
-            if (paramList != null && paramList.Length > 0)
-            {
-                N = paramList[0];
-                if (paramList.Length > 1)
-                {
-                    k = paramList[1];
-                }
-                if (paramList.Length > 2)
-                {
-                    quant = paramList[2];
-                }
-            }
-
-            List<BoolExpr> locInvariant = new List<BoolExpr>();
-
-            if (l != null)
-            {
-                locInvariant.Add((BoolExpr)l.StatePredicate); // discrete location prestate   (e.g., loc[i]  = 1)
-            }
-            if (t.NextStates.Count > 0)
-            {
-                locInvariant.Add((BoolExpr)t.ToTerm());       // discrete location post-state (e.g., loc'[i] = 2)
-            }
-
-            // add guard, if one exists
-            if (t.Guard != null)
-            {
-                locInvariant.Add((BoolExpr)t.Guard);
-            }
-
-            if (l != null)
-            {
-                // add invariant, if one exists
-                if (l.Invariant != null)
-                {
-                    locInvariant.Add((BoolExpr)l.Invariant);
-                }
-
-                // add stopping condition, if one exists
-                if (l.Stop != null)
-                {
-                    locInvariant.Add((BoolExpr)l.Stop);
-                }
-            }
-
-            List<String> globalVariableResets = new List<String>(); // global variables not reset
-            List<String> indexVariableResets = new List<String>();  // indexed variables of process moving that are not reset
-            List<String> universalIndexVariableResets = new List<String>();  // universally quantified indexed variables that are reset
-
-            if (t.Reset != null)
-            {
-                locInvariant.Add((BoolExpr)t.Reset);
-
-                globalVariableResets = z3.findGlobalVariableResets(t.Reset);
-                indexVariableResets = z3.findIndexedVariableResets(t.Reset);
-            }
-            else
-            {
-                // global variable was not mentioned since reset is null: add it to the identity global variables (g' = g)
-                globalVariableResets = z3.findGlobalVariableResets(null);
-                indexVariableResets = z3.findIndexedVariableResets(null);
-            }
-
-            if (t.UGuard != null)
-            {
-                universalIndexVariableResets = z3.findIndexedVariableResetsNeg(t.UGuard);
-            }
-
-            Expr locInvariantAnd = null;
-            // create conjunction of pre-state and post-state conditions
-            if (locInvariant.Count > 0)
-            {
-                locInvariantAnd = z3.MkAnd(locInvariant.ToArray());
-            }
-
-            Expr identity;
-            if (l == null)
-            {
-                // TODO NEXT: GLOBAL INDEXED VARIABLE COULD CAUSE RESETS / "be the process moving"
-                int i = 0;
-                Expr gidx = null;
-                foreach (var v in Controller.Instance.GlobalVariables)
-                {
-                    if (Controller.Instance.Sys.Variables.Find(
-                        delegate(Variable gv) {
-                            return gv.Name == v.Key;
-                        }).Type == Variable.VarType.index && z3.findTerm(t.Reset, v.Value, true))
-                    {
-                        gidx = v.Value;
-                        i++;
-                    }
-                    // TODO: need to refactor forall identity to allow multiple processes moving, for now throw exception if it happens
-                    if (i > 1)
-                    {
-                        throw new Exception("Error: too many global index variables used.");
-                    }
-
-                }
-                identity = z3.forallIdentity(gidx, globalVariableResets, indexVariableResets, universalIndexVariableResets, t.UGuard, N); // no process moves if no location
-            }
-            else
-            {
-                identity = z3.forallIdentity(idx, globalVariableResets, indexVariableResets, universalIndexVariableResets, t.UGuard, N);
-            }
-
-            if (locInvariantAnd == null && N == 0)
-            {
-                locInvariantAnd = identity;
-            }
-            else if (N == 0)
-            {
-                locInvariantAnd = z3.MkAnd((BoolExpr)locInvariantAnd, (BoolExpr)identity);
-            }
-
-            if (l != null && N == 0)
-            {
-                locInvariantAnd = locInvariantAnd.Substitute(Controller.Instance.Indices["i"], idx); // replace i by h
-
-                BoolExpr idxConstraint = z3.MkAnd(z3.MkGe((ArithExpr)idx, (ArithExpr)Controller.Instance.IntOne), z3.MkLe((ArithExpr)idx, (ArithExpr)Controller.Instance.IndexN));
-
-                // add quantifiers based on pre-state and post-state, using implies vs. and options and indexing options
-                switch (Controller.Instance.IndexOption)
-                {
-                    case Controller.IndexOptionType.naturalOneToN:
-                        switch (Controller.Instance.ExistsOption)
-                        {
-                            case Controller.ExistsOptionType.and:
-                                locInvariantAnd = z3.MkAnd(idxConstraint, (BoolExpr)locInvariantAnd); // 1 <= h <= N, enforce identity for all other processes not moving
-                                break;
-                            case Controller.ExistsOptionType.implies:
-                            default:
-                                locInvariantAnd = z3.MkImplies(idxConstraint, (BoolExpr)locInvariantAnd); // 1 <= h <= N, enforce identity for all other processes not moving
-                                break;
-                        }
-                        break;
-                    case Controller.IndexOptionType.enumeration:
-                    case Controller.IndexOptionType.integer:
-                    default:
-                        //locInvariantAnd = locInvariantAnd & z3.forallIdentity(hidx, globalVariableResets, indexVariableResets);
-                        break;
-                }
-            }
-
-            if (N == 0)
-            {
-                // todo: add quantifier: check if correct
-            }
-            else
-            {
-                List<BoolExpr> transAll = new List<BoolExpr>();
-                // expand quantifier manually
-                for (uint i = 1; i <= N; i++)
-                {
-                    Expr numidx = z3.MkInt(i);
-                    //Expr trans = locInvariantAnd.Substitute(idx, numidx); // instantiate i
-                    //transAll.Add(z3.MkAnd(z3.MkEq(idx, numidx), (BoolExpr)locInvariantAnd)); // simply set symbol idx = value idx
-                    BoolExpr copy = (BoolExpr)z3.copyExpr(locInvariantAnd);
-
-                    foreach (var v in this.HybridAutomata[0].Variables)
-                    {
-                        //copy.Substitute(z3.MkApp(v.Value, idx), z3.MkApp(v.Value, numidx)); // substitute to function
-                        idx = z3.MkIntConst("i");
-                        copy = (BoolExpr)copy.Substitute(z3.MkApp(v.Value, idx), this.ReachValues[new Tuple<string,uint,uint>(v.Name, k, i)]); // substitute to constant (needed for doing q.e.)
-                        copy = (BoolExpr)copy.Substitute(z3.MkApp(v.ValuePrimed, idx), this.ReachValues[new Tuple<string,uint,uint>(v.Name, k+1, i)]); // substitute to constant (needed for doing q.e.)
-                        copy = (BoolExpr)copy.Substitute(idx, numidx);
-                    }
-
-                    copy = z3.MkAnd(copy, (BoolExpr)z3.forallIdentity(z3.MkInt(i), globalVariableResets, indexVariableResets, universalIndexVariableResets, t.UGuard, N));
-
-                    for (uint j = 1; j <= N; j++)
-                    {
-                        if (j == i)
-                        {
-                            continue;
-                        }
-                        foreach (var v in this.HybridAutomata[0].Variables)
-                        {
-                            copy = (BoolExpr)copy.Substitute(z3.MkApp(v.Value, z3.MkInt(j)), this.ReachValues[new Tuple<string, uint, uint>(v.Name, k, j)]); // substitute to constant (needed for doing q.e.)
-                            copy = (BoolExpr)copy.Substitute(z3.MkApp(v.ValuePrimed, z3.MkInt(j)), this.ReachValues[new Tuple<string, uint, uint>(v.Name, k + 1, j)]); // substitute to constant (needed for doing q.e.)
-                        }
-                    }
-                    transAll.Add(copy);
-                }
-                locInvariantAnd = z3.MkOr(transAll.ToArray());
-            }
-            return locInvariantAnd;
-        }
 
         /**
          * tmpterm is modified to create the appropriate term for a flow transition
@@ -1422,9 +1306,9 @@ namespace passel.model
         {
             foreach (Property p in this.Properties)
             {
-                Boolean result = boundedModelCheck(Controller.Instance.IndexNValue, 100, p.Formula); // use our own BMC
+                Expr result = boundedModelCheck(Controller.Instance.IndexNValue, 100, p.Formula); // use our own BMC
                 //Boolean result = fixedpointCheck(2, 100, p.Formula); // use the Z3 provided fixed-point framework
-
+                /*
                 if (result)
                 {
                     Console.WriteLine("Property satisfied: " + p.ToString());
@@ -1432,15 +1316,14 @@ namespace passel.model
                 else
                 {
                     Console.WriteLine("Property unsatisfied in k rounds: " + p.ToString());
-                }
+                }*/
             }
         }
 
+        // todo: this is for the fixed point interface version
         public Boolean fixedpointCheck(int N, int k, Expr predicate)
         {
             AHybridAutomaton h = this._has.First();
-
-
 
             Microsoft.Z3.Fixedpoint fp = z3.MkFixedpoint();
 
@@ -1495,40 +1378,132 @@ namespace passel.model
             return false;
         }
 
+        public class TransitionBranch
+        {
+            public Expr State;
+            public bool FixedPoint = false;
+            public enum TransitionType { Discrete, Continuous };
+            public List<uint> ProcessesMoving = new List<uint>();
+
+            public TransitionBranch(Expr t, params uint[] processesMoving)
+            {
+                this.State = t;
+                this.ProcessesMoving.AddRange(processesMoving);
+            }
+        }
+
+
         public class ReachStructure
         {
             public Expr ReachedStates = Controller.Instance.Z3.MkFalse();
-            public List<Expr> TransitionSequence = new List<Expr>();
+            public List<TransitionBranch> TransitionSequence = new List<TransitionBranch>();
             public uint Step;
+            public Expr ReachSet = Controller.Instance.Z3.MkFalse(); // collapsed reach states (all named with same sequence state for fixed-point)
 
-            public ReachStructure(uint k, params BoolExpr[] seq)
+            private Expr LastReachedStates;
+            private Expr LastReachSet;
+
+            public ReachStructure(Expr lastReach, uint iteration, params BoolExpr[] reached)
             {
-                this.Step = k;
-                this.Add(seq);
+                this.Step = iteration;
+                if (reached.Length > 0)
+                {
+                    //this.Add(reached[0], reached.SelectMany(r => r.);
+                    this.Add(reached[0]); // todo: add rest
+                }
+                else
+                {
+                    this.Add(Controller.Instance.Z3.MkFalse());
+                    this.TransitionSequence.First().FixedPoint = true;
+                }
+                this.ReachSet = lastReach;
+
+                // todo: REFACTOR INTO FUNCTION
+                    for (uint k = 0; k <= this.Step; k++)  // TODO: only have to do this for k-1?; TODO: cannot do it for k-1 since seq is the whole transition sequence: we need only the new delta change and then we can do it this way and it'll be much more efficient
+                    {
+                        foreach (var v in Controller.Instance.Sys.Variables) // TODO: global vars aren't indexed by i
+                        {
+                            Tuple<string, uint> id = new Tuple<string, uint>(v.Name, k);
+                            this.ReachSet = (BoolExpr)this.ReachSet.Substitute(Controller.Instance.Sys.GlobalReachValues[id], Controller.Instance.GlobalVariables[v.Name]);
+                        }
+
+                        for (uint i = 1; i <= Controller.Instance.IndexNValue; i++)
+                        {
+                            foreach (var v in Controller.Instance.Sys.HybridAutomata[0].Variables)
+                            {
+                                Tuple<string, uint, uint> id = new Tuple<string, uint, uint>(v.Name, k, i);
+                                this.ReachSet = (BoolExpr)this.ReachSet.Substitute(Controller.Instance.Sys.ReachValues[id], Controller.Instance.IndexedVariables[new KeyValuePair<string, string>(v.Name, i.ToString())]);
+                            }
+                        }
+                    }
+                
             }
 
-            public void Add(params BoolExpr[] seq)
+            /*
+             * TODO
+             * Finish creating this: ideally we'll just remove a node from a tree, currently would have to remove a disjunct from TransitionSequence or ReachedStates
+             */
+            public void Remove()
             {
-                this.TransitionSequence.AddRange(seq);
+                this.ReachSet = this.LastReachSet; // todo: see if this holds between iterations
+                this.ReachedStates = this.LastReachedStates;
+            }
 
-
+            public void Add(BoolExpr seq, params BoolExpr[] reached)
+            {
+                this.LastReachedStates = this.ReachedStates;
+                this.LastReachSet = this.ReachSet;
                 // invariant ensures all states are either labeled with 0, or the most recent transition number
                 //for (uint kfrom = 1; kfrom <= this.Step; k++)
                 //{
                 //}
 
-                if (seq.Length == 0)
+                if (reached.Length == 0)
                 {
                 }
-                else if (seq.Length == 1)
+                else if (reached.Length == 1)
                 {
-                    this.ReachedStates = Controller.Instance.Z3.MkOr((BoolExpr)this.ReachedStates, seq[0]);
+                    this.ReachedStates = Controller.Instance.Z3.MkOr((BoolExpr)this.ReachedStates, reached[0]);
                 }
                 else
                 {
-                    this.ReachedStates = Controller.Instance.Z3.MkOr((BoolExpr)this.ReachedStates, Controller.Instance.Z3.MkOr(seq));
+                    this.ReachedStates = Controller.Instance.Z3.MkOr((BoolExpr)this.ReachedStates, Controller.Instance.Z3.MkOr(reached));
                 }
+                // TODO NEXT: does this do what was intended?
                 Controller.Instance.Z3.unprimeAllVariablesReachability(ref this.ReachedStates, 0, this.Step); // rename all states to 0
+
+                this.TransitionSequence.Add(new TransitionBranch(seq));
+
+                if (reached.Length > 0)
+                {
+                    List<BoolExpr> rs = new List<BoolExpr>();
+                    foreach (var s in reached)
+                    {
+                        BoolExpr stmp = s;
+                        for (uint k = 0; k <= this.Step + 1; k++)  // TODO: only have to do this for k-1?; TODO: cannot do it for k-1 since reached is the whole transition sequence: we need only the new delta change and then we can do it this way and it'll be much more efficient
+                        {
+                            foreach (var v in Controller.Instance.Sys.Variables) // TODO: global vars aren't indexed by i
+                            {
+                                Tuple<string, uint> id = new Tuple<string, uint>(v.Name, k);
+                                stmp = (BoolExpr)stmp.Substitute(Controller.Instance.Sys.GlobalReachValues[id], Controller.Instance.GlobalVariables[v.Name]);
+                            }
+                            for (uint i = 1; i <= Controller.Instance.IndexNValue; i++)
+                            {
+                                foreach (var v in Controller.Instance.Sys.HybridAutomata[0].Variables)
+                                {
+                                    Tuple<string, uint, uint> id = new Tuple<string, uint, uint>(v.Name, k, i);
+                                    stmp = (BoolExpr)stmp.Substitute(Controller.Instance.Sys.ReachValues[id], Controller.Instance.IndexedVariables[new KeyValuePair<string, string>(v.Name, i.ToString())]);
+                                }
+                            }
+                        }
+                        rs.Add(stmp);
+                    }
+                    rs.Add((BoolExpr)this.ReachSet); // original set
+                    this.ReachSet = Controller.Instance.Z3.MkOr(rs.ToArray());
+                }
+
+
+
 
                 ////Tactic tqe = Controller.Instance.Repeat(z3.Then(z3.MkTactic("simplify"), z3.MkTactic("ctx-simplify"), z3.Repeat(z3.Then(z3.MkTactic("elim-and"), z3.OrElse(z3.MkTactic("split-clause"), z3.MkTactic("skip")))), z3.MkTactic("simplify"), z3.MkTactic("propagate-values"), z3.MkTactic("propagate-ineqs")));
                 //Tactic tqe = Controller.Instance.Z3.MkTactic("qe");
@@ -1562,13 +1537,39 @@ namespace passel.model
 
         /**
          * Perform bounded model checking using a fixed value of N for up to k rounds, checking if the property predicate is ever violated
+         * 
+         * K == 0 means to perform unbounded model checking to a fixed point
          */
-        public Boolean boundedModelCheck(uint N, uint K, Expr predicate)
+        public Expr boundedModelCheck(uint N, uint K, Expr predicate)
         {
             Boolean satisfied = false;
             Boolean terminate = false;
             Model model;
             Expr[] core;
+
+            // setup variables for fixed-point
+            foreach (var v in this.HybridAutomata[0].Variables)
+            {
+                for (uint i = 1; i <= Controller.Instance.IndexNValue; i++)
+                {
+                    try
+                    {
+                        Controller.Instance.IndexedVariables.Add(new KeyValuePair<string, string>(v.Name, i.ToString()), Controller.Instance.Z3.MkConst(v.Name + "_" + i.ToString(), v.TypeSort));
+                    }
+                    catch
+                    {
+                    }
+                    try
+                    {
+                        Controller.Instance.IndexedVariablesPrimed.Add(new KeyValuePair<string, string>(v.Name + Controller.PRIME_SUFFIX, i.ToString()), Controller.Instance.Z3.MkConst(v.Name + Controller.PRIME_SUFFIX + "_" + i.ToString(), v.TypeSort));
+                    }
+                    catch
+                    {
+                    }
+                }
+            }
+
+            Expr reachReturn = z3.MkFalse();
 
             AHybridAutomaton h = this._has.First();
 
@@ -1581,6 +1582,16 @@ namespace passel.model
             //Expr init = h.Initial;
             Expr init;
             List<BoolExpr> initList = new List<BoolExpr>();
+            this.ReachValues = new Dictionary<Tuple<string, uint, uint>, Expr>();
+            this.GlobalReachValues = new Dictionary<Tuple<string, uint>, Expr>();
+
+
+            // add new state variables for round k
+            foreach (var v in this.Variables)
+            {
+                this.GlobalReachValues.Add(new Tuple<string, uint>(v.Name, 0), z3.MkConst(v.Name + (0), v.TypeSort));
+                this.GlobalReachValues.Add(new Tuple<string, uint>(v.Name, 1), z3.MkConst(v.Name + (1), v.TypeSort));
+            }
 
             foreach (var v in this.HybridAutomata[0].Variables)
             {
@@ -1591,77 +1602,8 @@ namespace passel.model
                 }
             }
 
-            // make initial condition expression
-            for (uint i = 1; i <= N; i++)
-            {
-                
-                BoolExpr qinit = z3.MkFalse();
-                foreach (var l in h.Locations)
-                {
-                    if (l.Initial)
-                    {
-                        qinit = z3.MkOr(qinit, (BoolExpr)l.StatePredicate.Substitute(Controller.Instance.Indices["i"], z3.MkInt(i)));
-                    }
-                }
-                Expr tmpi = (BoolExpr)h.Initial;
 
-                if (Controller.Instance.IndexedVariables.Count > 0)
-                {
-                    
-                    Expr iConst = Controller.Instance.Z3.MkNumeral(i, Controller.Instance.IndexType);
-                    tmpi = tmpi.Substitute(Controller.Instance.Indices["i"], iConst); // replace i with actual number i (e.g., i by 1, i by 2, etc)
-
-                    // todo: huge hack
-                    while (tmpi.ASTKind != Z3_ast_kind.Z3_QUANTIFIER_AST && tmpi.NumArgs > 0)
-                    {
-                        tmpi = tmpi.Args[0];
-                    }
-                    if (tmpi.ASTKind == Z3_ast_kind.Z3_QUANTIFIER_AST)
-                    {
-                        Quantifier qi = ((Quantifier)tmpi);
-                        
-                        tmpi = ((Quantifier)tmpi).Body;
-                        /*
-                        int c = 0;
-                        foreach (var v in qi.BoundVariableNames)
-                        {
-                            Expr s = z3.MkApp(z3.MkFuncDecl(z3.MkSymbol(":var"), z3.IntSort, qi.BoundVariableSorts[c]), z3.MkInt(c));
-                            tmpi = tmpi.Substitute(s, z3.MkInt(i));
-                            c++;
-                        }*/
-                    }
-                    if (tmpi.FuncDecl.DeclKind == Z3_decl_kind.Z3_OP_IMPLIES || tmpi.FuncDecl.DeclKind == Z3_decl_kind.Z3_OP_OR) // may have simplified implies to not or form
-                    {
-                        tmpi = tmpi.Args[1];
-                    }
-
-                    // horrible hack, can't create the necessary (:var 0) expression to replace in api, so convert to string, string replace, re-parse
-                    String tmp = Controller.Instance.Z3.ToStringFormatted(tmpi, controller.smt.z3.Z3Wrapper.PrintFormatMode.phaver, true); // todo: format appropriately
-                    //tmp = tmp.Replace("[i]", "_" + i.ToString());
-                    tmp = tmp.Replace("#0",  i.ToString()); // z3 3.2 format
-                    tmp = tmp.Replace("(:var 0)",  i.ToString()); // z3 4.0 format
-                    tmp = tmp.Replace("&", "and");
-
-                    
-                    Antlr.Runtime.Tree.CommonTree tmptree = passel.controller.parsing.math.Expression.Parse(tmp);
-                    tmpi = passel.controller.parsing.math.ast.LogicalExpression.CreateTerm(tmptree);
-
-                    tmpi = z3.MkAnd(qinit, (BoolExpr)tmpi);
-
-
-                    foreach (var v in this.HybridAutomata[0].Variables)
-                    {
-                        tmpi = (BoolExpr)tmpi.Substitute(z3.MkApp(v.Value, iConst), this.ReachValues[new Tuple<string, uint, uint>(v.Name, 0, i)]); // substitute to constant (needed for doing q.e.)
-                        tmpi = (BoolExpr)tmpi.Substitute(z3.MkApp(v.ValuePrimed, iConst), this.ReachValues[new Tuple<string, uint, uint>(v.Name, 1, i)]); // substitute to constant (needed for doing q.e.)
-                    }
-                    
-
-                    initList.Add((BoolExpr)tmpi);
-
-                    
-                }
-            }
-            init = z3.MkAnd(initList.ToArray());
+            init = h.makeInitialBmc(N);
 
             //z3.Assumptions.RemoveAll(a => a.IsQuantifier);
             this.z3.slvr.Assert(this.z3.Assumptions.ToArray()); // assert all the data-type assumptions
@@ -1670,88 +1612,95 @@ namespace passel.model
 
             z3.unprimeAllVariables(ref init, 1); // rename with 0 indexing (no primed variables, so only unprimed -> 0)
 
-            previousStates.Add(0, new ReachStructure( 0, (BoolExpr)init ));
-            //previousStates.Enqueue(init);
-            //previousStates.Push(init);
-
+            previousStates.Add(0, new ReachStructure( (BoolExpr)init, 0, (BoolExpr)init ));
 
             // loop over bound
-            for (uint k = 1; k <= K && !terminate; k++)
+            for (uint k = 1; (k <= K || K == 0) && !terminate; k++)
             {
-                previousStates.Add(k, new ReachStructure(k));
+                Debug.Write("\n\rBMC iteration " + k.ToString(), Debug.MINIMAL);
+
+                previousStates.Add(k, new ReachStructure(previousStates[k-1].ReachSet, k));
 
                 // termination condition --- no further transitions enabled
-                if (previousStates[k-1].TransitionSequence.Count == 0 || terminate)
+                if (previousStates[k-1].TransitionSequence.Count == 0 || terminate || previousStates[k-1].TransitionSequence.All(seq => seq.FixedPoint))
                 {
-                    List<Expr> asdfL = new List<Expr>();
+                    Debug.Write("REACHSET: ", Debug.MINIMAL);
+                    Debug.Write(previousStates[k - 1].ReachSet.ToString(), Debug.MINIMAL);
 
-                    String asdf = "asdfasdfasdfadsf"; // temp crap to get debugger to break here
-                    bool nop = false;
-                    nop = true;
-                    nop = false;
-                    asdf = "";
+                    reachReturn = previousStates[k - 1].ReachSet;
 
                     break;
                 }
 
-                foreach (Expr last in previousStates[k-1].TransitionSequence)
+                uint lti = 0;
+                foreach (TransitionBranch last in previousStates[k-1].TransitionSequence)
                 {
-
+                    Debug.Write("\n\rBMC iteration " + k.ToString() + "." + lti.ToString(), Debug.MINIMAL);
+                    if (last.FixedPoint)
+                    {
+                        last.FixedPoint = true;
+                        continue;
+                    }
 
                     Expr predicatektmp = this.z3.MkNot((BoolExpr)predicate); // todo: predicates are mostly safety properties, not bad / unsafety properties, so we negate them
                     z3.unprimeAllVariables(ref predicatektmp, k); // rename with k indexing
                     predicatek = z3.MkOr((BoolExpr)predicatek, (BoolExpr)predicatektmp);
 
-
-                    if (k == 1)
+                    /*
+                    // safety check
+                    Expr claim = z3.MkAnd((BoolExpr)last.State, (BoolExpr)predicatek);
+                    //Expr tmp = z3.Simplify(init);
+                    //tmp = z3.Simplify(predicatek);
+                    //claim = z3.Simplify(claim);
+                    // intersected with predicate
+                    if (z3.checkTerm(claim, out model, out core, true))
                     {
-                        Expr claim = z3.MkAnd((BoolExpr)init, (BoolExpr)predicatek);
+                        //satisfied = true;
+                        //terminate = true;
+                        //break;
+                    }
+                     */
 
-                        //Expr tmp = z3.Simplify(init);
-                        //tmp = z3.Simplify(predicatek);
-
-                        //claim = z3.Simplify(claim);
-
-                        // intersected with predicate
-                        if (z3.checkTerm(claim, out model, out core, true))
+                    // add new state variables for round k
+                    foreach (var v in this.Variables)
+                    {
+                        Tuple<string, uint> id = new Tuple<string, uint>(v.Name, k + 1);
+                        if (!this.GlobalReachValues.ContainsKey(id))
                         {
-                            //satisfied = true;
-                            //terminate = true;
-                            //break;
+                            this.GlobalReachValues.Add(id, z3.MkConst(v.Name + (k + 1), v.TypeSort));
                         }
                     }
-
-
-                    //Expr last = previousStates.Dequeue();
-                    //Expr last = previousStates.Pop(); // for LIFO version with stack
-                    //todo: log all these so we can compare the sequence easily
 
                     // add new state variables for round k
                     foreach (var v in this.HybridAutomata[0].Variables)
                     {
                         for (uint i = 1; i <= N; i++)
                         {
+                            Tuple<string, uint, uint> id = new Tuple<string, uint, uint>(v.Name, k+1, i);
                             //this.ReachValues.Add(new Tuple<string, uint, uint>(v.Name, k, i), z3.MkConst(v.Name + k + "_" + i, v.TypeSort));
-                            this.ReachValues.Add(new Tuple<string, uint, uint>(v.Name, k+1, i), z3.MkConst(v.Name + (k+1) + "_" + i, v.TypeSort));
+                            if (!this.ReachValues.ContainsKey(id))
+                            {
+                                this.ReachValues.Add(id, z3.MkConst(v.Name + (k + 1) + "_" + i, v.TypeSort));
+                            }
                         }
                     }
 
-
-                    List<Expr> cts = new List<Expr>();
-                    //cts.Add(makeTimeTransition(N, k, last));
-                    cts.AddRange(makeTransitions(N, k-1, last, 0));
-
+                    List<TransitionStructure> cts = new List<TransitionStructure>();
+                    cts.Add(makeTimeTransition(N, k-1, last.State));
+                    cts.AddRange(makeTransitions(N, k-1, last.State, 0));
 
                     for (int ti = 0; ti < cts.Count; ti++)
                     {
-                        Expr t = cts[ti];
+                        Debug.Write("BMC iteration " + k.ToString() + "." + lti.ToString() + "." + ti.ToString(), Debug.MINIMAL);
 
-                        if (z3.checkTerm(t, out model, out core, true)) // only add if it's satisfiable, otherwise it's a disabled transition
+                        Expr t = cts[ti].PreviousWithTransition;
+
+                        if (z3.checkTerm(t, out model, out core)) // only add if it's satisfiable, otherwise it's a disabled transition
                         {
                             if (model != null)
                             {
-                                System.Console.WriteLine("Model for transition to be taken: \n\r\n\r");
-                                System.Console.WriteLine(model.ToString());
+                                Debug.Write("Model for transition to be taken: \n\r\n\r", Debug.VERBOSE_TERMS);
+                                Debug.Write(model.ToString(), Debug.VERBOSE_TERMS);
                             }
 
                             /*
@@ -1776,15 +1725,45 @@ namespace passel.model
                             }
                             previousStates[k].Add( z3.MkAnd(sgfall.ToArray()) ); */
 
-                            previousStates[k].Add( (BoolExpr)t );
+                            //previousStates[k].Add( (BoolExpr)t ); // TODO: add only the delta change, not the whole sequence, we don't need that
+                            //previousStates[k].Add((BoolExpr)cts[ti].ResetOnly);
+                            BoolExpr newstates = z3.MkTrue();
+                            if (cts[ti].Trans == Transition.TimeTransition)
+                            {
+                                //Tactic tqe = z3.Repeat(z3.Then(z3.MkTactic("simplify"), z3.MkTactic("ctx-simplify"), z3.Repeat(z3.Then(z3.MkTactic("qe"), z3.MkTactic("elim-and"), z3.OrElse(z3.MkTactic("split-clause"), z3.MkTactic("skip")))), z3.MkTactic("simplify"), z3.MkTactic("propagate-values"), z3.MkTactic("propagate-ineqs")));
+                                Tactic tqe = z3.Repeat(z3.Then(z3.MkTactic("simplify"),
+                                                               z3.MkTactic("ctx-simplify"),
+                                                               z3.Repeat(z3.Then(z3.MkTactic("qe"), z3.MkTactic("propagate-values"), z3.MkTactic("propagate-ineqs")))));
+                                Goal g = z3.MkGoal(true);
+                                //g.Assert(z3.Assumptions.ToArray()); // basic assumptions
+                                g.Assert((BoolExpr)t);
+                                Params p = z3.MkParams();
+                                p.Add("PI_AVOID_SKOLEMS", true);
+                                p.Add("PI_PULL_QUANTIFIERS", true);
+                                p.Add("PI_USE_DATABASE", true);
+                                ApplyResult ar = tqe.Apply(g, p);
 
-                            
+                                ar = ar;
 
-                            //previousStates.Enqueue(t);
-                            //previousStates.Push(t);
+                                Debug.Write("After simplify:" + ar.ToString(), Debug.VERBOSE_TERMS);
+
+                                List<BoolExpr> sgfall = new List<BoolExpr>();
+                                foreach (var sgf in ar.Subgoals)
+                                {
+                                    sgfall.AddRange(sgf.Formulas);
+                                }
+                                newstates = z3.MkAnd(sgfall.ToArray());
+                                previousStates[k].Add( z3.MkAnd((BoolExpr)last.State, newstates), newstates  ); 
+                            }
+                            else
+                            {
+                                BoolExpr frontier = (BoolExpr)z3.MkOr((BoolExpr)last.State, (BoolExpr)cts[ti].ResetOnly);
+                                //previousStates[k].Add(frontier);
+                                previousStates[k].Add((BoolExpr)t, (BoolExpr)cts[ti].Trans.MakeReset(Controller.Instance.Indices["i"], N, k));
+                            }
+
 
                             //Expr claim = z3.MkAnd((BoolExpr)t, (BoolExpr)predicatek);
-
                             // intersected with predicate
                             /*
                             if (z3.checkTerm(claim, out model, out core, true))
@@ -1797,35 +1776,64 @@ namespace passel.model
 
                             // fixed point check
                             // term last needs to have its variables replaced (increment state indexes by 1?)
-                            //Term fp = z3.MkImplies(t, last);
+                            BoolExpr fp = z3.MkImplies((BoolExpr)previousStates[k].ReachSet, (BoolExpr)previousStates[k-1].ReachSet);
                             /*Term fp = t & !last; // P and \neg B, where P is current, B is previous
                             Console.WriteLine("fixed point check:");
                             Console.WriteLine(fp.ToString());
-                            String s;
-                            if (!z3.checkTerm(fp, out model, out core, true))
-                                // use true for proveterm with implies version
+                            String s;*/
+                            String stat = null;
+                            if (z3.proveTerm(fp, out model, out core, out stat)) // use true for proveterm with implies version
                             {
-                                previousStates.Pop(); // pop last term inserted: was fixed-point
-                                break;
-                            }*/
+                                if (cts[ti].Trans == Transition.TimeTransition)
+                                {
+                                    foreach (var st in previousStates[k].TransitionSequence.FindAll(x => x.State == z3.MkAnd((BoolExpr)last.State, newstates)))
+                                    {
+                                        st.FixedPoint = true;
+                                    }
+                                }
+                                else
+                                {
+                                    foreach (var st in previousStates[k].TransitionSequence.FindAll(x => x.State == t))
+                                    {
+                                        st.FixedPoint = true;
+                                    }
+                                }
+                                //previousStates[k].TransitionSequence.Find(x => x.State == cts[ti].Trans.MakeReset(Controller.Instance.Indices["i"], N, k)).FixedPoint = true;
+                                previousStates[k].Remove(); // reset reach set formula
+                            }
                         }
                         else
                         {
-                            Console.WriteLine("disabled transition: ");
-                            Console.WriteLine(t.ToString());
+                            Debug.Write("disabled transition: ", Debug.VERBOSE_TERMS);
+                            Debug.Write(t.ToString(), Debug.VERBOSE_TERMS);
                         }
 
                     }
+                    lti++;
                 }
             }
-
-            return satisfied;
+            return reachReturn;
         }
 
-        public List<Expr> makeTransitions(uint N, uint k, Expr current, uint quant)
+        public class TransitionStructure
         {
-            List<Expr> transitionTerms = new List<Expr>();
+            public Expr PreviousWithTransition;
+            public Expr ResetOnly;
+            public Transition Trans;
+            public TransitionStructure(Expr pwt, Expr ro, Transition t)
+            {
+                this.PreviousWithTransition = pwt;
+                this.ResetOnly = ro;
+                this.Trans = t;
+            }
+        }
+
+        public List<TransitionStructure> makeTransitions(uint N, uint k, Expr current, uint quant)
+        {
+            List<TransitionStructure> transitionTerms = new List<TransitionStructure>();
             AHybridAutomaton h = this._has.First();
+
+            // todo: GLOBAL TRANSITIONS (not used much, only a few examples)
 
             foreach (ConcreteLocation l in h.Locations)
             {
@@ -1840,23 +1848,23 @@ namespace passel.model
                         Expr hidx = z3.MkIntConst("h" + k.ToString());
                         bound.Add(hidx);
 
-                        Expr trans = (BoolExpr)this.makeTransitionTerm(t, l, hidx);
+                        Expr trans = (BoolExpr)t.makeTransitionTerm(l, hidx);
                         z3.unprimeAllVariables(ref trans, k); // renamed with k
 
                         currentWithTransition = z3.MkAnd((BoolExpr)currentWithTransition, (BoolExpr)trans);
                         currentWithTransition = z3.MkExists(bound.ToArray(), currentWithTransition);
-                        transitionTerms.Add(currentWithTransition);
+                        transitionTerms.Add(new TransitionStructure(currentWithTransition, trans, t));
                     }
                     else
                     {
                         Expr hidx = z3.MkIntConst("h" + k.ToString());
-                        BoolExpr tt = (BoolExpr)this.makeTransitionTerm(t, l, hidx, N, k, quant);
+                        BoolExpr tt = (BoolExpr)t.makeTransitionTerm(l, hidx, N, k, quant);
                         foreach (var v in tt.Args)
                         {
                             currentWithTransition = current;
                             currentWithTransition = z3.MkAnd((BoolExpr)currentWithTransition, (BoolExpr)v);
                             z3.unprimeAllVariables(ref currentWithTransition, k); // renamed with k
-                            transitionTerms.Add(currentWithTransition);
+                            transitionTerms.Add(new TransitionStructure(currentWithTransition, tt, t));
                         }
                     }
                 }
@@ -1864,14 +1872,11 @@ namespace passel.model
             return transitionTerms;
         }
 
-        public Expr makeTimeTransition(uint N, uint k, Expr current)
+        public TransitionStructure makeTimeTransition(uint N, uint k, Expr current)
         {
             AHybridAutomaton h = this._has.First();
-            return this.makeFlowsAll(h, current, k);
+            return new TransitionStructure(this.makeFlowsAll(h, current, N, k), this.makeFlowsAll(h, current, N, k), Transition.TimeTransition);
         }
-
-       
-
 
         /**
          * Return a variable with the specified name if one exists
@@ -1880,13 +1885,7 @@ namespace passel.model
         {
             if (this._variables != null)
             {
-                foreach (var v in this._variables)
-                {
-                    if (v.Name == name)
-                    {
-                        return v;
-                    }
-                }
+                return this._variables.Find(v => v.Name == name);
             }
             throw new Exception("Error: did not find variable named " + name + " in the set of variables.");
         }

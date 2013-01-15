@@ -11,13 +11,11 @@ If the antisymmetric version is used, our implementation of the invisible invari
 <holism>
 	<parameter name='N' type='index' comment='number of processes in the system' />
 
-	<variable name='token' type='index' update_type='Discrete' comment='process index that has the token; must be equal to an arbitrary process id initially' />
+	<variable name='token' initially='token == 0' type='index' update_type='Discrete' comment='process index that has the token; must be equal to an arbitrary process id initially' />
 	
 	<assumption equn='N &gt;= 2' comment='' />
 
-	<automaton name='token-ring'>		
-		<initial equn='token == 0' />
-
+	<automaton name='token-ring'>
 		<mode id='0' name='idle' initial='True'>
 		</mode>
 

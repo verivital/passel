@@ -1,0 +1,70 @@
+<?xml version="1.0"?>
+
+<!--
+-->
+
+<holism>
+	<parameter name='N' type='index' comment='number of processes in the system' />
+	
+	<assumption equn='N &gt;= 2' comment='' />
+
+	<automaton name='szymanski'>
+		<variable name='flag[i]' initially='flag[i] == 0' type='integer' update_type='Discrete' comment='' />
+	
+		<mode id='0' name='idle' initial='True'>
+		</mode>
+
+		<mode id='1' name='wait' initial='False'>
+		</mode>
+		
+		<mode id='2' name='start' initial='False'>
+		</mode>
+		
+		<mode id='3' name='waitagain' initial='False'>
+		</mode>
+		
+		<mode id='4' name='try' initial='False'>
+		</mode>
+		
+		<mode id='5' name='cs' initial='False'>
+		</mode>
+		
+		<transition source='idle' destination='wait'>
+			<action equn='flag[i]&apos; == 1'/>
+		</transition>
+		
+		<transition source='wait' destination='start'>
+			<uguard equn='flag[j] &lt; 3' />
+			<action equn='flag[i]&apos; == 3'/>
+		</transition>
+		
+		<transition source='start' destination='waitagain'>
+			<guard equn='exists j (j != i and flag[j] == 1)' />
+			<action equn='flag[i]&apos; == 2'/>
+		</transition>
+		
+		<transition source='waitagain' destination='try'>
+			<guard equn='exists j (j != i and flag[j] == 4)' />
+			<action equn='flag[i]&apos; == 4'/>
+		</transition>
+		
+		<transition source='try' destination='cs'>
+			<uguard equn='j &lt; i implies flag[j] &lt; 2' />
+		</transition>
+		
+		<transition source='cs' destination='idle'>
+			<uguard equn='j &gt; i implies (flag[j] == 0 or flag[j] == 1 or flag[j] == 4)' />
+			<action equn='flag[i]&apos; == 0'/>
+		</transition>
+
+
+	</automaton>
+
+	<property equn='true' type='safety' />
+	<property equn='forall i j ((i != j) implies (q[i] != cs or q[j] != cs))' type='safety' />
+	<property equn='forall i j ((i != j and q[i] == cs) implies (q[j] != cs))' type='safety' />
+	<property equn='false' type='safety' />
+
+	
+
+</holism>

@@ -1,21 +1,16 @@
 <?xml version="1.0"?>
 
 <holism>
-	<parameter name='N' type='index' comment='number of processes in the system' />
+	<parameter name='N' assumption='N &gt;= 2' type='index' comment='number of processes in the system' />
 	<parameter name='a' assumption='a == 1.0' type='real' comment='lower bound on rectangular dynamics' />
 	<parameter name='b' assumption='b == 2.0' type='real' comment='upper bound on rectangular dynamics' />	
 	<parameter name='finish' assumption='finish == 30.0' type='real' comment='smaller constant' />
 
-	<variable name='last' type='index' update_type='discrete' />
-
-	<assumption equn='N == 4' comment='' />
+	<variable name='last' initially='last == 0' type='index' update_type='discrete' />
 
 	<automaton name='hscc-example'>
-		<variable name='x[i]' type='nnreal' update_type='Continuous' />
-		<variable name='p[i]' type='index' update_type='Discrete' />
-		
-		<initial equn='(forall i (x[i] == 0.0 and p[i] == 0)) and last == 0' />
-
+		<variable name='x[i]' initially='x[i] == 0.0' type='nnreal' update_type='Continuous' />
+		<variable name='p[i]' initially='p[i] == 0' type='index' update_type='Discrete' />
 
 		<mode id='0' name='default' initial='True'>
 			<invariant equn='x[i] &lt;= finish' />

@@ -7,7 +7,7 @@
 
 	<assumption equn='N == 10' comment='' />
 
-	<automaton name='default_automaton'>
+	<automaton name='nfa'>
 		<mode id='0' name='a' initial='True'>
 		</mode>
 
@@ -63,19 +63,12 @@
 	<property equn='forall i (true)' type='safety' />
 	
 	<property equn='forall i ((q[i] == b))' type='safety' />
-	
-
 
 	<property equn='forall i ((q[i] == c))' type='safety' />
 	<property equn='forall i ((q[i] == d))' type='safety' />
 	<property equn='forall i ((q[i] == e))' type='safety' />
 	
 	<property equn='forall i (q[i] != e)' type='safety' />
-	
-
-
-
-	
 	
 	<property equn='forall i ((q[i] == a or q[i] == b or q[i] == c || q[i] == d))' type='safety' />
 	

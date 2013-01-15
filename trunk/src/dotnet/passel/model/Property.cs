@@ -23,6 +23,14 @@ namespace passel.model
         unknown,
         toProcess,
         toProject,
+        toDelete,
+    }
+
+    public enum SourceTypes
+    {
+        invisible_invariants,
+        split_invariants,
+        user,
     }
 
     /**
@@ -38,6 +46,9 @@ namespace passel.model
         public List<Counterexample> Counterexamples = new List<Counterexample>();
         public List<Expr> InductiveInvariants = new List<Expr>();
         public List<String> Statistics = new List<String>();
+
+        // have to use this since the .NET apis have poor support for traversing quantifiers (e.g., have to do crazy things like string replacement since you apparently can access a mapping from fresh variable names to quantified variables)
+        public Expr Unquantified;
 
         // if we prove a property, record the pass through the set of properties in which it was proved (so we may order the properties appropriately to decrease runtime)
         public int ProvedPass = 0;
@@ -69,8 +80,9 @@ namespace passel.model
             set { this._type = value; }
         }
 
+        public SourceTypes SourceType;
+        
         public Expr Post;
-
 
         /**
          * 
@@ -105,6 +117,89 @@ namespace passel.model
         public override String ToString()
         {
             return this.Formula.ToString();
+        }
+
+        /**
+         * 
+         */
+        public static Property PropertyFromSmt(String pstr)
+        {
+            //BoolExpr prop = Controller.Instance.Z3.ParseSMTLIB2String( "(benchmark tst :formula" + pstr + ")");
+            //pstr = pstr.Replace("\n", "").Replace("\r", "");
+            //new Sort[] { Controller.Instance.LocType }
+            //foreach (var decl in Controller.Instance.DataU.IndexedVariableDecl.Values)
+            //{
+            //    decl.
+            //}
+            pstr = "(assert " + pstr + ")";
+
+
+            //BoolExpr prop = Controller.Instance.Z3.ParseSMTLIB2String(pstr, null, null, null, null);
+            //BoolExpr prop = Controller.Instance.Z3.ParseSMTLIB2String("(assert " + pstr + ")", null, null, null, Controller.Instance.DataU.IndexedVariableDecl.Values.ToArray());
+            //BoolExpr prop = Controller.Instance.Z3.ParseSMTLIB2String("(declare-fun a () (_ BitVec 8)) (assert (bvuge a #x10)) (assert (bvule a #xf0))");
+
+
+            // set up declarations and names (doesn't use existing context information)
+            List<FuncDecl> decls = new List<FuncDecl>();
+            List<Symbol> names = new List<Symbol>();
+            foreach (var decl in Controller.Instance.DataU.IndexedVariableDecl)
+            {
+                decls.Add(decl.Value);
+                names.Add(decl.Value.Name);
+            }
+
+            foreach (var decl in Controller.Instance.DataU.VariableDecl)
+            {
+                decls.Add(decl.Value);
+                names.Add(decl.Value.Name);
+            }
+
+            foreach (var decl in Controller.Instance.GlobalVariables)
+            {
+                decls.Add(decl.Value.FuncDecl);
+                names.Add(decl.Value.FuncDecl.Name);
+            }
+
+            foreach (var decl in Controller.Instance.Locations)
+            {
+                decls.Add(decl.Value.FuncDecl);
+                names.Add(decl.Value.FuncDecl.Name);
+            }
+
+            foreach (var decl in Controller.Instance.Indices)
+            {
+                decls.Add(decl.Value.FuncDecl);
+                names.Add(decl.Value.FuncDecl.Name);
+            }
+
+            foreach (var decl in Controller.Instance.Params)
+            {
+                decls.Add(decl.Value.FuncDecl);
+                names.Add(decl.Value.FuncDecl.Name);
+            }
+
+            // for q_1, etc.
+            foreach (var decl in Controller.Instance.IndexedVariables)
+            {
+                decls.Add(decl.Value.FuncDecl);
+                names.Add(decl.Value.FuncDecl.Name);
+            }
+
+            decls = decls.Distinct().ToList();
+            //names = names.Distinct().ToList();
+            names = names.GroupBy(n => n.ToString()).Select(grp => grp.First()).ToList(); // distinct didn't work
+
+            pstr = pstr.Replace("\n", "");
+            pstr = pstr.Replace("\r", "");
+
+            // from params
+            //decls.Add(Controller.Instance.IndexN.FuncDecl);
+            //names.Add(Controller.Instance.IndexN.FuncDecl.Name);
+            System.Console.WriteLine("Before smt parsing");
+            BoolExpr prop = Controller.Instance.Z3.ParseSMTLIB2String(pstr, null, null, names.ToArray(), decls.ToArray());
+            System.Console.WriteLine("Done with smt parsing");
+            //BoolExpr prop = Controller.Instance.Z3.ParseSMTLIB2String(pstr);
+            return new Property(prop);
         }
 
         /**
