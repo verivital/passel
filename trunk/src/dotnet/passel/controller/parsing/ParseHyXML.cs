@@ -60,14 +60,6 @@ namespace passel.controller.parsing
         Discrete
     };
 
-    public enum VariableTypes
-    {
-        Continuous, // todo: remove, temp bug fix
-        Discrete,
-        Integer,
-        Real,
-    };
-
     public enum PropertyAttributes
     {
         comment,
@@ -94,6 +86,7 @@ namespace passel.controller.parsing
         scope,
         type,
         update_type,
+        initially,
     };
 
     public enum LocationAttributes
@@ -126,13 +119,6 @@ namespace passel.controller.parsing
         name,
         type,
         assumption,
-    };
-
-    public enum ParameterTypes
-    {
-        integer,
-        index,
-        real,
     };
 
     public enum AssumptionAttributes
@@ -445,12 +431,14 @@ namespace passel.controller.parsing
                     string locstr = "#b" + Controller.Instance.LocationNameToNum[locs[i + globals]];
                     if (replaceIndices)
                     {
-                        loc += "(q[" + (char)idx + "] == " + locstr + ") && "; // i + 1 to skip global arbiter automaton's state (always listed first)
+                        //TODO: was locstr
+                        loc += "(q[" + (char)idx + "] == " + locs[i + globals] + ") && "; // i + 1 to skip global arbiter automaton's state (always listed first)
                     }
                     else
                     {
                         //loc += "(q[" + (i + 1) + "] == " + locs[i + 1] + ") && "; // i + 1 to skip global arbiter automaton's state (always listed first)
-                        loc += "(q" + (i + 1) + " == " + locstr + ") && "; // i + 1 to skip global arbiter automaton's state (always listed first)
+                        //TODO: was locstr
+                        loc += "(q" + (i + 1) + " == " + locs[i + globals] + ") && "; // i + 1 to skip global arbiter automaton's state (always listed first)
                     }
                     forall += (char)idx + " ";
                     exists += (char)idx + " ";
@@ -464,13 +452,18 @@ namespace passel.controller.parsing
 
                 List<String> disj = reachstate.Split(new string[] { "||" }, StringSplitOptions.RemoveEmptyEntries).ToList();
 
+                bool splitLocDisjuncts = true;
+
+                string tmpdisj = "";
                 foreach (var d in disj)
                 {
                     // add full disjunctive formula
-                    if (replaceIndices)
+                    if (replaceIndices || !splitLocDisjuncts)
                     {
+                        tmpdisj += "(" + d + ")" + " || ";
+
                         //reach.Add(forall + "(((" + loc + ")) and (" + reachstate + "))");
-                        reach.Add(forall + "(((" + loc + ")) implies (" + d + "))");
+                        //reach.Add(forall + "(((" + loc + ")) implies (" + d + "))");
                         //reach.Add(forall + "( ((" + reachstate + ")) implies (" + loc + "))");
                     }
                     else
@@ -481,6 +474,12 @@ namespace passel.controller.parsing
                         //reach.Add("( (" + reachstate + ") implies (" + loc +"))");
                         //reach.Add("(" + loc + " iff (" + reachstate + "))");
                     }
+                }
+
+                if (!splitLocDisjuncts)
+                {
+                    //reach.Add(forall + "(((" + loc + ")) implies (" + tmpdisj.Substring(0, tmpdisj.Length - 4) + "))");
+                    reach.Add("(((" + loc + ")) implies (" + tmpdisj.Substring(0, tmpdisj.Length - 4) + "))");
                 }
 
 
@@ -595,48 +594,10 @@ namespace passel.controller.parsing
                                         String name = reader.GetAttribute(ParameterAttributes.name.ToString());
                                         String type = reader.GetAttribute(ParameterAttributes.type.ToString());
                                         String comment = reader.GetAttribute(ParameterAttributes.comment.ToString());
-                                        String assumption = reader.GetAttribute(ParameterAttributes.assumption.ToString());
+                                        String assumption = reader.GetAttribute(ParameterAttributes.assumption.ToString()); 
 
-                                        Expr param = null;
-                                        Expr paramPrime = null;
+                                        Variable p = new VariableParameter(name, "", (Variable.VarType)Enum.Parse(typeof(Variable.VarType), type, true), Variable.VarUpdateType.constant, assumption);
 
-                                        switch ((ParameterTypes)Enum.Parse(typeof(ParameterTypes), type, true))
-                                        {
-                                            case ParameterTypes.index:
-                                                param = Controller.Instance.Z3.MkIntConst(name); // todo: vs Controller.Instance.IndexType
-                                                break;
-
-                                            case ParameterTypes.integer:
-                                                param = Controller.Instance.Z3.MkIntConst(name);
-                                                break;
-                                            case ParameterTypes.real:
-                                                param = Controller.Instance.Z3.MkRealConst(name);
-                                                break;
-                                        }
-
-                                        if (assumption != null && assumption.Length > 0)
-                                        {
-                                            Antlr.Runtime.Tree.CommonTree tmptree = passel.controller.parsing.math.Expression.Parse(assumption);
-                                            //Expression.FixTypes(ref tmptree);
-                                            Expr passump = LogicalExpression.CreateTerm(tmptree);
-                                            if (!Controller.Instance.ParamsAssumps.ContainsKey(name))
-                                            {
-                                                Controller.Instance.ParamsAssumps.Add(name, passump);
-                                                Controller.Instance.Z3.Assumptions.Add((BoolExpr)passump);
-                                            }
-                                        }
-
-                                        if (param != null)
-                                        {
-                                            if (!Controller.Instance.Params.ContainsKey(name))
-                                            {
-                                                Controller.Instance.Params.Add(name, param);
-                                            }
-                                        }
-                                        else
-                                        {
-                                            throw new System.Exception("Parameter term not created.");
-                                        }
                                         break;
                                     }
 
@@ -666,69 +627,7 @@ namespace passel.controller.parsing
                                             Property p;
                                             if (format == "smt")
                                             {
-                                                //BoolExpr prop = Controller.Instance.Z3.ParseSMTLIB2String( "(benchmark tst :formula" + pstr + ")");
-                                                //pstr = pstr.Replace("\n", "").Replace("\r", "");
-                                                //new Sort[] { Controller.Instance.LocType }
-                                                //foreach (var decl in Controller.Instance.DataU.IndexedVariableDecl.Values)
-                                                //{
-                                                //    decl.
-                                                //}
-                                                pstr = "(assert " + pstr + ")";
-
-
-                                                //BoolExpr prop = Controller.Instance.Z3.ParseSMTLIB2String(pstr, null, null, null, null);
-                                                //BoolExpr prop = Controller.Instance.Z3.ParseSMTLIB2String("(assert " + pstr + ")", null, null, null, Controller.Instance.DataU.IndexedVariableDecl.Values.ToArray());
-                                                //BoolExpr prop = Controller.Instance.Z3.ParseSMTLIB2String("(declare-fun a () (_ BitVec 8)) (assert (bvuge a #x10)) (assert (bvule a #xf0))");
-
-                                                
-                                                // set up declarations and names (doesn't use existing context information)
-                                                List<FuncDecl> decls = new List<FuncDecl>();
-                                                List<Symbol> names = new List<Symbol>();
-                                                foreach (var decl in Controller.Instance.DataU.IndexedVariableDecl)
-                                                {
-                                                    decls.Add(decl.Value);
-                                                    names.Add(decl.Value.Name);
-                                                }
-
-                                                foreach (var decl in Controller.Instance.DataU.VariableDecl)
-                                                {
-                                                    decls.Add(decl.Value);
-                                                    names.Add(decl.Value.Name);
-                                                }
-
-                                                foreach (var decl in Controller.Instance.GlobalVariables)
-                                                {
-                                                    decls.Add(decl.Value.FuncDecl);
-                                                    names.Add(decl.Value.FuncDecl.Name);
-                                                }
-
-                                                foreach (var decl in Controller.Instance.Locations)
-                                                {
-                                                    decls.Add(decl.Value.FuncDecl);
-                                                    names.Add(decl.Value.FuncDecl.Name);
-                                                }
-
-                                                foreach (var decl in Controller.Instance.Indices)
-                                                {
-                                                    decls.Add(decl.Value.FuncDecl);
-                                                    names.Add(decl.Value.FuncDecl.Name);
-                                                }
-
-                                                foreach (var decl in Controller.Instance.Params)
-                                                {
-                                                    decls.Add(decl.Value.FuncDecl);
-                                                    names.Add(decl.Value.FuncDecl.Name);
-                                                }
-                                                
-                                                
-                                                // from params
-                                                //decls.Add(Controller.Instance.IndexN.FuncDecl);
-                                                //names.Add(Controller.Instance.IndexN.FuncDecl.Name);
-                                                System.Console.WriteLine("Before smt parsing");
-                                                BoolExpr prop = Controller.Instance.Z3.ParseSMTLIB2String(pstr, null, null, names.ToArray(), decls.ToArray());
-                                                System.Console.WriteLine("Done with smt parsing");
-                                                //BoolExpr prop = Controller.Instance.Z3.ParseSMTLIB2String(pstr);
-                                                p = new Property(prop);
+                                                p = Property.PropertyFromSmt(pstr);
                                                 p.makePost(); // update post expression
                                                 p.Type = Property.PropertyType.safety; // todo: generalize
                                             }
@@ -736,11 +635,14 @@ namespace passel.controller.parsing
                                             {
                                                 p = new Property(pstr, pt, post, template);
                                             }
+                                            p.SourceType = SourceTypes.user;
                                             Controller.Instance.Sys.Properties.Add(p);
 
                                             if (assumed == "1")
                                             {
                                                 Controller.Instance.Z3.Assumptions.Add((BoolExpr)p.Formula);
+                                                p.makePost();
+                                                Controller.Instance.Z3.Assumptions.Add((BoolExpr)p.Post);
                                             }
                                         }
                                         else
@@ -1034,6 +936,7 @@ namespace passel.controller.parsing
                                                 f.DynamicsType = Flow.DynamicsTypes.constant; // no change
                                                 f.RectRateA = Controller.Instance.RealZero;
                                                 f.RectRateB = Controller.Instance.RealZero;
+                                                f.Value = z3.MkEq(Controller.Instance.IndexedVariables[new KeyValuePair<string, string>(f.Variable.Name, "i")], Controller.Instance.IndexedVariablesPrimed[new KeyValuePair<string, string>(f.Variable.Name + Controller.PRIME_SUFFIX, "i")]);
                                             }
 
                                             l.Flows.Add(f);
@@ -1266,6 +1169,7 @@ namespace passel.controller.parsing
                                             String name = reader.GetAttribute(VariableAttributes.name.ToString());
                                             String type = reader.GetAttribute(VariableAttributes.type.ToString());
                                             String update_type = reader.GetAttribute(VariableAttributes.update_type.ToString());
+                                            String initially = reader.GetAttribute(VariableAttributes.initially.ToString());
 
                                             if (h != null) // local variable
                                             {
@@ -1276,66 +1180,13 @@ namespace passel.controller.parsing
                                                     String varName = split[0];
                                                     String indexName = split[1];
 
-                                                    h.addIndexedVariable(varName, (Variable.VarType)Enum.Parse(typeof(Variable.VarType), type, true), (Variable.VarUpdateType)Enum.Parse(typeof(Variable.VarUpdateType), update_type, true));
+                                                    h.addIndexedVariable(varName, (Variable.VarType)Enum.Parse(typeof(Variable.VarType), type, true), (Variable.VarUpdateType)Enum.Parse(typeof(Variable.VarUpdateType), update_type, true), initially);
                                                     // todo: parse the variables
                                                 }
                                             }
                                             else if (Controller.Instance.Sys != null) // global variable
                                             {
-                                                Expr globalVariable = null;
-                                                Expr globalVariablePrime = null;
-
-                                                Variable v = new Variable();
-                                                v.Name = name;
-                                                v.UpdateType = (Variable.VarUpdateType)Enum.Parse(typeof(Variable.VarUpdateType), update_type, true);
-
-                                                //switch ((ParameterTypes)Enum.Parse(typeof(ParameterTypes), type, true))
-                                                // todo: next blockcan likely be converted (for the most part) into a function call instead of switch (e.g., lots of repition)
-                                                switch ((Variable.VarType)Enum.Parse(typeof(Variable.VarType), type, true))
-                                                {
-                                                    case Variable.VarType.boolean:
-                                                        globalVariable = Controller.Instance.Z3.MkBoolConst(name);
-                                                        v.Type = Variable.VarType.boolean;
-                                                        globalVariablePrime = Controller.Instance.Z3.MkBoolConst(name + Controller.PRIME_SUFFIX);
-                                                        break;
-                                                    case Variable.VarType.index:
-                                                        globalVariable = Controller.Instance.Z3.MkIntConst(name); // todo: vs Controller.Instance.IndexType
-                                                        v.Type = Variable.VarType.index;
-                                                        globalVariablePrime = Controller.Instance.Z3.MkIntConst(name + Controller.PRIME_SUFFIX); // todo: vs Controller.Instance.IndexType
-                                                        break;
-                                                    case Variable.VarType.integer:
-                                                        globalVariable = Controller.Instance.Z3.MkIntConst(name);
-                                                        v.Type = Variable.VarType.integer;
-                                                        v.UpdateType = (Variable.VarUpdateType)Enum.Parse(typeof(Variable.VarUpdateType), update_type, true);
-                                                        globalVariablePrime = Controller.Instance.Z3.MkIntConst(name + Controller.PRIME_SUFFIX);
-                                                        break;
-                                                    case Variable.VarType.real:
-                                                        globalVariable = Controller.Instance.Z3.MkRealConst(name);
-                                                        v.Type = Variable.VarType.real;
-                                                        v.UpdateType = (Variable.VarUpdateType)Enum.Parse(typeof(Variable.VarUpdateType), update_type, true);
-                                                        globalVariablePrime = Controller.Instance.Z3.MkRealConst(name + Controller.PRIME_SUFFIX);
-                                                        break;
-                                                    case Variable.VarType.nnreal:
-                                                        globalVariable = Controller.Instance.Z3.MkRealConst(name);
-                                                        v.Type = Variable.VarType.nnreal;
-                                                        v.UpdateType = (Variable.VarUpdateType)Enum.Parse(typeof(Variable.VarUpdateType), update_type, true);
-                                                        globalVariablePrime = Controller.Instance.Z3.MkRealConst(name + Controller.PRIME_SUFFIX);
-                                                        break;
-                                                }
-
-                                                if (globalVariable != null && globalVariablePrime != null)
-                                                {
-                                                    if (!Controller.Instance.GlobalVariables.ContainsKey(name))
-                                                    {
-                                                        Controller.Instance.Sys.Variables.Add(v);
-                                                        Controller.Instance.GlobalVariables.Add(name, globalVariable);
-                                                        Controller.Instance.GlobalVariablesPrimed.Add(name, globalVariablePrime);
-                                                    }
-                                                }
-                                                else
-                                                {
-                                                    throw new System.Exception("Parameter term not created.");
-                                                }
+                                                Variable v = new VariableGlobal(name, "", (Variable.VarType)Enum.Parse(typeof(Variable.VarType), type, true), (Variable.VarUpdateType)Enum.Parse(typeof(Variable.VarUpdateType), update_type, true), initially);
                                             }
                                         }
                                         

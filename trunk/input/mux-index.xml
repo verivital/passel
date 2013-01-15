@@ -3,38 +3,39 @@
 <holism>
 	<parameter name='N' type='index' comment='number of processes in the system' />
 	
-	<variable name='g' type='index' update_type='Discrete' comment='lock' />
+	<variable name='g' initially='g == 0' type='index' update_type='Discrete' comment='lock' />
 	
 	<assumption equn='N &gt;= 2' comment='' />
 
 	<automaton name='mux-index'>
-		<initial equn='true and g == 0' />
+<!--		<initial equn='g == 0' />
+-->
 
-		<mode id='0' name='I' initial='True'>
+		<mode id='0' name='idle' initial='True'>
 		</mode>
 
-		<mode id='1' name='T' initial='False'>
+		<mode id='1' name='try' initial='False'>
 		</mode>
 		
-		<mode id='2' name='C' initial='False'>
+		<mode id='2' name='cs' initial='False'>
 		</mode>
 		
-		<mode id='3' name='E' initial='False'>
+		<mode id='3' name='exit' initial='False'>
 		</mode>
 		
-		<transition source='I' destination='T'>
+		<transition source='idle' destination='try'>
 			<guard equn='g == 0' />
 			<action equn='g&apos; = i'/>
 		</transition>
 		
-		<transition source='T' destination='C'>
+		<transition source='try' destination='cs'>
 			<guard equn='g == i' />
 		</transition>
 		
-		<transition source='C' destination='E'>
+		<transition source='cs' destination='exit'>
 		</transition>
 		
-		<transition source='E' destination='I'>
+		<transition source='exit' destination='idle'>
 			<action equn='g&apos; = 0'/>
 		</transition>
 	</automaton>
@@ -64,9 +65,9 @@
       (and (= (q i) #b010) (= (q j) #b000) (= g i))))
 -->
 
-	<property equn='forall i j ((i != j) implies (q[i] != C or q[j] != C))' type='safety' />
+	<property equn='forall i j ((i != j) implies (q[i] != cs or q[j] != cs))' type='safety' />
 	
-	<property equn='forall i j ((i != j and q[i] == C) implies (q[j] != C))' type='safety' />
+	<property equn='forall i j ((i != j and q[i] == cs) implies (q[j] != cs))' type='safety' />
 	
 	<property equn='false' type='safety' />
 

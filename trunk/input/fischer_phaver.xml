@@ -5,7 +5,7 @@
 	<parameter name='a' type='real' comment='smaller constant' />
 	<parameter name='b' type='real' comment='larger constant' />
 	
-	<variable name='k' type='index' update_type='Discrete' comment='lock' />
+	<variable name='k' initially='k == 0' type='index' update_type='Discrete' comment='lock' />
 	
 	<assumption equn='a &gt; 0.0 and b &gt; 0.0 and a &lt; b' comment='a *stictly less than* b for mutual exclusion' />
 	<assumption equn='a == 1 and b == 2' comment='need actual values for phaver' />
@@ -13,10 +13,10 @@
 	<assumption equn='N &gt;= 2' comment='' />
 
 	<automaton name='fischer_phaver'>
-		<variable name='x[i]' type='nnreal' update_type='Continuous' />
+		<variable name='x[i]' initially='x[i] == 0.0' type='nnreal' update_type='Continuous' />
 		
-		<initial equn='(forall i (x[i] == 0.0)) and k = 0' />
-
+<!--		<initial equn='(forall i (x[i] == 0.0)) and k = 0' />
+-->
 
 		<mode id='0' name='idle' initial='True'>
 			<dai variable='x[i]' equn='x[i]_dot = 0.0'/>

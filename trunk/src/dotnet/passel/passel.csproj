@@ -92,6 +92,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="controller\Controller.cs" />
+    <Compile Include="controller\output\Debug.cs" />
     <Compile Include="controller\output\PrintPhaver.cs" />
     <Compile Include="controller\parsing\math\ast\BinaryExpression.cs" />
     <Compile Include="controller\parsing\math\ast\EvaluationVisitor.cs" />
@@ -127,6 +128,9 @@
     <Compile Include="model\Property.cs" />
     <Compile Include="model\TreeReach.cs" />
     <Compile Include="model\Variable.cs" />
+    <Compile Include="model\VariableGlobal.cs" />
+    <Compile Include="model\VariableIndexed.cs" />
+    <Compile Include="model\VariableParameter.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Properties\Resources.Designer.cs">
       <AutoGen>True</AutoGen>
@@ -152,9 +156,9 @@
     <Reference Include="Antlr3.Runtime.Debug">
       <HintPath>..\..\..\lib\antlr\Antlr3.Runtime.Debug.dll</HintPath>
     </Reference>
-    <Reference Include="Microsoft.Z3, Version=4.3.1.0, Culture=neutral, processorArchitecture=MSIL">
+    <Reference Include="Microsoft.Z3, Version=4.3.0.0, Culture=neutral, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\..\..\..\..\..\z3\z3-4.1\hscc2013\passel\bin\Microsoft.Z3.dll</HintPath>
+      <HintPath>bin\Debug\41\Microsoft.Z3.dll</HintPath>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Data" />
@@ -216,6 +220,9 @@
       <Isolated>False</Isolated>
       <EmbedInteropTypes>False</EmbedInteropTypes>
     </COMReference>
+  </ItemGroup>
+  <ItemGroup>
+    <WCFMetadata Include="Service References\" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>

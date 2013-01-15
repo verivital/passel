@@ -1,0 +1,57 @@
+<?xml version="1.0"?>
+
+<holism>
+	<parameter name='N' type='index' comment='number of processes in the system' />
+	<parameter name='rho' assumption='rho == 1.0 / 4.0' type='real' comment='drift: rho in [0,1)' />
+	<parameter name='a' assumption='a == 1.0 - rho' type='real' comment='lower rate' />
+	<parameter name='b' assumption='b == 1.0 + rho' type='real' comment='upper rate' />
+	
+	<parameter name='delta' assumption='delta == 5.0' type='real' comment='send period positive' />
+	
+	
+	<variable name='largest' initially='largest == 0.0' type='nnreal' update_type='Discrete' comment='shared maximum' />
+		
+	<assumption equn='N == 3' comment='' />
+
+	<automaton name='clock-sync'>
+		<variable name='x[i]' initially='x[i] == 0.0' type='nnreal' update_type='Continuous' />
+		<variable name='nextsend[i]' initially='nextsend[i] == delta' type='nnreal' update_type='Discrete' />
+		<variable name='maxother[i]' initially='maxother[i] == 0.0' type='nnreal' update_type='Discrete' />
+
+		<mode id='0' name='sending' initial='True'>
+			<invariant equn='x[i] &lt;= nextsend[i]' />
+			<stop equn='x[i] &gt;= nextsend[i]' />
+			<dai variable='x[i]' equn='x[i]_dot &gt;= a and x[i]_dot &lt;= b'/>
+		</mode>
+		
+		<transition source='sending' destination='sending'>
+			<guard equn='x[i] &gt;= nextsend[i] and maxother[i] &gt; largest' />
+			<action equn='largest&apos;= maxother[i] and nextsend[i]&apos; == x[i] + delta'/>
+		</transition>
+		
+		<transition source='sending' destination='sending'>
+<!--			<guard equn='x[i] &lt; largest and maxother[i] &lt; largest' /> -->
+			<guard equn='maxother[i] &lt; largest' />
+			<action equn='maxother[i]&apos; = largest'/>
+		</transition>
+		
+		<transition source='sending' destination='sending'>
+			<guard equn='x[i] &gt;= nextsend[i] and x[i] &gt; largest' />
+			<action equn='largest&apos;= x[i] and nextsend[i]&apos; == x[i] + delta'/>
+		</transition>
+
+	</automaton>
+
+
+	<property equn='true' type='safety' />
+
+	<property equn='forall i j ((i != j) implies (maxother[i] - maxother[j] &lt;= 1.0))' type='safety' />
+
+	<property equn='forall i (maxother[i] - largest &lt;= 1.0)' type='safety' />
+
+
+	<property equn='false' type='safety' />
+
+
+
+</holism>

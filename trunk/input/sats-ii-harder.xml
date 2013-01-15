@@ -9,16 +9,14 @@
 	<parameter name='LS' assumption='LS == 7.0' type='real' comment='larger constant' />
 	<parameter name='LGUARD' assumption='LGUARD == LS + (b - a) * ((LB - LS) / a)' type='real' comment='larger constant' />
 
-
-	
 	<assumption equn='N &gt;= 1' comment='' />
 
 	<automaton name='sats-ii-harder'>
-		<variable name='x[i]' type='nnreal' update_type='Continuous' />
-		<variable name='b[i]' type='integer' update_type='Discrete' />
-		
+		<variable name='x[i]' initially='x[i] == 0.0' type='nnreal' update_type='Continuous' />
+		<variable name='b[i]' initially='b[i] == 0' type='integer' update_type='Discrete' />
+<!--
 		<initial equn='(forall i (x[i] == 0.0 and b[i] == 0))' />
-
+-->
 
 		<mode id='0' name='fly' initial='True'>
 			<dai variable='x[i]' equn='x[i]_dot = 0.0'/>
@@ -42,7 +40,7 @@
 
 	<property equn='true' type='safety' />
 	
-<!--
+
 	<property equn='forall i (q[i] == fly or q[i] == landing)' type='safety' />
 	<property equn='forall i j ((i != j) implies ((q[i] == fly or q[i] == landing) and (q[j] == fly or q[j] == landing)))' type='safety' />
 	<property equn='forall i j ((i != j and x[i] &gt; x[j]) implies (x[i] &gt;= x[j] + LS))' type='safety' />
@@ -56,7 +54,7 @@
 
 
 	<property equn='forall i j ((i != j and q[i] == landing and q[j] == landing and x[i] &gt; x[j] and b[i] == 1 and b[j] == 1) implies (x[i] &gt;= x[j] + LS))' type='safety' />
--->
+
 
 	<property equn='forall i j ((i != j and q[i] == landing and q[j] == landing and x[i] &gt; x[j]) implies (x[i] &gt;= x[j] + LS))' type='safety' />
 

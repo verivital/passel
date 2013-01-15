@@ -5,20 +5,18 @@
 	<parameter name='A' type='real' comment='smaller constant' />
 	<parameter name='B' type='real' comment='larger constant' />
 	
-	<variable name='g' type='index' update_type='Discrete' comment='lock' />
+	<variable name='g' initially='g == 0' type='index' update_type='Discrete' comment='lock' />
 	
-	<variable name='x' type='nnreal' update_type='continuous' />
+	<variable name='x' initially='x == 0.0' type='nnreal' update_type='continuous' />
 	
 	<assumption equn='A &gt; 0.0 and B &gt; 0.0 and A &lt; B' comment='A *stictly less than* B for mutual exclusion' />
 	<assumption equn='A == 3.0 and B == 19.0' comment='invariant generation requires chosen values for A and B' />
 	<assumption equn='N &gt;= 2 and N &lt;= 3' comment='' />
 
 	<automaton name='fischer_umeno_global_clock'>
-		<variable name='last[i]' type='nnreal' update_type='Discrete' comment='' />
-		<variable name='first[i]' type='nnreal' update_type='Discrete' comment='' />
+		<variable name='last[i]' initially='last[i] == A' type='nnreal' update_type='Discrete' comment='' />
+		<variable name='first[i]' initially='first[i] == 0.0' type='nnreal' update_type='Discrete' comment='' />
 		
-		<initial equn='(forall i (last[i] == A and first[i] == 0.0 and g == 0 and x == 0.0)) and x == 0.0 and g == 0' />
-
 <!--
 		<mode id='0' name='rem' initial='True'>
 			<dai variable='x' equn='x_dot = 1.0'/>

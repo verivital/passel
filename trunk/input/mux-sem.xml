@@ -3,12 +3,13 @@
 <holism>
 	<parameter name='N' type='index' comment='number of processes in the system' />
 	
-	<variable name='x' type='integer' update_type='Discrete' comment='lock' />
+	<variable name='x' initially='x == 1' type='integer' update_type='Discrete' comment='lock' />
 	
 	<assumption equn='N &gt;= 2' comment='' />
 
 	<automaton name='mux-sem'>
-		<initial equn='true and x == 1' />
+<!--		<initial equn='forall i ( x == 1 )' />
+-->
 
 		<mode id='0' name='idle' initial='True'>
 		</mode>

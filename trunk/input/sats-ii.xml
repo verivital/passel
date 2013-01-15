@@ -8,10 +8,11 @@
 	<assumption equn='N &gt;= 1' comment='' />
 
 	<automaton name='sats-ii'>
-		<variable name='x[i]' type='nnreal' update_type='Continuous' />
-		<variable name='b[i]' type='integer' update_type='Discrete' />
+		<variable name='x[i]' initially='x[i] == 0.0' type='nnreal' update_type='Continuous' />
+		<variable name='b[i]' initially='b[i] == 0' type='integer' update_type='Discrete' />
 		
-		<initial equn='(forall i (x[i] == 0.0 and b[i] == 0))' />
+<!--		<initial equn='(forall i (x[i] == 0.0 and b[i] == 0))' />
+-->
 
 
 		<mode id='0' name='fly' initial='True'>

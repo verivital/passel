@@ -62,6 +62,7 @@ namespace passel.controller.parsing.math.ast
                     else
                     {
                         string name = ast.GetChild(0).Text;
+                        System.Console.WriteLine("WARNING: variable " + name + " seen in expression not previously instantiated, type errors may occur.");
                         Expr n;
                         Sort type = Controller.Instance.RealType;
 
@@ -669,7 +670,14 @@ namespace passel.controller.parsing.math.ast
                     }
                     catch
                     {
-                        return Controller.Instance.Z3.MkEq(CreateTerm((CommonTree)ast.GetChild(0), treeHasRealVars), Controller.Instance.Z3.MkReal2Int((RealExpr)CreateTerm((CommonTree)ast.GetChild(1), treeHasRealVars)));
+                        try
+                        {
+                            return Controller.Instance.Z3.MkEq(CreateTerm((CommonTree)ast.GetChild(0), treeHasRealVars), Controller.Instance.Z3.MkInt2Real((IntExpr)CreateTerm((CommonTree)ast.GetChild(1), treeHasRealVars)));
+                        }
+                        catch
+                        {
+                            return Controller.Instance.Z3.MkEq(CreateTerm((CommonTree)ast.GetChild(0), treeHasRealVars), Controller.Instance.Z3.MkReal2Int((RealExpr)CreateTerm((CommonTree)ast.GetChild(1), treeHasRealVars)));
+                        }
                     }
 
                 case guardLexer.NEQUALS:
