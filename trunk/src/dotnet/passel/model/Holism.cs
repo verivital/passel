@@ -118,6 +118,9 @@ namespace passel.model
         {
             this.Properties = this.Properties.Distinct().ToList();
 
+            this.Properties = this.Properties.GroupBy(p1 => p1.Formula).Select(same => same.First()).ToList();
+
+            /*
             // todo: use distinct as in previous line combined with comparer that looks at Property.Formula
             // remove duplicates by formulas
             int c = this.Properties.Count;
@@ -145,7 +148,7 @@ namespace passel.model
                     }
                     Controller.Instance.Z3.slvr.Pop(); // restore original context
                 }
-            }
+            }*/
         }
 
         /**
@@ -181,6 +184,7 @@ namespace passel.model
             //z3.Assumptions.RemoveAll(a => a.IsQuantifier);
 
             this.Properties.RemoveAll(ptmp => ptmp.Status == StatusTypes.toDelete); // remove all useless properties
+            this.removeDuplicateProperties();
 
             this.z3.slvr.Assert(this.z3.Assumptions.ToArray()); // assert all the data-type assumptions
             this.z3.slvr.Assert(this.z3.AssumptionsUniversal.ToArray()); // assert all the data-type assumptions
@@ -586,6 +590,7 @@ namespace passel.model
                                 p.addInductiveInvariant(claim);
                             }
                         } // end discrete actions
+                    }
 
 
                         // start continuous trajectories
@@ -631,7 +636,7 @@ namespace passel.model
                                 }
                             }
                         } // end continuous flows
-                    }
+                    //}
                 }
 
                 if (proveCount == 0)
