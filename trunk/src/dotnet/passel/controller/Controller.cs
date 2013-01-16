@@ -1588,8 +1588,8 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
 
                         tmp_all = Instance.simplifyFormula(tmp_all);
 
-                        //pr.Formula = tmp_all;
-                        //pr.makePost();
+                        pr.Formula = tmp_all;
+                        pr.makePost();
 
                         //tmp_all = Instance.Z3.MkAnd((BoolExpr)tmp_all, Instance.Z3.MkAnd(Instance.Z3.AssumptionsUniversal.ToArray()));
                         prall.Add((BoolExpr)tmp_all); // add before modifying formula
@@ -1652,7 +1652,7 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
                         }
                         pr.makePost(); // update post-state formula
                     }
-                    //Instance.Sys.Properties.Add(pr); // TODO: never seems to be satisfied: this won't be, it's the AND version that's the problem---the quantified invariant would need to be IMPLIES
+                    Instance.Sys.Properties.Add(pr); // TODO: never seems to be satisfied: this won't be, it's the AND version that's the problem---the quantified invariant would need to be IMPLIES
                 }
                 result.Add(projectAndGeneralize(input_mode, prall, expName, projectN, N, doSplit, prevSplit));
             }
@@ -1677,7 +1677,7 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
                     System.Console.WriteLine("Property before projection:\n\r");
                     System.Console.WriteLine(p.Formula.ToString() + "\n\r\n\r");
                     Goal g = Instance.Z3.MkGoal();
-                    g.Assert(Instance.Z3.AssumptionsUniversal.ToArray()); // data-type assumptions (MUST USE THIS)
+                    //g.Assert(Instance.Z3.AssumptionsUniversal.ToArray()); // data-type assumptions (MUST USE THIS)
 
                     /*
                     for (uint it = 1; it <= N; it++)
@@ -1718,7 +1718,52 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
                             //break;
                         }
 
+                        List<BoolExpr> states = new List<BoolExpr>();
+                        List<BoolExpr> constraints = new List<BoolExpr>();
+                        foreach (var form in sg.Formulas)
+                        {
+                            if (form.ToString().Contains("q1") || form.ToString().Contains("q2")) // todo: generalize
+                            {
+                                states.Add(form);
+                            }
+                            else
+                            {
+                                bool skip = false;
+                                foreach (VariableGlobal gv in Instance.Sys.Variables)
+                                {
+                                    if (gv.Type == Variable.VarType.index && Instance.Z3.findTerm(form, Instance.GlobalVariables[gv.Name], true))
+                                    {
+                                        states.Add(form);
+                                        skip = true;
+                                    }
+                                }
+                                if (!skip)
+                                {
+                                    constraints.Add(form);
+                                }
+                            }
+                        }
 
+                        Expr e = Instance.Z3.MkFalse();
+                        if (states.Count > 1)
+                        {
+                            e = Instance.Z3.MkAnd(states.ToArray());
+                        }
+                        else if (states.Count == 1)
+                        {
+                            e = states[0];
+                        }
+
+                        if (constraints.Count > 1)
+                        {
+                            e = Instance.Z3.MkImplies((BoolExpr)e, Instance.Z3.MkAnd(constraints.ToArray()));
+                        }
+                        else if (constraints.Count == 1)
+                        {
+                            e = Instance.Z3.MkImplies((BoolExpr)e, Instance.Z3.MkAnd(constraints[0]));
+                        }
+
+                        /*
                         Expr e;
                         if (sg.Formulas.Length > 1)
                         {
@@ -1728,6 +1773,7 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
                         {
                             e = sg.Formulas[0];
                         }
+                         */
 
                         /*
                         if (e.IsOr)
