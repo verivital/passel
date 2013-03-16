@@ -161,8 +161,6 @@ namespace passel.controller.parsing
 
     static public class ParseHyXML
     {
-        private static Z3Wrapper z3 = Controller.Instance.Z3;
-
         /*
         public static Antlr.Runtime.Tree.CommonTree allIntsToReals(Antlr.Runtime.Tree.CommonTree t)
         {
@@ -883,28 +881,32 @@ namespace passel.controller.parsing
                                                     {
                                                         int cint = (int)float.Parse(cs);
                                                         String cstr = float.Parse(cs).ToString();
-
+                                                        f.DynamicsType = Flow.DynamicsTypes.timed;
                                                         if (cint == 1)
                                                         {
                                                             Expr c = Controller.Instance.Z3.MkReal(cstr);
+                                                            f.RectRateA = c;
                                                             Expr addDeltaMin = Controller.Instance.Z3.MkAdd((ArithExpr)Controller.Instance.GlobalVariables[variableName], (ArithExpr)t1);
                                                             expr = expr.Substitute(c, addDeltaMin);
                                                         }
                                                         else if (cint == -1)
                                                         {
                                                             Expr c = Controller.Instance.Z3.MkReal(cstr);
+                                                            f.RectRateA = c;
                                                             Expr addDeltaMin = Controller.Instance.Z3.MkSub((ArithExpr)Controller.Instance.GlobalVariables[variableName], (ArithExpr)t1);
                                                             expr = expr.Substitute(c, addDeltaMin);
                                                         }
                                                         else if (cint < 0)
                                                         {
                                                             Expr c = Controller.Instance.Z3.MkReal(cstr);
+                                                            f.RectRateA = c;
                                                             Expr addDeltaMin = Controller.Instance.Z3.MkSub((ArithExpr)Controller.Instance.GlobalVariables[variableName], Controller.Instance.Z3.MkMul((ArithExpr)c, (ArithExpr)t1));
                                                             expr = expr.Substitute(c, addDeltaMin);
                                                         }
                                                         else
                                                         {
                                                             Expr c = Controller.Instance.Z3.MkReal(cstr);
+                                                            f.RectRateA = c;
                                                             Expr addDeltaMin = Controller.Instance.Z3.MkAdd((ArithExpr)Controller.Instance.GlobalVariables[variableName], Controller.Instance.Z3.MkMul((ArithExpr)c, (ArithExpr)t1));
                                                             expr = expr.Substitute(c, addDeltaMin);
                                                         }
@@ -936,7 +938,9 @@ namespace passel.controller.parsing
                                                 f.DynamicsType = Flow.DynamicsTypes.constant; // no change
                                                 f.RectRateA = Controller.Instance.RealZero;
                                                 f.RectRateB = Controller.Instance.RealZero;
-                                                f.Value = z3.MkEq(Controller.Instance.IndexedVariables[new KeyValuePair<string, string>(f.Variable.Name, "i")], Controller.Instance.IndexedVariablesPrimed[new KeyValuePair<string, string>(f.Variable.Name + Controller.PRIME_SUFFIX, "i")]);
+                                                Expr atmp = Controller.Instance.IndexedVariables[new KeyValuePair<string, string>(f.Variable.Name, "i")];
+                                                Expr btmp = Controller.Instance.IndexedVariablesPrimed[new KeyValuePair<string, string>(f.Variable.Name + Controller.PRIME_SUFFIX, "i")];
+                                                f.Value = Controller.Instance.Z3.MkEq(atmp, btmp);
                                             }
 
                                             l.Flows.Add(f);

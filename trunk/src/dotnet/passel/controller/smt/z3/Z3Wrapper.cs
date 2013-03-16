@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 
+using System.Diagnostics.Contracts;
+
 using Microsoft.Z3;
 
 using passel.model;
@@ -13,6 +15,7 @@ using System.Text.RegularExpressions;
 
 namespace passel.controller.smt.z3
 {
+    [ContractVerification(true)]
     public class Z3Wrapper : Microsoft.Z3.Context
     {
         public enum PrintFormatMode { latex, phaver };
@@ -164,62 +167,63 @@ namespace passel.controller.smt.z3
         */
         public void replaceFuncDecl(ref Expr origReplaced, Expr orig, FuncDecl find, FuncDecl replace, Boolean byString)
         {
-            if (orig != null)
+            Contract.Requires(origReplaced != null);
+            Contract.Requires(orig != null);
+            Contract.Requires(find != null);
+            Contract.Requires(replace != null);
+
+            if (orig.ASTKind == Z3_ast_kind.Z3_APP_AST && orig.FuncDecl.Equals(find) || (byString && orig.ToString().Equals(find.ToString())))
             {
-                if (orig.ASTKind == Z3_ast_kind.Z3_APP_AST && orig.FuncDecl.Equals(find) || (byString && orig.ToString().Equals(find.ToString())))
-                {
-                    origReplaced = Controller.Instance.Z3.MkApp(replace, orig.Args);
-                }
-                try
-                {
-                    Expr[] ts = null;
+                origReplaced = Controller.Instance.Z3.MkApp(replace, orig.Args);
+            }
+            try
+            {
+                Expr[] ts = null;
 
-                    switch (orig.ASTKind)
-                    {
-                        case Z3_ast_kind.Z3_QUANTIFIER_AST:
-                            Quantifier q = (Quantifier)orig;
-                            //ts = new Term[] { orig.GetQuantifier().Body }; // can't do it this way: we need a pointer to the original memory!
-                            ts = new Expr[] { q.Body };
+                switch (orig.ASTKind)
+                {
+                    case Z3_ast_kind.Z3_QUANTIFIER_AST:
+                        Quantifier q = (Quantifier)orig;
+                        //ts = new Term[] { orig.GetQuantifier().Body }; // can't do it this way: we need a pointer to the original memory!
+                        ts = new Expr[] { q.Body };
                             
-                            break;
-                        case Z3_ast_kind.Z3_APP_AST:
-                            //FuncDecl fd = orig.GetAppDecl(); // todo: do the replacement on this---make another function do this replacement only for priming and unpriming (will be much faster)
-                            ts = orig.Args;
-                            break;
-                        case Z3_ast_kind.Z3_NUMERAL_AST: // bottom of tree
-                            return;
-                        case Z3_ast_kind.Z3_VAR_AST:
-                            return;
-                        default:
-                            return;
-                    }
-
-                    if (ts != null)
-                    {
-                        for (int i = 0; i < ts.Length; i++)
-                        {
-                            replaceFuncDecl(ref ts[i], ts[i], find, replace, byString);
-                        }
-                    }
-
-
-                    // call term modifier from api
-
-                    // quantifiers are very nasty to deal with (due to renaming bound variables in scope, etc.)
-                    if (origReplaced.ASTKind == Z3_ast_kind.Z3_QUANTIFIER_AST)
-                    {
-                        Quantifier q = (Quantifier)origReplaced; // todo: check
-                        origReplaced = Controller.Instance.Z3.MkQuantifier(q.IsUniversal, q.BoundVariableSorts, q.BoundVariableNames, ts[0]);
-                    }
-                    else
-                    {
-                        origReplaced.Update(ts);
-                        //origReplaced = origReplaced.Substitute(new Expr[] {origReplaced}, ts); // todo: check if correct
-                    }
+                        break;
+                    case Z3_ast_kind.Z3_APP_AST:
+                        //FuncDecl fd = orig.GetAppDecl(); // todo: do the replacement on this---make another function do this replacement only for priming and unpriming (will be much faster)
+                        ts = orig.Args;
+                        break;
+                    case Z3_ast_kind.Z3_NUMERAL_AST: // bottom of tree
+                        return;
+                    case Z3_ast_kind.Z3_VAR_AST:
+                        return;
+                    default:
+                        return;
                 }
-                catch (Microsoft.Z3.Z3Exception e)
+
+                if (ts != null)
                 {
+                    for (int i = 0; i < ts.Length; i++)
+                    {
+                        replaceFuncDecl(ref ts[i], ts[i], find, replace, byString);
+                    }
                 }
+
+                // call term modifier from api
+
+                // quantifiers are very nasty to deal with (due to renaming bound variables in scope, etc.)
+                if (origReplaced.ASTKind == Z3_ast_kind.Z3_QUANTIFIER_AST)
+                {
+                    Quantifier q = (Quantifier)origReplaced; // todo: check
+                    origReplaced = Controller.Instance.Z3.MkQuantifier(q.IsUniversal, q.BoundVariableSorts, q.BoundVariableNames, ts[0]);
+                }
+                else
+                {
+                    origReplaced.Update(ts);
+                    //origReplaced = origReplaced.Substitute(new Expr[] {origReplaced}, ts); // todo: check if correct
+                }
+            }
+            catch (Microsoft.Z3.Z3Exception e)
+            {
             }
         }
 
@@ -493,6 +497,7 @@ namespace passel.controller.smt.z3
          */
         public Expr copyExpr(Expr orig)
         {
+            Contract.Requires(orig != null);
             // huge hack to avoid clobbering original formula with pass-by-reference
             // we create a new z3 context and "translate" (copy) the term to that context, then copy it back
             // we cannot just "translate" to the same context, because it checks if the context is the same and returns the original reference if so
@@ -509,6 +514,8 @@ namespace passel.controller.smt.z3
          */
         public void primeAllVariables(ref Expr origReplaced)
         {
+            Contract.Requires(origReplaced != null);
+
             switch (Controller.Instance.DataOption)
             {
                 case Controller.DataOptionType.array:
@@ -563,6 +570,8 @@ namespace passel.controller.smt.z3
          */
         public Expr abstractGlobals(Expr f, uint N, uint projectN, uint i, uint j)
         {
+            Contract.Requires(f != null);
+
             // TODO: SPECIAL CARE MUST BE TAKEN DEFINITELY FOR INDEX-VALUED GLOBAL VARIABLES, AND POSSIBLY ALSO FOR INDEXED CONTROL LOCATION VARIABLES....
 
             Debug.Write("Property before abstracting index variables: ");

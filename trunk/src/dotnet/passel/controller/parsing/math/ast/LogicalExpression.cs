@@ -3,6 +3,8 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Text;
 
+using System.Diagnostics.Contracts;
+
 using Antlr.Runtime.Tree;
 
 using Microsoft.Z3;
@@ -20,10 +22,8 @@ namespace passel.controller.parsing.math.ast
          */
         public static Microsoft.Z3.Expr CreateTerm(CommonTree ast, bool treeHasRealVars = false)
         {
-            if (ast == null)
-            {
-                throw new ArgumentNullException("No abstract syntax tree specified.");
-            }
+            //Contract.Requires<ArgumentNullException>(ast != null, "No abstract syntax tree specified.");
+            Contract.Requires(ast != null);
 
             //treeHasRealVars = containsRealVar(ast); // doesn't work
 
@@ -400,7 +400,7 @@ namespace passel.controller.parsing.math.ast
                             return Controller.Instance.IndexedVariables[new KeyValuePair<String, String>(ast.GetChild(0).Text, ast.GetChild(1).Text)];
                             //throw new Exception("Problem parsing indexed variable declaration.");
                         }*/
-                        break;
+                        //break;
                     }
 
                 case guardLexer.RESET_VARIABLE:
@@ -420,7 +420,7 @@ namespace passel.controller.parsing.math.ast
                         throw new Exception("Problem parsing global variable reset.");
                         //return Controller.Instance.Z3.MkConst(ast.GetChild(0).GetChild(0).Text, Controller.Instance.IntType);
                     }
-                    break;
+                    //break;
 
                 case guardLexer.RESET_INDEXED_VARIABLE:
                     {
@@ -448,7 +448,7 @@ namespace passel.controller.parsing.math.ast
                         {
                             throw new Exception("Problem parsing reset of " + varNamePrime + ".");
                         }
-                        break;
+                        //break;
                     }
 
                 case guardLexer.DYNAMICS_VARIABLE:

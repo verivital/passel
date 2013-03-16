@@ -271,16 +271,20 @@ namespace passel.model
                 controlRangeList.Add(Controller.Instance.Z3.MkEq(Controller.Instance.Z3.MkApp(Controller.Instance.DataU.IndexedVariableDecl["q"], iidx), v));
             }
             BoolExpr controlRange;
+            BoolExpr controlRangePrime;
             if (controlRangeList.Count > 1)
             {
                 controlRange = Controller.Instance.Z3.MkForall(new Expr[] { iidx }, Controller.Instance.Z3.MkOr(controlRangeList.ToArray()));
+                controlRangePrime = Controller.Instance.Z3.MkForall(new Expr[] { iidx }, Controller.Instance.Z3.MkOr(controlRangeList.ToArray()).Substitute(Controller.Instance.IndexedVariables[new KeyValuePair<string,string>("q", "i")], Controller.Instance.IndexedVariablesPrimed[new KeyValuePair<string,string>("q" + Controller.PRIME_SUFFIX, "i")] ));
             }
             else
             {
                 controlRange = Controller.Instance.Z3.MkForall(new Expr[] { iidx }, controlRangeList[0]); // todo: error handling...what if 0?
+                controlRangePrime = Controller.Instance.Z3.MkForall(new Expr[] { iidx }, controlRangeList[0].Substitute(Controller.Instance.IndexedVariables[new KeyValuePair<string, string>("q", "i")], Controller.Instance.IndexedVariablesPrimed[new KeyValuePair<string, string>("q" + Controller.PRIME_SUFFIX, "i")]));
             }
 
             Controller.Instance.Z3.Assumptions.Add(controlRange); // assert all processes must stay inside control range bounds
+            Controller.Instance.Z3.Assumptions.Add(controlRangePrime); // assert all processes must stay inside control range bounds
 
 
 
@@ -385,10 +389,15 @@ namespace passel.model
                     }
             }
 
-            spec += "REACH_USE_CONVEX_HULL = false; // not possible because of global variables" + newline +
+            if (this.Variables.All(v => v.UpdateType != Variable.VarUpdateType.continuous) && this.Parent.Variables.All(v => v.UpdateType != Variable.VarUpdateType.continuous))
+            {
+                spec += "ELAPSE_TIME = false; // no continuously updated variables found, preventing time-elapse (trajectories)" + newline;
+            }
+
+            spec += "REACH_USE_CONVEX_HULL = false; // not possible with global index variables" + newline +
                     "REACH_MAX_ITER = 0; " + newline +
                     "REACH_USE_BBOX = false;" + newline +
-                //"USE_HIOA_AUTOMATA = true;" + newline +
+                    "//USE_HIOA_AUTOMATA = true;" + newline +
                     "COMPOSE_USE_CONVEX_HULL_FOR_REACH = false;" + newline +
                     "//COMPOSE_WITH_REACH_MIN = true;" + newline +
                     "CHEAP_CONTAIN_RETURN_OTHERS = false;" + newline + newline;
@@ -494,7 +503,7 @@ namespace passel.model
                 spec += "agent" + i.ToString() + newline;
 
                 // local variables for A_i 
-                if (h.Variables.Count > 0)
+                if (h.Variables.Count > 1) // avoid q
                 {
                     spec += out_var_contr + " " + out_separator + " ";
                     foreach (var v in h.Variables)
@@ -584,15 +593,16 @@ namespace passel.model
                         spec += " & ";
                     }
                     /*
-                                        if (l.Stop != null)
-                                        {
-                                            // needs to be closure of negation... switch based on strict / nonstrict cases, but how to do in general?
-                                            tmp = z3.ToStringFormatted( z3.MkNot((BoolExpr)l.Stop), controller.smt.z3.Z3Wrapper.PrintFormatMode.phaver, true);
-                                            tmp = tmp.Replace("[i]", "_" + i.ToString());
-                                            spec += tmp;
-                                            spec += " & ";
-                                        }
+                    if (l.Stop != null)
+                    {
+                        // needs to be closure of negation... switch based on strict / nonstrict cases, but how to do in general?
+                        tmp = Controller.Instance.Z3.ToStringFormatted(Controller.Instance.Z3.MkNot((BoolExpr)l.Stop), controller.smt.z3.Z3Wrapper.PrintFormatMode.phaver, true);
+                        tmp = tmp.Replace("[i]", "_" + i.ToString());
+                        spec += tmp;
+                        spec += " & ";
+                    }
                      */
+                    
 
                     if (l.Invariant != null || l.Stop != null)
                     {

@@ -7,14 +7,12 @@
 	<parameter name='L' assumption='L == 5.0' type='real' comment='smaller constant' />
 	<parameter name='H' assumption='H == 30.0' type='real' comment='smaller constant' />
 
-	<variable name='g' type='index' update_type='discrete' />
+	<variable name='g' initially='g == 0' type='index' update_type='discrete' />
 
 	<assumption equn='N &gt;= 2' comment='' />
 
 	<automaton name='gpointer-example'>
-		<variable name='x[i]' type='nnreal' update_type='Continuous' />
-		
-		<initial equn='(forall i (x[i] == 0.0)) and g == 0' />
+		<variable name='x[i]' initially='x[i] == 0.0' type='nnreal' update_type='Continuous' />
 
 		<mode id='0' name='off' initial='True'>
 			<dai variable='x[i]' equn='x[i]_dot = 0.0'/>

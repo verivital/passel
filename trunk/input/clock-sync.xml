@@ -6,38 +6,41 @@
 	<parameter name='a' assumption='a == 1.0 - rho' type='real' comment='lower rate' />
 	<parameter name='b' assumption='b == 1.0 + rho' type='real' comment='upper rate' />
 	
-	<parameter name='delta' assumption='delta == 5.0' type='real' comment='send period positive' />
+	<parameter name='delta' assumption='delta == 5.0' type='real' comment='send period positive' />	
 	
+	<parameter name='delayMax' assumption='delayMax == 2.0' type='real' comment='send period positive' />	
+	<parameter name='delayMin' assumption='delayMin == 1.0' type='real' comment='send period positive' />	
 	
-	<variable name='largest' initially='largest == 0.0' type='nnreal' update_type='Discrete' comment='shared maximum' />
+	<variable name='clock' initially='clock == 0.0' type='nnreal' update_type='Continuous' comment='shared clock (time server)' />
 		
 	<assumption equn='N == 3' comment='' />
 
 	<automaton name='clock-sync'>
 		<variable name='x[i]' initially='x[i] == 0.0' type='nnreal' update_type='Continuous' />
 		<variable name='nextsend[i]' initially='nextsend[i] == delta' type='nnreal' update_type='Discrete' />
-		<variable name='maxother[i]' initially='maxother[i] == 0.0' type='nnreal' update_type='Discrete' />
 
-		<mode id='0' name='sending' initial='True'>
-			<invariant equn='x[i] &lt;= nextsend[i]' />
-			<stop equn='x[i] &gt;= nextsend[i]' />
+		<mode id='0' name='waiting' initial='True'>
+			<invariant equn='x[i] &lt;= nextsend[i] and clock &lt;= delta * 1.0' />
+			<stop equn='x[i] &gt;= nextsend[i] and clock &gt;= delta * 1.0' />
 			<dai variable='x[i]' equn='x[i]_dot &gt;= a and x[i]_dot &lt;= b'/>
+			<dai variable='clock' equn='clock_dot == 1.0'/>
 		</mode>
 		
-		<transition source='sending' destination='sending'>
-			<guard equn='x[i] &gt;= nextsend[i] and maxother[i] &gt; largest' />
-			<action equn='largest&apos;= maxother[i] and nextsend[i]&apos; == x[i] + delta'/>
+		<mode id='1' name='delaying' initial='False'>
+			<invariant equn='x[i] - nextsend[i] &lt;= delayMax and clock &lt;= delta * 1.0' />
+			<stop equn='x[i] - nextsend[i] &gt;= delayMax and clock &gt;= delta * 1.0' />
+			<dai variable='x[i]' equn='x[i]_dot &gt;= a and x[i]_dot &lt;= b'/>
+			<dai variable='clock' equn='clock_dot == 1.0'/>
+		</mode>
+		
+		<transition source='waiting' destination='delaying'>
+			<guard equn='x[i] &gt;= nextsend[i]' />
+			<action equn='nextsend[i]&apos; = x[i]'/>
 		</transition>
 		
-		<transition source='sending' destination='sending'>
-<!--			<guard equn='x[i] &lt; largest and maxother[i] &lt; largest' /> -->
-			<guard equn='maxother[i] &lt; largest' />
-			<action equn='maxother[i]&apos; = largest'/>
-		</transition>
-		
-		<transition source='sending' destination='sending'>
-			<guard equn='x[i] &gt;= nextsend[i] and x[i] &gt; largest' />
-			<action equn='largest&apos;= x[i] and nextsend[i]&apos; == x[i] + delta'/>
+		<transition source='delaying' destination='waiting'>
+			<guard equn='(x[i] - nextsend[i] &gt;= delayMin) and (x[i] - nextsend[i] &lt;= delayMax)' />
+			<action equn='(x[i]&apos; = clock + (x[i] - nextsend[i])/2.0) and nextsend[i]&apos; = x[i] + delta'/>
 		</transition>
 
 	</automaton>
@@ -45,9 +48,11 @@
 
 	<property equn='true' type='safety' />
 
-	<property equn='forall i j ((i != j) implies (maxother[i] - maxother[j] &lt;= 1.0))' type='safety' />
 
-	<property equn='forall i (maxother[i] - largest &lt;= 1.0)' type='safety' />
+
+	<property equn='forall i (x[i] - clock &lt;= 1.0)' type='safety' />
+	
+	<property equn='forall i j ((i != j) implies (x[i] - x[j] &lt;= 1.0))' type='safety' />
 
 
 	<property equn='false' type='safety' />

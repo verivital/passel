@@ -119,6 +119,7 @@ namespace passel.model
             this.Properties = this.Properties.Distinct().ToList();
 
             this.Properties = this.Properties.GroupBy(p1 => p1.Formula).Select(same => same.First()).ToList();
+            this.Properties = this.Properties.GroupBy(p1 => p1.Formula.ToString()).Select(same => same.First()).ToList();
 
             /*
             // todo: use distinct as in previous line combined with comparer that looks at Property.Formula
@@ -164,8 +165,11 @@ namespace passel.model
 
         /**
          * Assume each property is a candidate inductive invariant, then we need to check each transition with respect to it
+         * 
+         * shortCircuit: if true, will stop check a potential invariant after the first transition/trajectory violation (for improved runtime);
+         *               setting to false is useful for manually proving properties (e.g., by analyzing the counterexample)
          */
-        public void checkInductiveInvariants()
+        public void checkInductiveInvariants(bool shortCircuit)
         {
             if (this._has == null)
             {
@@ -173,7 +177,6 @@ namespace passel.model
             }
             ConcreteHybridAutomaton h = this._has.First(); // assume only one ha
             bool iinv = true;
-            bool inv = true;
             bool subpart = false;
             bool restart = true;
             int proveCount = 0;
@@ -189,7 +192,7 @@ namespace passel.model
             this.z3.slvr.Assert(this.z3.Assumptions.ToArray()); // assert all the data-type assumptions
             this.z3.slvr.Assert(this.z3.AssumptionsUniversal.ToArray()); // assert all the data-type assumptions
 
-            Debug.Write("Attempting to prove the following properties as inductive invariants: \n\r", Debug.VERBOSE_STEPS);
+            Debug.Write("Attempting to prove the following " + this.Properties.Count.ToString() + " properties as inductive invariants: \n\r", Debug.VERBOSE_STEPS);
             foreach (Property pi in this.Properties)
             {
                 Debug.Write(pi.Formula.ToString() + "\n\r", Debug.VERBOSE_STEPS);
@@ -305,6 +308,8 @@ namespace passel.model
                     QuantInstantiationsLast = 0;
                 }
 
+                Debug.Write("STATUS: starting inductive invariance proof for iteration " + proofPass.ToString() + ", property " + property_idx + "/" + this.Properties.Count, Debug.VERBOSE_STEPS);
+
                 p = this._properties[property_idx++]; // increment after read
 
                 if (p.Status == StatusTypes.toProcess)
@@ -324,7 +329,6 @@ namespace passel.model
                 proveCount = 0;
                 subpart = false;
                 iinv = true; // reset invariant shortcircuit var
-                inv = true;
                 // todo next: switch , Controller.Instance.IndexType
                 Expr hidx = z3.MkIntConst("h"); // h is the process making transitions
                 List<Transition> tViolate = new List<Transition>(); // list of transitions that violate invariant
@@ -341,7 +345,6 @@ namespace passel.model
 
                     p.Counterexamples.Add(new Counterexample(z3.slvr.Model, claimInit)); // TODO: fix model generation
 
-                    inv = false; // actually, perhaps we only check the invariant if we proved the term?
                     iinv = false;
                     p.Status = StatusTypes.disproved;
                     if (core != null)
@@ -355,15 +358,19 @@ namespace passel.model
                     }
                 }
 
-                //if (iinv)
-                if (true)
+                if (iinv || !shortCircuit)
                 {
                     //List<BoolExpr> discreteall = new List<BoolExpr>(); // conjunction of all possible locations for discrete transitions
                     List<BoolExpr> timeall = new List<BoolExpr>(); // conjunction of all possible locations for time transition
-                    
+
                     // global discrete transitions
                     foreach (var t in this.Transitions)
                     {
+                        // break if some other already not invariant, OR if this property has already established this transition as an inductive invariant (e.g., in an earlier proof iteration)
+                        if ((!iinv && shortCircuit) || false)
+                        {
+                            break;
+                        }
                         Expr inductiveInvariant = p.Formula;
 
                         //inductiveInvariant = z3.MkAnd((BoolExpr)inductiveInvariant, (BoolExpr)t.TransitionTermGlobal);
@@ -377,7 +384,7 @@ namespace passel.model
                         //inductiveInvariant = z3.MkForall(orig.Weight, null, orig.Sorts, orig.Names, inductiveInvariant);
 
                         //if (z3.checkTerm(inductiveInvariant, out model, out core, true)) // only check enabled transitions
-                        if (true)
+                        if (iinv || !shortCircuit)
                         {
                             //z3.checkTerm(inductiveInvariant, out model, out core, true);
                             //Console.WriteLine("\n\r<><><><><> GUARDED MODEL START\n\r\n\r");
@@ -422,7 +429,6 @@ namespace passel.model
                             else
                             {
                                 p.Statistics.Add(tmp_stat);
-                                inv = false;
                                 iinv = false;
                                 tViolate.Add(t);
                                 p.Counterexamples.Add(new Counterexample(z3.slvr.Model, claim)); // TODO: fix model generation
@@ -438,6 +444,10 @@ namespace passel.model
                     {
                         foreach (var t in l.Transitions)
                         {
+                            if (!iinv && shortCircuit)
+                            {
+                                break;
+                            }
                             Expr inductiveInvariant = p.Formula;
 
                             // todo next: switch index type if not int
@@ -465,7 +475,7 @@ namespace passel.model
 
                             //if (z3.checkTerm(inductiveInvariant, out model, out core, true))
                             //if (z3.proveTerm(inductiveInvariant, out model, out core, true))
-                            if (true)
+                            if (iinv || !shortCircuit)
                             {
                                 /*
                                 Boolean res = z3.checkTerm(inductiveInvariant, out model, out core, true);
@@ -533,7 +543,7 @@ namespace passel.model
                                 //ts.Add( z3.MkGe((ArithExpr)p.FormulaRankLhs, Controller.Instance.RealZero)); // bounded (todo: check i vs j indexing)
                                 //Expr claim = z3.MkImplies(z3.MkAnd((BoolExpr)inductiveInvariant, z3.MkGt((ArithExpr)eps_rank, Controller.Instance.RealZero)), z3.MkAnd(ts.ToArray())); // todo: was just p.Post for inductive invariants
                                 Expr claim = z3.MkImplies((BoolExpr)inductiveInvariant, (BoolExpr)p.Post); // just inductive invariants
-                                
+
 
                                 Debug.Write("\n\r<><><><><> INDUCTIVE INVARIANT START\n\r\n\r", Debug.VERBOSE_ALL);
                                 Debug.Write(claim.ToString() + "\n\r\n\r", Debug.VERBOSE_ALL);
@@ -551,7 +561,7 @@ namespace passel.model
                                 // todo next: we can simply check satisfiability to actually get values for the invariant
                                 //z3.checkTerm(claim, out model, out core, true);
 
-                                
+
                                 // TODO: the following existential probably has to be uniform across ALL transitions---i.e., the epsilon decrease has to be the same for every transition...? this differs somewhat
                                 // from how we can check safety properties by checking each transition separately
                                 //claim = z3.MkExists(0, Controller.Instance.ExistentialConstants.Values.ToArray(), null, claim); // todo: only do this for termination properties
@@ -579,7 +589,6 @@ namespace passel.model
                                 else
                                 {
                                     p.Statistics.Add(tmp_stat);
-                                    inv = false;
                                     iinv = false;
                                     tViolate.Add(t);
                                     p.Counterexamples.Add(new Counterexample(z3.slvr.Model, claim)); // TODO: FIGURE OUT WHY MODEL GENERATION DOESN'T WORK WHEN USING A TACTIC-BASED SOLVER
@@ -592,57 +601,54 @@ namespace passel.model
                         } // end discrete actions
                     }
 
+                    // start continuous trajectories
+                    if ((iinv || !shortCircuit) && h.Variables.Any(v => v.UpdateType == Variable.VarUpdateType.continuous))
+                    {
+                        // start continuous transition (we add a a part for each location as we iterate over them)
+                        //hidx = z3.MkConst("h", Controller.Instance.IndexType); // make fresh
+                        hidx = z3.MkIntConst("h");
 
-                        // start continuous trajectories
-                        if (h.Variables.Any(v => v.UpdateType == Variable.VarUpdateType.continuous))
+                        Expr timeii = this.makeFlowsAll(h, p.Formula);
+                        p.addInductiveInvariant(timeii);
+
+                        //if (z3.checkTerm(timeii, out model, out core, true))
+                        //if (z3.proveTerm(inductiveInvariant, out model, out core, true))
+                        if (true)
                         {
-                            // start continuous transition (we add a a part for each location as we iterate over them)
-                            //hidx = z3.MkConst("h", Controller.Instance.IndexType); // make fresh
-                            hidx = z3.MkIntConst("h");
+                            timeii = z3.MkImplies((BoolExpr)timeii, (BoolExpr)p.Post);
 
-                            Expr timeii = this.makeFlowsAll(h, p.Formula);
-                            p.addInductiveInvariant(timeii);
+                            //timeii = z3.MkExists(Controller.Instance.ExistentialConstants.Values.ToArray(), timeii); // todo: only do this for termination properties
 
-                            //if (z3.checkTerm(timeii, out model, out core, true))
-                            //if (z3.proveTerm(inductiveInvariant, out model, out core, true))
-                            if (true)
+                            if (z3.proveTerm(timeii, out model, out core, out tmp_stat))
                             {
-                                timeii = z3.MkImplies((BoolExpr)timeii, (BoolExpr)p.Post);
-
-                                //timeii = z3.MkExists(Controller.Instance.ExistentialConstants.Values.ToArray(), timeii); // todo: only do this for termination properties
-
-                                if (z3.proveTerm(timeii, out model, out core, out tmp_stat))
+                                p.Statistics.Add(tmp_stat);
+                                // proved inductive invariant (for this location of the timed transition)
+                                if (core != null)
                                 {
-                                    p.Statistics.Add(tmp_stat);
-                                    // proved inductive invariant (for this location of the timed transition)
-                                    if (core != null)
+                                    Debug.Write("Unsat core:\n\r", Debug.VERBOSE_TERMS);
+                                    foreach (Expr c in core)
                                     {
-                                        Debug.Write("Unsat core:\n\r", Debug.VERBOSE_TERMS);
-                                        foreach (Expr c in core)
-                                        {
-                                            Debug.Write(c.ToString(), Debug.VERBOSE_TERMS);
-                                        }
-                                        core = null;
+                                        Debug.Write(c.ToString(), Debug.VERBOSE_TERMS);
                                     }
-                                    proveCount++;
+                                    core = null;
                                 }
-                                else
-                                {
-                                    p.Statistics.Add(tmp_stat);
-                                    inv = false;
-                                    iinv = false;
-                                    p.Counterexamples.Add(new Counterexample(z3.slvr.Model, timeii)); // TODO: fix model generation
-                                    //p.Counterexamples.Add(new Counterexample(null, timeii)); // TODO: fix model generation
-                                }
+                                proveCount++;
                             }
-                        } // end continuous flows
+                            else
+                            {
+                                p.Statistics.Add(tmp_stat);
+                                iinv = false;
+                                p.Counterexamples.Add(new Counterexample(z3.slvr.Model, timeii)); // TODO: fix model generation
+                                //p.Counterexamples.Add(new Counterexample(null, timeii)); // TODO: fix model generation
+                            }
+                        }
+                    } // end continuous flows
                     //}
                 }
 
                 if (proveCount == 0)
                 {
                     iinv = false;
-                    inv = false;
                 }
 
                 // property is not an inductive invariant
@@ -689,7 +695,7 @@ namespace passel.model
 
 
                 // property is not inductive (a property may be inductive without being an inductive invariant, e.g., if only the initial condition check fails)
-                if (!inv)
+                /*if (!inv)
                 {
                     //Console.WriteLine("\n\r\n\rProperty was NOT inductive!");
                     //Console.WriteLine("Property checked was: \n\r" + p.Formula.ToString());
@@ -708,11 +714,11 @@ namespace passel.model
 
                         p.InductiveFormula = z3.MkOr((BoolExpr[])p.InductiveInvariants.ToArray());
                     }
-                }
+                }*/
                 Controller.Instance.TimerStats.Stop();
 
                 // once we assert a property as a lemma, we go back to all other formulas and attempt to reprove them so that the order of the lemma assertions does not matter
-                if (subpart || iinv || inv)
+                if (subpart || iinv)
                 {
                     restart = true;
 
@@ -724,7 +730,7 @@ namespace passel.model
                 }
 
 
-                String quantInstStr = p.Statistics[p.Statistics.Count-1];
+                //String quantInstStr = p.Statistics[p.Statistics.Count-1];
                 //quantInstStr = quantInstStr.Substring(quantInstStr.IndexOf("\nquant instantiations:")).Trim(); // use newline: there is another statistic called "lazy quantifier instantiations:", so we don't want to match that (otherwise get wrong or even negative values)
                 //quantInstStr = quantInstStr.Split(':')[1].Split('\n')[0];
                 //p.QuantInstantiations = int.Parse(quantInstStr) - QuantInstantiationsLast;
@@ -750,6 +756,40 @@ namespace passel.model
                         {
                             System.Console.WriteLine("Counterexample model:\n\r");
                             System.Console.WriteLine(ce.Model.ToString());
+
+                            System.Console.WriteLine("Pre-state");
+                            foreach (var v in ce.Model.ConstDecls)
+                            {
+                                if (!v.ToString().Contains(Controller.PRIME_SUFFIX))
+                                {
+                                    System.Console.WriteLine(v.Name.ToString() + " == " + ce.Model.ConstInterp(v));
+                                }
+                            }
+
+                            foreach (var v in ce.Model.FuncDecls)
+                            {
+                                if (!v.ToString().Contains(Controller.PRIME_SUFFIX))
+                                {
+                                    System.Console.WriteLine(v.Name.ToString() + " == " + ce.Model.FuncInterp(v));
+                                }
+                            }
+
+                            System.Console.WriteLine("\n\rPost-state");
+                            foreach (var v in ce.Model.ConstDecls)
+                            {
+                                if (v.ToString().Contains(Controller.PRIME_SUFFIX))
+                                {
+                                    System.Console.WriteLine(v.Name.ToString() + " == " + ce.Model.ConstInterp(v));
+                                }
+                            }
+
+                            foreach (var v in ce.Model.FuncDecls)
+                            {
+                                if (v.ToString().Contains(Controller.PRIME_SUFFIX))
+                                {
+                                    System.Console.WriteLine(v.Name.ToString() + " == " + ce.Model.FuncInterp(v));
+                                }
+                            }
                             System.Console.WriteLine("\n\r\n\r");
                         }
 
@@ -933,21 +973,11 @@ namespace passel.model
                 Expr expr = null;
                 ArithExpr t1 = (ArithExpr)z3.MkRealConst("t_1"); // existential
                 ArithExpr t2 = (ArithExpr)z3.MkRealConst("t_2"); // universal
-                ArithExpr delta = (ArithExpr)z3.MkRealConst("delta"); // existential (for rectangular dynamics)
 
-
-                if (l.Flows == null || l.Flows.Count == 0 || l.Flows[0].DynamicsType == Flow.DynamicsTypes.constant) // TODO: CHECK ALL FLOWS, THIS WORKS ONLY FOR ONE VAR
+                ArithExpr delta = null;
+                if (Controller.Instance.FlowOption == Controller.FlowOptionType.relation)
                 {
-                    Expr tmpterm = z3.MkImplies((BoolExpr)l.StatePredicate, (BoolExpr)z3.timeNoFlowIdentity(hidx));
-                    tmpterm = tmpterm.Substitute(Controller.Instance.Indices["i"], hidx); // replace i by h
-
-                    timeall.Add((BoolExpr)tmpterm);
-
-                    if (timeall.Count != h.Locations.Count) // only continue if nothing in timed list, otherwise if the last location has null flow, the others will also get skipped
-                    {
-                        continue; // no dynamics (e.g., x' == 0), skip time transition
-                    }
-                    // todo: this makes the most sense, but should we allow the full generality of having an invariant and stopping condition even when we will have identity for time? (i.e., the stop/inv could force a transition, but it would sort of be illegal...)
+                    delta = (ArithExpr)z3.MkRealConst("delta"); // existential (for rectangular dynamics)
                 }
 
                 // add invariant
@@ -958,7 +988,15 @@ namespace passel.model
                     // indexed variables
                     foreach (var v in h.Variables)
                     {
-                        tmpterm = this.makeFlowTransitionTerm(tmpterm, v, Controller.Instance.IndexedVariables[new KeyValuePair<string, string>(v.Name, "i")], l, t1, t2, delta);
+                        if (Controller.Instance.FlowOption == Controller.FlowOptionType.relation)
+                        {
+                            tmpterm = this.makeFlowTransitionTerm(tmpterm, v, Controller.Instance.IndexedVariables[new KeyValuePair<string, string>(v.Name, "i")], l, t1, t2, delta);
+                        }
+                        else
+                        {
+                            tmpterm = this.makeFlowTransitionTerm(tmpterm, v, Controller.Instance.IndexedVariables[new KeyValuePair<string, string>(v.Name, "i")], l, t1, t2, null);
+                            //tmpterm = z3.MkAnd(tmpterm, tmpterm.Substitute(
+                        }
                     }
 
                     // TODO: NEED TO REASSIGNED tmpterm TO THE INVARIANT (AND STOPPING CONDITION IN THE NEXT ONE)?
@@ -966,7 +1004,14 @@ namespace passel.model
                     // global variables
                     foreach (var v in h.Parent.Variables)
                     {
-                        tmpterm = this.makeFlowTransitionTerm(tmpterm, v, Controller.Instance.GlobalVariables[v.Name], l, t1, t2, delta);
+                        if (Controller.Instance.FlowOption == Controller.FlowOptionType.relation)
+                        {
+                            tmpterm = this.makeFlowTransitionTerm(tmpterm, v, Controller.Instance.GlobalVariables[v.Name], l, t1, t2, delta);
+                        }
+                        else
+                        {
+                            tmpterm = this.makeFlowTransitionTerm(tmpterm, v, Controller.Instance.GlobalVariables[v.Name], l, t1, t2, null);
+                        }
                     }
                     exprlist.Add((BoolExpr)tmpterm);
                 }
@@ -979,19 +1024,46 @@ namespace passel.model
                     // indexed variables
                     foreach (var v in h.Variables)
                     {
-                        tmpterm = this.makeFlowTransitionTerm(tmpterm, v, Controller.Instance.IndexedVariables[new KeyValuePair<string, string>(v.Name, "i")], l, t1, t2, delta);
+                        if (Controller.Instance.FlowOption == Controller.FlowOptionType.relation)
+                        {
+                            tmpterm = this.makeFlowTransitionTerm(tmpterm, v, Controller.Instance.IndexedVariables[new KeyValuePair<string, string>(v.Name, "i")], l, t1, t2, delta);
+                        }
+                        else
+                        {
+                            tmpterm = this.makeFlowTransitionTerm(tmpterm, v, Controller.Instance.IndexedVariables[new KeyValuePair<string, string>(v.Name, "i")], l, t1, t2, null);
+                        }
                     }
 
                     // global variables
                     foreach (var v in h.Parent.Variables)
                     {
-                        tmpterm = this.makeFlowTransitionTerm(tmpterm, v, Controller.Instance.GlobalVariables[v.Name], l, t1, t2, delta);
+                        if (Controller.Instance.FlowOption == Controller.FlowOptionType.relation)
+                        {
+                            tmpterm = this.makeFlowTransitionTerm(tmpterm, v, Controller.Instance.GlobalVariables[v.Name], l, t1, t2, null);
+                        }
+                        else
+                        {
+                            tmpterm = this.makeFlowTransitionTerm(tmpterm, v, Controller.Instance.GlobalVariables[v.Name], l, t1, t2, null);
+                        }
                     }
                     exprlist.Add((BoolExpr)tmpterm);
                 }
 
+                if (l.Flows == null || l.Flows.Count == 0 || l.Flows[0].DynamicsType == Flow.DynamicsTypes.constant) // TODO: CHECK ALL FLOWS, THIS WORKS ONLY FOR ONE VAR
+                {
+                    Expr tmpterm = (BoolExpr)z3.timeNoFlowIdentity(hidx);
+                    tmpterm = tmpterm.Substitute(Controller.Instance.Indices["i"], hidx); // replace i by h
+
+                    exprlist.Add((BoolExpr)tmpterm);
+
+                    //if (timeall.Count != h.Locations.Count) // only continue if nothing in timed list, otherwise if the last location has null flow, the others will also get skipped
+                    //{
+                    //    continue; // no dynamics (e.g., x' == 0), skip time transition
+                    //}
+                    // todo: this makes the most sense, but should we allow the full generality of having an invariant and stopping condition even when we will have identity for time? (i.e., the stop/inv could force a transition, but it would sort of be illegal...)
+                }
                 // do flow afterward, it already has primed variables
-                if (l.Flows != null)
+                else if (l.Flows != null)
                 {
                     foreach (Flow f in l.Flows)
                     {
@@ -1006,11 +1078,25 @@ namespace passel.model
                                 {
                                     Expr flow = f.Value;
                                     flow = f.Value.Args[0].Args[1]; // todo: generalize
-                                    flow = flow.Substitute(f.RectRateA, delta); // replace A from \dot{x} \in [A,B] with \delta which exists in [A,B]
+                                    if (Controller.Instance.FlowOption == Controller.FlowOptionType.relation)
+                                    {
+                                        flow = flow.Substitute(f.RectRateA, delta); // replace A from \dot{x} \in [A,B] with \delta which exists in [A,B]
+                                    }
 
                                     flow = z3.MkEq(f.Value.Args[0].Args[0], flow);
-                                    BoolExpr[] andTerms = { (BoolExpr)flow, z3.MkGe((ArithExpr)delta, (ArithExpr)f.RectRateA), z3.MkLe((ArithExpr)delta, (ArithExpr)f.RectRateB) }; // constrain: A <= delta <= B
-                                    flow = z3.MkAnd(andTerms);
+                                    
+                                    if (Controller.Instance.FlowOption == Controller.FlowOptionType.relation)
+                                    {
+                                        BoolExpr[] andTerms;
+                                        andTerms = new BoolExpr[] { (BoolExpr)flow, z3.MkGe((ArithExpr)delta, (ArithExpr)f.RectRateA), z3.MkLe((ArithExpr)delta, (ArithExpr)f.RectRateB) }; // constrain: A <= delta <= B
+                                        flow = z3.MkAnd(andTerms);
+                                    }
+                                    else
+                                    {
+                                        flow = f.Value; // TODO: refactor
+                                        //andTerms = new BoolExpr[] { (BoolExpr)flow, z3.MkGe((ArithExpr)delta, (ArithExpr)f.RectRateA), z3.MkLe((ArithExpr)delta, (ArithExpr)f.RectRateB) }; // constrain: A <= delta <= B
+                                    }
+                                    
                                     exprlist.Add((BoolExpr)flow);
                                     break;
                                 }
@@ -1056,7 +1142,7 @@ namespace passel.model
                 expr = expr.Substitute(Controller.Instance.Indices["i"], hidx); // replace i by h
 
                 // if we haven't yet add every location's invariant, keep adding them on
-                if (Controller.Instance.TimeOption == Controller.TimeOptionType.conjunction && timeall.Count < h.Locations.Count)
+                if (Controller.Instance.TimeOption == Controller.TimeOptionType.conjunction && timeall.Count <= h.Locations.Count)
                 {
                     timeall.Add((BoolExpr)expr);
 
@@ -1101,7 +1187,10 @@ namespace passel.model
                     expr = z3.MkForall(new Expr[] { t2 }, z3.MkImplies(z3.MkAnd(z3.MkGe(t2, Controller.Instance.RealZero), z3.MkLe(t2, t1)), (BoolExpr)expr)); // NO, MUST BE IMPLIES!!! todo: seems correct with this as and instead of implies, doulbe check
                 }
 
-                expr = z3.MkExists(new Expr[] { delta }, expr);
+                if (Controller.Instance.FlowOption == Controller.FlowOptionType.relation)
+                {
+                    expr = z3.MkExists(new Expr[] { delta }, expr);
+                }
 
                 if (N > 0 || k > 0)
                 {
@@ -1143,10 +1232,9 @@ namespace passel.model
                         break;
                     case Controller.ExistsOptionType.implies:
                     default:
-                        expr = z3.MkExists(new Expr[] { t1 }, z3.MkImplies(z3.MkGt(t1, Controller.Instance.RealZero), (BoolExpr)expr));
+                        expr = z3.MkExists(new Expr[] { t1 }, z3.MkImplies(z3.MkGe(t1, Controller.Instance.RealZero), (BoolExpr)expr));
                         break;
                 }
-
 
                 timeii = z3.MkAnd((BoolExpr)timeii, (BoolExpr)expr);
             }
@@ -1252,6 +1340,10 @@ namespace passel.model
                             {
                                 foreach (Flow f in l.Flows)
                                 {
+                                    if (f.Variable != v)
+                                    {
+                                        continue;
+                                    }
                                     switch (f.DynamicsType)
                                     {
                                         case Flow.DynamicsTypes.constant:
@@ -1290,8 +1382,16 @@ namespace passel.model
                                                 Expr flowInv = f.Value;
                                                 flowInv = f.Value.Args[0].Args[1];
                                                 flowInv = flowInv.Substitute(t1, t2); // replace t1 with t2
-                                                flowInv = flowInv.Substitute(f.RectRateA, delta); // replace A from \dot{x} \in [A,B] with \delta which exists in [A,B]
+                                                if (Controller.Instance.FlowOption == Controller.FlowOptionType.relation)
+                                                {
+                                                    flowInv = flowInv.Substitute(f.RectRateA, delta); // replace A from \dot{x} \in [A,B] with \delta which exists in [A,B]
+                                                }
                                                 tmpterm = tmpterm.Substitute(varTerm, flowInv);
+
+                                                if (Controller.Instance.FlowOption == Controller.FlowOptionType.function)
+                                                {
+                                                    tmpterm = z3.MkAnd((BoolExpr)tmpterm, (BoolExpr)tmpterm.Substitute(f.RectRateA, f.RectRateB));
+                                                }
 
                                                 break;
                                             }
