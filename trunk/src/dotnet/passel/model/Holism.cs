@@ -308,7 +308,7 @@ namespace passel.model
                     QuantInstantiationsLast = 0;
                 }
 
-                Debug.Write("STATUS: starting inductive invariance proof for iteration " + proofPass.ToString() + ", property " + property_idx + "/" + this.Properties.Count, Debug.VERBOSE_STEPS);
+                Debug.Write("STATUS: starting inductive invariance proof for iteration " + proofPass.ToString() + ", property " + property_idx + "/" + (this.Properties.Count-1), Debug.VERBOSE_STEPS);
 
                 p = this._properties[property_idx++]; // increment after read
 
@@ -326,6 +326,7 @@ namespace passel.model
                 Controller.Instance.TimerStats.Reset();
                 Controller.Instance.TimerStats.Start();
 
+                //proveCount = (int)(p.TrajectoryProved ? 1 : 0) + p.TransitionsProved.Count + (int)(p.InitialProved ? 1 : 0);
                 proveCount = 0;
                 subpart = false;
                 iinv = true; // reset invariant shortcircuit var
@@ -339,22 +340,30 @@ namespace passel.model
                 String tmp_stat;
                 BoolExpr claimInit = z3.MkImplies((BoolExpr)h.Initial, (BoolExpr)p.Formula);
                 // initiation (inductive invariance): if disproved, set as not being inductive invariant
-                if (!z3.proveTerm(claimInit, out model, out core, out tmp_stat))
+                if (!p.InitialProved)
                 {
-                    Debug.Write("STATUS: initial states violated potential invariant", Debug.VERBOSE_STEPS);
-
-                    p.Counterexamples.Add(new Counterexample(z3.slvr.Model, claimInit)); // TODO: fix model generation
-
-                    iinv = false;
-                    p.Status = StatusTypes.disproved;
-                    if (core != null)
+                    if (!z3.proveTerm(claimInit, out model, out core, out tmp_stat))
                     {
-                        Debug.Write("Unsat core:\n\r", Debug.VERBOSE_TERMS);
-                        foreach (Expr c in core)
+                        Debug.Write("STATUS: initial states violated potential invariant", Debug.VERBOSE_STEPS);
+
+                        p.Counterexamples.Add(new Counterexample(z3.slvr.Model, claimInit)); // TODO: fix model generation
+
+                        iinv = false;
+                        p.Status = StatusTypes.disproved;
+                        if (core != null)
                         {
-                            Debug.Write(c.ToString(), Debug.VERBOSE_TERMS);
+                            Debug.Write("Unsat core:\n\r", Debug.VERBOSE_TERMS);
+                            foreach (Expr c in core)
+                            {
+                                Debug.Write(c.ToString(), Debug.VERBOSE_TERMS);
+                            }
+                            core = null;
                         }
-                        core = null;
+                    }
+                    else
+                    {
+                        proveCount++;
+                        p.InitialProved = true; // don't do again
                     }
                 }
 
@@ -367,7 +376,7 @@ namespace passel.model
                     foreach (var t in this.Transitions)
                     {
                         // break if some other already not invariant, OR if this property has already established this transition as an inductive invariant (e.g., in an earlier proof iteration)
-                        if ((!iinv && shortCircuit) || false)
+                        if ((!iinv && shortCircuit) || p.TransitionsProved.Contains(t))
                         {
                             break;
                         }
@@ -425,6 +434,7 @@ namespace passel.model
                                 // proved inductive invariant (for this transition)
                                 //subpart = true;
                                 proveCount++;
+                                p.TransitionsProved.Add(t);
                             }
                             else
                             {
@@ -440,13 +450,45 @@ namespace passel.model
 
                     } // end global discrete actions
 
+                    /*
+                    int numtrans = 0;
+                    int numtransall = 0;
+                    List<Transition> alltrans = new List<Transition>();
                     foreach (ConcreteLocation l in h.Locations)
                     {
                         foreach (var t in l.Transitions)
                         {
-                            if (!iinv && shortCircuit)
+                            alltrans.Add(t);
+                            if (p.TransitionsProved.Contains(t))
+                            {
+                                numtrans++;
+                            }
+                            numtransall++;
+                        }
+                    }
+
+                    if (numtrans > 0 && numtrans != numtransall)
+                    {
+                        Console.WriteLine("Warning: skipped transition");
+                        List<Transition> test = new List<Transition>();
+                        test = p.TransitionsProved;
+                        test.Union(alltrans);
+                        alltrans = alltrans.Distinct().ToList();
+                    }*/
+
+                    foreach (ConcreteLocation l in h.Locations)
+                    {
+                        foreach (var t in l.Transitions)
+                        {
+                            //if ((!iinv && shortCircuit) || (p.TransitionsProved.Contains(t)))
+                            if ((!iinv && shortCircuit))
                             {
                                 break;
+                            }
+                            if ((p.TransitionsProved.Any(obj => obj.TransitionTerm == t.TransitionTerm)))
+                            {
+                                //Console.WriteLine("Skipped transition already done");
+                                continue; // NOT BREAK
                             }
                             Expr inductiveInvariant = p.Formula;
 
@@ -585,6 +627,7 @@ namespace passel.model
                                     // proved inductive invariant (for this transition)
                                     //subpart = true;
                                     proveCount++;
+                                    p.TransitionsProved.Add(t);
                                 }
                                 else
                                 {
@@ -602,7 +645,7 @@ namespace passel.model
                     }
 
                     // start continuous trajectories
-                    if ((iinv || !shortCircuit) && h.Variables.Any(v => v.UpdateType == Variable.VarUpdateType.continuous))
+                    if ((iinv || !shortCircuit) && !p.TrajectoryProved && h.Variables.Any(v => v.UpdateType == Variable.VarUpdateType.continuous))
                     {
                         // start continuous transition (we add a a part for each location as we iterate over them)
                         //hidx = z3.MkConst("h", Controller.Instance.IndexType); // make fresh
@@ -633,6 +676,7 @@ namespace passel.model
                                     core = null;
                                 }
                                 proveCount++;
+                                p.TrajectoryProved = true; // don't check again
                             }
                             else
                             {

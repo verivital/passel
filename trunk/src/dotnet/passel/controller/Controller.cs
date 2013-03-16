@@ -914,10 +914,10 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
                                         if (!shorttest)
                                         {
                                             Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("fischer-rect.xml")).Value);
-                                            Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("fischer-timed-buggy.xml")).Value);
                                             Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("fischer-timed.xml")).Value);
-                                            Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("fischer-rect-buggy.xml")).Value);
 
+                                            //Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("fischer-timed-buggy.xml")).Value);
+                                            //Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("fischer-rect-buggy.xml")).Value);
 
                                             Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("sats-ii.xml")).Value);
                                             Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("sats-ii-harder.xml")).Value);
@@ -933,6 +933,8 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
                                             //Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("sats-ii-harder-sides-miss-global-pointer.xml")).Value);
                                             Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("sats-ii-pointer.xml")).Value);
                                         }
+
+
 
                                         Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("mux-sem.xml")).Value);
                                         Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("mux-sem-lastin.xml")).Value);

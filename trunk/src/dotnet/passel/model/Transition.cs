@@ -9,7 +9,7 @@ using passel.controller;
 
 namespace passel.model
 {
-    public class Transition : ICloneable
+    public class Transition
     {
         public enum AbstractTransitionType { ref_ctrl, env_ctrl, ref_data, env_data, time };
 
@@ -92,6 +92,11 @@ namespace passel.model
         {
             this.Guard = guard;
             this._reset = reset;
+        }
+
+        public String ToString()
+        {
+            return this.TransitionTerm.ToString();
         }
 
         /*public Expr Guard
@@ -233,20 +238,6 @@ namespace passel.model
             {
                 this._blockingSetEnvCL.Add(b);
             }
-        }
-
-        public object Clone()
-        {
-            // deep copy the list
-            //List<AState> newList = new List<AState>(this.NextStates.Count);
-            //this.NextStates.ForEach((item) =>
-            //{
-            //    //newList.Add((AState)item.Clone());
-            //    newList.Add((AState)item); // don't clone the next state...
-            //});
-
-            //return new Transition(this.Guard, this.Reset, this.NextStates);
-            return null;
         }
 
         public Expr MakeReset(Expr idx, uint N, uint k)

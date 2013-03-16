@@ -24,21 +24,21 @@
 		</mode>
 -->
 
-		<mode id='1' name='test' initial='True'>
+		<mode id='0' name='test' initial='True'>
 			<dai variable='x[i]' equn='x[i]_dot = 1.0'/>
 		</mode>
 		
-		<mode id='2' name='set' initial='False'>
+		<mode id='1' name='set' initial='False'>
 			<dai variable='x[i]' equn='x[i]_dot = 1.0'/>
 			<stop equn='x[i] == last[i]' />
 			<invariant equn='x[i] &lt;= last[i]' />
 		</mode>
 		
-		<mode id='3' name='check' initial='False'>
+		<mode id='2' name='check' initial='False'>
 			<dai variable='x[i]' equn='x[i]_dot = 1.0'/>
 		</mode>
 		
-		<mode id='4' name='crit' initial='False'>
+		<mode id='3' name='crit' initial='False'>
 			<dai variable='x[i]' equn='x[i]_dot = 1.0'/>
 		</mode>
 		<!--
