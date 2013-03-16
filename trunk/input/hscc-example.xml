@@ -2,6 +2,7 @@
 
 <holism>
 	<parameter name='N' assumption='N &gt;= 2' type='index' comment='number of processes in the system' />
+	<parameter name='zero' assumption='zero == 0.0' type='real' comment='lower bound on rectangular dynamics' />
 	<parameter name='a' assumption='a == 1.0' type='real' comment='lower bound on rectangular dynamics' />
 	<parameter name='b' assumption='b == 2.0' type='real' comment='upper bound on rectangular dynamics' />	
 	<parameter name='finish' assumption='finish == 30.0' type='real' comment='smaller constant' />
@@ -14,7 +15,7 @@
 -->
 
 		<mode id='0' name='off' initial='True'>
-			<dai variable='x[i]' equn='x[i]_dot == 0'/>
+			<dai variable='x[i]' equn='x[i]_dot &gt;= zero and x[i]_dot &lt;= zero'/>
 		</mode>
 
 		<mode id='1' name='on' initial='False'>
@@ -38,9 +39,9 @@
 
 	<property equn='true' type='safety' />
 	
-	<property equn='forall i (p[i] != i)' type='safety' />
-
 <!--	<property equn='forall i (p[i] != i)' type='safety' />
+
+	<property equn='forall i (p[i] != i)' type='safety' />
 -->
 	
 	<property equn='false' type='safety' />

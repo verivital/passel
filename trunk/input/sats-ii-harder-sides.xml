@@ -11,10 +11,8 @@
 	<parameter name='LGUARD' assumption='LGUARD == LS + (b - a) * ((LTOTAL - LS) / a)' type='real' comment='larger constant' />
 
 	<automaton name='sats-ii-harder-sides'>
-		<variable name='x[i]' type='nnreal' update_type='Continuous' />
-		<variable name='b[i]' type='integer' update_type='Discrete' />
-		
-		<initial equn='(forall i (x[i] == 0.0 and b[i] == 0))' />
+		<variable name='x[i]' initially='x[i] == 0.0' type='nnreal' update_type='Continuous' />
+		<variable name='b[i]' initially='b[i] == 0' type='integer' update_type='Discrete' />
 
 		<mode id='0' name='fly' initial='True'>
 			<dai variable='x[i]' equn='x[i]_dot = 0.0'/>

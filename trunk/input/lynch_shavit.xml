@@ -7,17 +7,15 @@
 	<parameter name='F' type='real' comment='' />
 	<parameter name='G' type='real' comment='' />
 	
-	<variable name='v' type='index' update_type='Discrete' comment='lock' />
-	<variable name='b' type='integer' update_type='Discrete' comment='lock' />
+	<variable name='v' initially='v == 0' type='index' update_type='Discrete' comment='lock' />
+	<variable name='b' initially='b == 0' type='integer' update_type='Discrete' comment='lock' />
 	
 	<assumption equn='L &lt;= E and F &lt;= G and L &gt; 0.0 and F &gt;= E' comment='' />
-	<assumption equn='N &gt;= 2 and N &lt;= 4' comment='' />
+	<assumption equn='N &gt;= 2' comment='' />
 
 	<automaton name='default_automaton'>
-		<variable name='x[i]' type='nnreal' update_type='Continuous' />
+		<variable name='x[i]' initially='x[i] == 0.0' type='nnreal' update_type='Continuous' />
 		
-		<initial equn='(forall i (x[i] == 0.0)) and v == 0 and b == 0' />
-
 		<mode id='0' name='rem' initial='True'>
 			<dai variable='x[i]' equn='x[i]_dot = 1.0'/>
 		</mode>

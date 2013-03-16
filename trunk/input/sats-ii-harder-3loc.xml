@@ -8,12 +8,9 @@
 	<parameter name='vmax' assumption='vmax == 120.0' type='real' comment='upper bound on rectangular dynamics' />	
 	<parameter name='LGUARD' assumption='LGUARD == LS + (vmax - vmin) * ((LB - LS) / vmin)' type='real' comment='larger constant' />
 
-
 	<automaton name='sats-ii-harder-3loc'>
-		<variable name='x[i]' type='nnreal' update_type='Continuous' />
-		<variable name='b[i]' type='integer' update_type='Discrete' />
-		
-		<initial equn='(forall i (x[i] == 0.0 and b[i] == 0))' />
+		<variable name='x[i]' initially='x[i] == 0.0' type='nnreal' update_type='Continuous' />
+		<variable name='b[i]' initially='b[i] == 0' type='integer' update_type='Discrete' />
 
 		<mode id='0' name='fly' initial='True'>
 			<dai variable='x[i]' equn='x[i]_dot = 0.0'/>
@@ -25,7 +22,7 @@
 			<dai variable='x[i]' equn='x[i]_dot &gt;= vmin and x[i]_dot &lt;= vmax'/>
 		</mode>
 		
-		<mode id='2' name='landed' initial='False'>
+		<mode id='2' name='land' initial='False'>
 		</mode>
 		
 		<transition source='fly' destination='base'>
@@ -38,17 +35,20 @@
 			<action equn='x[i]&apos; = 0.0 and b[i]&apos; = 0'/>
 		</transition>
 		
-		<transition source='base' destination='landed'>
+		<transition source='base' destination='land'>
 			<guard equn='x[i] &gt;= LB' />
 			<action equn='x[i]&apos; = 0.0 and b[i]&apos; = 0'/>
 		</transition>
 	</automaton>
+	
+	<assumption equn='forall i (b[i] == 0 or b[i] == 1)' />
 
 	<property equn='true' type='safety' />
 	
 
-	<property equn='forall i (q[i] == fly or q[i] == base or q[i] == landed)' type='safety' />
-	<property equn='forall i j ((i != j) implies ((q[i] == fly or q[i] == base or q[i] == landed) and (q[j] == fly or q[i] == base or q[j] == landed)))' type='safety' />
+	<property equn='forall i (q[i] == fly or q[i] == base or q[i] == land)' type='safety' />
+	<property equn='forall i j (((q[i] == fly or q[i] == base or q[i] == land) and (q[j] == fly or q[i] == base or q[j] == land)))' type='safety' />
+
 	<property equn='forall i j ((i != j and x[i] &gt; x[j]) implies (x[i] &gt;= x[j] + LS))' type='safety' />
 
 
@@ -59,6 +59,7 @@
 
 
 	<property equn='forall i j ((i != j and q[i] == base and q[j] == base and x[i] &gt; x[j]) implies (x[i] &gt;= x[j] + LS))' type='safety' />
+	
 <!--
 	<property format='smt' type='safety' equn='(forall ((i Int) (j Int))
   (let ((a!1 (or (not (= (q i) base))

@@ -1,6 +1,6 @@
 ﻿
-Microsoft Visual Studio Solution File, Format Version 11.00
-# Visual Studio 2010
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 2012
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "passel", "passel.csproj", "{76980A74-E105-48B3-9F06-008AF6162711}"
 EndProject
 Global
@@ -20,6 +20,11 @@ Global
 		Debug|Win32 = Debug|Win32
 		Debug|x64 = Debug|x64
 		Debug|x86 = Debug|x86
+		Mono|Any CPU = Mono|Any CPU
+		Mono|Mixed Platforms = Mono|Mixed Platforms
+		Mono|Win32 = Mono|Win32
+		Mono|x64 = Mono|x64
+		Mono|x86 = Mono|x86
 		Release DLL|Any CPU = Release DLL|Any CPU
 		Release DLL|Mixed Platforms = Release DLL|Mixed Platforms
 		Release DLL|Win32 = Release DLL|Win32
@@ -58,6 +63,14 @@ Global
 		{76980A74-E105-48B3-9F06-008AF6162711}.Debug|x64.ActiveCfg = Debug|x86
 		{76980A74-E105-48B3-9F06-008AF6162711}.Debug|x86.ActiveCfg = Debug|x86
 		{76980A74-E105-48B3-9F06-008AF6162711}.Debug|x86.Build.0 = Debug|x86
+		{76980A74-E105-48B3-9F06-008AF6162711}.Mono|Any CPU.ActiveCfg = Mono|x86
+		{76980A74-E105-48B3-9F06-008AF6162711}.Mono|Mixed Platforms.ActiveCfg = Mono|x86
+		{76980A74-E105-48B3-9F06-008AF6162711}.Mono|Mixed Platforms.Build.0 = Mono|x86
+		{76980A74-E105-48B3-9F06-008AF6162711}.Mono|Win32.ActiveCfg = Mono|x86
+		{76980A74-E105-48B3-9F06-008AF6162711}.Mono|Win32.Build.0 = Mono|x86
+		{76980A74-E105-48B3-9F06-008AF6162711}.Mono|x64.ActiveCfg = Mono|x86
+		{76980A74-E105-48B3-9F06-008AF6162711}.Mono|x86.ActiveCfg = Mono|x86
+		{76980A74-E105-48B3-9F06-008AF6162711}.Mono|x86.Build.0 = Mono|x86
 		{76980A74-E105-48B3-9F06-008AF6162711}.Release DLL|Any CPU.ActiveCfg = Release|x86
 		{76980A74-E105-48B3-9F06-008AF6162711}.Release DLL|Mixed Platforms.ActiveCfg = Release|x86
 		{76980A74-E105-48B3-9F06-008AF6162711}.Release DLL|Mixed Platforms.Build.0 = Release|x86

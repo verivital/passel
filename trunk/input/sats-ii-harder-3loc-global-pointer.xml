@@ -8,14 +8,12 @@
 	<parameter name='b' assumption='b == 120.0' type='real' comment='upper bound on rectangular dynamics' />	
 	<parameter name='LGUARD' assumption='LGUARD == LS + (b - a) * ((LB - LS) / a)' type='real' comment='larger constant' />
 
-	<variable name='last' type='index' update_type='discrete' />
+	<variable name='last' initially='last == 0' type='index' update_type='discrete' />
 
 	<automaton name='sats-ii-harder-3loc-global-pointer'>
-		<variable name='x[i]' type='nnreal' update_type='Continuous' />
-		<variable name='next[i]' type='index' update_type='Discrete' />		
-		<variable name='b[i]' type='integer' update_type='Discrete' />
-		
-		<initial equn='(forall i (x[i] == 0.0 and next[i] == 0 and b[i] == 0)) and last == 0' />
+		<variable name='x[i]' initially='x[i] == 0.0' type='nnreal' update_type='Continuous' />
+		<variable name='next[i]' initially='next[i] == 0' type='index' update_type='Discrete' />		
+		<variable name='b[i]' initially='b[i] == 0' type='integer' update_type='Discrete' />
 
 		<mode id='0' name='fly' initial='True'>
 			<dai variable='x[i]' equn='x[i]_dot = 0.0'/>

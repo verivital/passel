@@ -22,6 +22,8 @@ using passel.controller.parsing;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using System.Windows.Forms;
+using System.Collections.Specialized;
+using System.Configuration;
 
 namespace passel.controller
 {
@@ -38,7 +40,7 @@ namespace passel.controller
         /**
          * Z3 context (wrapper around it)
          */
-        private Z3Wrapper _z3;
+        public Z3Wrapper Z3;
 
         /**
          * Special variable for control states / locations (modes)
@@ -56,13 +58,13 @@ namespace passel.controller
          * Indexed variables: input, e.g., (x i) returns the function corresponding to variable x at process i
          * 
          */
-        private IDictionary<KeyValuePair<String, String>, Expr> _ivars;
+        public IDictionary<KeyValuePair<String, String>, Expr> IndexedVariables;
 
         /**
          * Primed indexed variables: input, e.g., (x' i) returns the function corresponding to variable x at process i
          * 
          */
-        private IDictionary<KeyValuePair<String, String>, Expr> _ivarsPrimed;
+        public IDictionary<KeyValuePair<String, String>, Expr> IndexedVariablesPrimed;
 
         /**
          * Parameter variables (N, S, etc.)
@@ -170,7 +172,16 @@ namespace passel.controller
         /**
          * implies is weak, and is strict
          */
-        public enum ExistsOptionType { implies, and }; // implies doesn't work
+        public enum ExistsOptionType { implies, and }; // implies doesn't work, wrong semantics
+
+        /**
+         * is nondetermism in flows modeled as a function or a relation?
+         */
+        public enum FlowOptionType { function, relation };
+
+        public enum InvariantSynthesisMethodsType { invisible_full, invisible_full_noglobal, invisible_full_nocont, invisible_implication, split_full, split_implication };
+
+        public List<InvariantSynthesisMethodsType> InvariantSynthesisMethods;
 
         /**
          * conjunction uses a conjunction of implications on control locations in the time transition, whereas separated checks the time transition repeatedly based on each location
@@ -182,6 +193,8 @@ namespace passel.controller
         public IndexOptionType IndexOption = IndexOptionType.naturalOneToN;
 
         public ExistsOptionType ExistsOption = ExistsOptionType.and;
+
+        public FlowOptionType FlowOption = FlowOptionType.relation; // relation has delta, function does not
 
         public TimeOptionType TimeOption = TimeOptionType.conjunction;
 
@@ -201,20 +214,96 @@ namespace passel.controller
          */
         private Controller()
         {
+            this.ReadSettings(); // read config file
             this.InitializeZ3();
 
             this.InputFiles = new List<string>(); // don't want to trash these between calls
         }
 
         /**
+         * Detect if running under Linux (for Mono)
+         * 
+         * http://stackoverflow.com/questions/5116977/c-sharp-how-to-check-the-os-version-at-runtime-e-g-windows-or-linux-without-usi
+         */
+        public static bool IsLinux
+        {
+            get
+            {
+                int p = (int)Environment.OSVersion.Platform;
+                return (p == 4) || (p == 6) || (p == 128);
+            }
+        }
+
+        /**
+         * Detect if running under Windows
+         */
+        public static bool IsWindows
+        {
+            get
+            {
+                return !IsLinux;
+            }
+        }
+
+        /**
+         * Read settings (file paths, VM username / paths, etc.) from config.xml fi;e
+         */
+        private void ReadSettings()
+        {
+            this.PathsWindows = (NameValueCollection)System.Configuration.ConfigurationManager.GetSection("WindowsPaths");
+            this.PathsLinux = (NameValueCollection)System.Configuration.ConfigurationManager.GetSection("LinuxPaths");
+
+            if (System.Environment.MachineName.ToLower().StartsWith("lh-laptop-w8")) // debugging
+            {
+                this.InOutPath = Directory.GetCurrentDirectory() + Path.DirectorySeparatorChar + ".." + Path.DirectorySeparatorChar + ".." + Path.DirectorySeparatorChar + ".." + Path.DirectorySeparatorChar + ".." + Path.DirectorySeparatorChar + ".." + Path.DirectorySeparatorChar;
+            }
+            else
+            {
+                this.InOutPath = Directory.GetCurrentDirectory() + Path.DirectorySeparatorChar;
+            }
+
+            this.InputPath = this.InOutPath + "input" + Path.DirectorySeparatorChar;
+            this.OutPath = this.InOutPath + "output" + Path.DirectorySeparatorChar;
+
+            this.BatchSuffix = "spin2013";
+            if (Controller.IsWindows)
+            {
+                this.PhaverPathLinux = "/mnt/hgfs/Dropbox/Research/tools/phaver/";
+                this.MemtimePathLinux = "/mnt/hgfs/Dropbox/Research/tools/memtime/memtime-1.3/memtime";
+                this.PhaverInputPathLinux = "/mnt/hgfs/Dropbox/Research/tools/passel/repos/trunk/output/" + this.BatchSuffix + "/phaver/";
+
+                this.PhaverPathWindows = "D:\\Dropbox\\Research\\tools\\phaver\\";
+                this.ReachPathLinux = this.PhaverPathLinux + "reach/";
+                this.ReachPathWindows = this.PhaverPathWindows + "reach\\";
+            }
+            else if (Controller.IsLinux)
+            {
+                this.PhaverPathLinux = this.PathsLinux["PhaverDirectory"];
+                this.MemtimePathLinux = this.PathsLinux["MemtimeDirectory"];
+                this.PhaverInputPathLinux = this.PathsLinux["PhaverInputFileDirectory"] + this.BatchSuffix + "/"; // todo: use general path
+
+                this.PhaverPathWindows = "D:\\Dropbox\\Research\\tools\\phaver\\";
+                this.ReachPathLinux = this.PhaverPathLinux + "reach/";
+                this.ReachPathWindows = this.PhaverPathWindows + "reach\\";
+            }
+        }
+
+
+        public NameValueCollection PathsWindows;
+        public NameValueCollection PathsLinux;
+
+        /**
          * Instantiate data structures, create Z3 object, populate data structures with pointers to Z3 objects, etc.
          */
         private void InitializeZ3()
         {
-            //this._q = new Dictionary<String, Expr>();
-            //this._qPrimed = new Dictionary<String, Expr>();
-            this._ivars = new Dictionary<KeyValuePair<String, String>, Expr>();
-            this._ivarsPrimed = new Dictionary<KeyValuePair<String, String>, Expr>();
+            this.IndexedVariables = new Dictionary<KeyValuePair<String, String>, Expr>();
+            this.IndexedVariablesPrimed = new Dictionary<KeyValuePair<String, String>, Expr>();
+            this.DataU = new AgentDataUninterpreted();
+            this.DataU.IndexedVariableDecl = new Dictionary<string, FuncDecl>();
+            this.DataU.IndexedVariableDeclPrimed = new Dictionary<string, FuncDecl>();
+            this.DataU.VariableDecl = new Dictionary<string, FuncDecl>();
+            this.DataU.VariableDeclPrimed = new Dictionary<string, FuncDecl>();
             this._params = new Dictionary<String, Expr>();
             this.ParamsAssumps = new Dictionary<String, Expr>();
             this._globalVariables = new Dictionary<String, Expr>();
@@ -226,6 +315,11 @@ namespace passel.controller
             this.LocationNameToNum = new Dictionary<String, UInt32>();
             this.LocationNumTermToName = new Dictionary<Expr, String>();
             this.Functions = new Dictionary<String, FuncDecl>();
+            this.InvariantSynthesisMethods = new List<InvariantSynthesisMethodsType>();
+            this.InvariantSynthesisMethods.Add(InvariantSynthesisMethodsType.invisible_full);
+            this.InvariantSynthesisMethods.Add(InvariantSynthesisMethodsType.invisible_full_nocont);
+            this.InvariantSynthesisMethods.Add(InvariantSynthesisMethodsType.invisible_implication); // todo: add option for index-valued variables before and after implication, with and without continuous, with all disjuncts for given discrete states and with each disjunct for given discrete states
+            this.InvariantSynthesisMethods.Add(InvariantSynthesisMethodsType.invisible_full_noglobal);
 
             this.Config = new Dictionary<string, string>();
 
@@ -392,15 +486,15 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
             this.Z3 = new Z3Wrapper(this.Config);
             this.Z3.PrintMode = Z3_ast_print_mode.Z3_PRINT_SMTLIB2_COMPLIANT;
 
-            this.IntType = Z3.MkIntSort();
-            this.RealType = Z3.MkRealSort();
-            //this.LocType = Z3.MkUninterpretedSort("loc");
-            //this.LocType = Z3.MkIntSort();
-            this.LocType = Z3.MkBitVecSort(this.LocSize);
+            this.IntType = this.Z3.MkIntSort();
+            this.RealType = this.Z3.MkRealSort();
+            //this.LocType = this.Z3.MkUninterpretedSort("loc");
+            //this.LocType = this.Z3.MkIntSort();
+            this.LocType = this.Z3.MkBitVecSort(this.LocSize);
 
-            this.RealZero = Z3.MkReal(0);
-            this.IntZero = Z3.MkInt(0);
-            this.IntOne = Z3.MkInt(1);
+            this.RealZero = this.Z3.MkReal(0);
+            this.IntZero = this.Z3.MkInt(0);
+            this.IntOne = this.Z3.MkInt(1);
 
             /* can't do the following to create augmented reals: assumptions are invalid
             this.RealInf = Z3.MkRealConst("inf");
@@ -416,28 +510,28 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
                 case IndexOptionType.integer:
                     {
                         //this._indexType = Z3.MkSetSort(Z3.MkIntSort());
-                        this.IndexType = Z3.MkIntSort();
-                        this.IndexNone = Z3.MkInt(0);
-                        this.IndexOne = Z3.MkInt(1);
-                        this.Params.Add("N", Z3.MkIntConst("N"));
+                        this.IndexType = this.Z3.MkIntSort();
+                        this.IndexNone = this.Z3.MkInt(0);
+                        this.IndexOne = this.Z3.MkInt(1);
+                        this.Params.Add("N", this.Z3.MkIntConst("N"));
                         this.IndexN = this.Params["N"];
                         break;
                     }
                 case IndexOptionType.natural:
                     {
-                        this.IndexType = Z3.MkIntSort();
-                        this.IndexNone = Z3.MkInt(0);
-                        this.IndexOne = Z3.MkInt(1);
-                        this.Params.Add("N", Z3.MkIntConst("N"));
+                        this.IndexType = this.Z3.MkIntSort();
+                        this.IndexNone = this.Z3.MkInt(0);
+                        this.IndexOne = this.Z3.MkInt(1);
+                        this.Params.Add("N", this.Z3.MkIntConst("N"));
                         this.IndexN = this.Params["N"];
                         break;
                     }
                 case IndexOptionType.naturalOneToN:
                     {
-                        this.IndexType = Z3.MkIntSort();
-                        this.IndexNone = Z3.MkInt(0);
-                        this.IndexOne = Z3.MkInt(1);
-                        this.Params.Add("N", Z3.MkIntConst("N"));
+                        this.IndexType = this.Z3.MkIntSort();
+                        this.IndexNone = this.Z3.MkInt(0);
+                        this.IndexOne = this.Z3.MkInt(1);
+                        this.Params.Add("N", this.Z3.MkIntConst("N"));
                         this.IndexN = this.Params["N"];
                         break;
                     }
@@ -445,10 +539,10 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
                 default:
                     {
                         //this._indexType = Z3.MkEnumerationSort("index", new string[] { "i1", "i2", "i3", "i4" });
-                        this.IndexType = Z3.MkEnumSort("index", new string[] { "i0", "i1", "i2", "i3", "i4" }); // todo: parse the value of N, then create a sort with this many distinct elements
-                        this.IndexOne = Z3.MkConst("i1", this.IndexType);
-                        this.IndexNone = Z3.MkConst("i0", this.IndexType);
-                        this.IndexN = Z3.MkConst("iN", this.IndexType);
+                        this.IndexType = this.Z3.MkEnumSort("index", new string[] { "i0", "i1", "i2", "i3", "i4" }); // todo: parse the value of N, then create a sort with this many distinct elements
+                        this.IndexOne = this.Z3.MkConst("i1", this.IndexType);
+                        this.IndexNone = this.Z3.MkConst("i0", this.IndexType);
+                        this.IndexN = this.Z3.MkConst("iN", this.IndexType);
                         break;
                     }
             }
@@ -528,15 +622,6 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
         }
 
         /**
-         * Gettor and settor for Z3 object
-         */
-        public Z3Wrapper Z3
-        {
-            get { return this._z3; }
-            set { this._z3 = value; }
-        }
-
-        /**
          * Integer zero value
          */
         public Expr IntZero;
@@ -589,23 +674,6 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
             set { this._qPrimed = value; }
         }*/
 
-        /**
-         * Gettor and settor for indexed variables
-         */
-        public IDictionary<KeyValuePair<String, String>, Expr> IndexedVariables
-        {
-            get { return this._ivars; }
-            set { this._ivars = value; }
-        }
-
-        /**
-         * Gettor and settor for primed indexed variables
-         */
-        public IDictionary<KeyValuePair<String, String>, Expr> IndexedVariablesPrimed
-        {
-            get { return this._ivarsPrimed; }
-            set { this._ivarsPrimed = value; }
-        }
 
         /**
          * Index variables
@@ -702,37 +770,36 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
             Boolean selected_file = false, selected_n = false, selected_operation = false, terminate = false;
             Dictionary<int, string> inputFiles = new Dictionary<int, string>();
             int inputFileCount = 0;
+
+            inputFiles.Add(inputFileCount++, "fischer-rect.xml");
+            inputFiles.Add(inputFileCount++, "fischer-timed.xml");
+            inputFiles.Add(inputFileCount++, "fischer-rect-buggy.xml");
+            inputFiles.Add(inputFileCount++, "fischer-timed-buggy.xml");
+
+
+
             inputFiles.Add(inputFileCount++, "fischer_umeno.xml");
             inputFiles.Add(inputFileCount++, "fischer_umeno_buggy.xml");
             inputFiles.Add(inputFileCount++, "fischer_umeno_five_state.xml");
             inputFiles.Add(inputFileCount++, "fischer_umeno_five_state_buggy.xml");
             inputFiles.Add(inputFileCount++, "fischer_umeno_global_clock.xml");
             inputFiles.Add(inputFileCount++, "fischer_umeno_global_clock_buggy.xml");
-
             inputFiles.Add(inputFileCount++, "fischer_aux.xml");
-
             inputFiles.Add(inputFileCount++, "fischer_phaver.xml");
             inputFiles.Add(inputFileCount++, "fischer_phaver_const.xml");
             inputFiles.Add(inputFileCount++, "fischer_phaver_const_lastin.xml");
-
             inputFiles.Add(inputFileCount++, "fischer.xml");
             inputFiles.Add(inputFileCount++, "fischer_buggy.xml");
-
             inputFiles.Add(inputFileCount++, "fischer_bit.xml");
-
             inputFiles.Add(inputFileCount++, "fischer-equiv.xml");
-
             inputFiles.Add(inputFileCount++, "fischer-inv.xml");
-
             inputFiles.Add(inputFileCount++, "lynch_shavit.xml");
-
             inputFiles.Add(inputFileCount++, "sats_full.xml");
             inputFiles.Add(inputFileCount++, "sats.xml");
             inputFiles.Add(inputFileCount++, "sats_buggy.xml");
             inputFiles.Add(inputFileCount++, "sats_timed.xml");
             inputFiles.Add(inputFileCount++, "sats_timed_buggy.xml");
             inputFiles.Add(inputFileCount++, "sats_timed_counter.xml");
-
             inputFiles.Add(inputFileCount++, "sats-ii.xml");
             inputFiles.Add(inputFileCount++, "sats-ii-harder.xml");
             inputFiles.Add(inputFileCount++, "sats-ii-harder-3loc.xml");
@@ -745,33 +812,22 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
             inputFiles.Add(inputFileCount++, "sats-ii-harder-sides-miss-global-dynamics.xml");
             inputFiles.Add(inputFileCount++, "sats-ii-harder-sides-miss-global-pointer.xml");
             inputFiles.Add(inputFileCount++, "sats-ii-pointer.xml");
-
             inputFiles.Add(inputFileCount++, "mux-sem.xml");
             inputFiles.Add(inputFileCount++, "mux-sem-lastin.xml");
             inputFiles.Add(inputFileCount++, "mux-index.xml");
             inputFiles.Add(inputFileCount++, "mux-index-ta.xml");
-
             inputFiles.Add(inputFileCount++, "mux-sats.xml");
-
             inputFiles.Add(inputFileCount++, "ta-general.xml");
-
             inputFiles.Add(inputFileCount++, "ta-general-bool.xml");
-
             inputFiles.Add(inputFileCount++, "djikstra.xml");
-
             inputFiles.Add(inputFileCount++, "bakery-lynch.xml");
-
             inputFiles.Add(inputFileCount++, "german.xml");
-
             inputFiles.Add(inputFileCount++, "peterson.xml");
             inputFiles.Add(inputFileCount++, "szymanski.xml");
-
             inputFiles.Add(inputFileCount++, "token-ring.xml");
-
             inputFiles.Add(inputFileCount++, "bakery.xml");
             inputFiles.Add(inputFileCount++, "bakery_lamport.xml");
             inputFiles.Add(inputFileCount++, "bakery_lamport_buggy.xml");
-
             inputFiles.Add(inputFileCount++, "nfa.xml");
             inputFiles.Add(inputFileCount++, "nfa_buggy.xml");
             inputFiles.Add(inputFileCount++, "ta.xml");
@@ -783,49 +839,15 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
             inputFiles.Add(inputFileCount++, "flocking_buggy.xml");
             inputFiles.Add(inputFileCount++, "bully.xml");
             inputFiles.Add(inputFileCount++, "bully_buggy.xml");
-
             inputFiles.Add(inputFileCount++, "gcd.xml");
-
             inputFiles.Add(inputFileCount++, "starl.xml");
-
             inputFiles.Add(inputFileCount++, "pointer-example.xml");
             inputFiles.Add(inputFileCount++, "gpointer-example.xml");
-
-
             inputFiles.Add(inputFileCount++, "hscc-example.xml");
-
             inputFiles.Add(inputFileCount++, "clock-sync.xml");
-
             inputFiles.Add(inputFileCount++, "prelim.xml");
 
-            if (System.Environment.MachineName.ToLower().StartsWith("johnso99"))
-            {
-                Instance.InOutPath = "C:\\Documents and Settings\\tjohnson\\My Documents\\My Dropbox\\Research\\tools\\passel\\repos\\trunk\\";
-            }
-            else if (System.Environment.MachineName.ToLower().StartsWith("lh-laptop-w7"))
-            {
-                Instance.InOutPath = "C:\\Users\\tjohnson\\Dropbox\\Research\\tools\\passel\\repos\\trunk\\";
-            }
-            else if (System.Environment.MachineName.ToLower().StartsWith("lh-laptop-w8"))
-            {
-                Instance.InOutPath = "D:\\Dropbox\\Research\\tools\\passel\\repos\\trunk\\";
-            }
-            else
-            {
-                Instance.InOutPath = Directory.GetCurrentDirectory();
-            }
-
-            Instance.InputPath = Instance.InOutPath + "input\\";
-            Instance.OutPath = Instance.InOutPath + "output\\";
-
-            Instance.PhaverPathLinux = "/mnt/hgfs/Dropbox/Research/tools/phaver/";
-            Instance.MemtimePathLinux = "/mnt/hgfs/Dropbox/Research/tools/memtime/memtime-1.3/memtime";
-            Instance.BatchSuffix = "cav2013";
-            Instance.PhaverInputPathLinux = "/mnt/hgfs/Dropbox/Research/tools/passel/repos/trunk/output/phaver/" + Instance.BatchSuffix + "/";
-
-            Instance.PhaverPathWindows = "D:\\Dropbox\\Research\\tools\\phaver\\";
-            Instance.ReachPathLinux = Instance.PhaverPathLinux + "reach/";
-            Instance.ReachPathWindows = Instance.PhaverPathWindows + "reach\\";
+            //System.Console.WriteLine(System.Environment.MachineName.ToLower());
 
             if (Controller.LOG_Z3)
             {
@@ -855,8 +877,8 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
                                 Console.WriteLine("[" + f.Key.ToString() + "]" + " " + f.Value);
                             }
                             Console.WriteLine("[253] check all input files");
-                            Console.WriteLine("[254] generate " + Instance.BatchSuffix + " PHAVer input files");
-                            Console.WriteLine("[255] generate " + Instance.BatchSuffix +  "  table\n\r");
+                            //Console.WriteLine("[254] generate " + Instance.BatchSuffix + " PHAVer input files");
+                            Console.WriteLine("[255] generate " + Instance.BatchSuffix +  " table\n\r");
                             Console.WriteLine("[256] enter custom file\n\r");
 
                             choice = Console.ReadLine();
@@ -883,14 +905,24 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
                                     {
                                         Console.WriteLine("Batch processing:");
 
-                                        bool shorttest = false;
+                                        Instance.InputPath += Path.DirectorySeparatorChar + Instance.BatchSuffix + Path.DirectorySeparatorChar;
+                                        Instance.OutPath += Path.DirectorySeparatorChar + Instance.BatchSuffix + Path.DirectorySeparatorChar;
 
-                                        Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("sats-ii.xml")).Value);
-                                        Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("sats-ii-harder.xml")).Value);
-                                        Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("sats-ii-harder-3loc.xml")).Value);
+                                        bool shorttest = false; // may take a long time if false
+
 
                                         if (!shorttest)
                                         {
+                                            Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("fischer-rect.xml")).Value);
+                                            Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("fischer-timed-buggy.xml")).Value);
+                                            Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("fischer-timed.xml")).Value);
+                                            Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("fischer-rect-buggy.xml")).Value);
+
+
+                                            Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("sats-ii.xml")).Value);
+                                            Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("sats-ii-harder.xml")).Value);
+                                            Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("sats-ii-harder-3loc.xml")).Value);
+
                                             Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("sats-ii-harder-3loc-global-pointer.xml")).Value);
                                             Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("sats-ii-harder-basefinal.xml")).Value);
                                             Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("sats-ii-harder-sides.xml")).Value);
@@ -910,11 +942,11 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
                                         Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("token-ring.xml")).Value);
 
                                         //Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("pointer-example.xml")).Value);
-                                        Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("gpointer-example.xml")).Value);
+                                        //Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("gpointer-example.xml")).Value);
 
                                         //Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("prelim.xml")).Value);
-                                        Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("fischer.xml")).Value);
-                                        Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("fischer_aux.xml")).Value);
+                                        //Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("fischer.xml")).Value);
+                                        //Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("fischer_aux.xml")).Value);
 
                                         batch = true;
                                     }
@@ -946,7 +978,7 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
                             }
                             catch (Exception)
                             {
-                                Instance.InputFiles.Add("fischer_umeno_five_state.xml");
+                                Instance.InputFiles.Add("fischer_rect.xml");
                                 Console.WriteLine("Error, picking default file: " + Instance.InputFiles.First() + ".\n\r");
                             }
 
@@ -1153,7 +1185,7 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
                     // inductive invariant checking for small model theorem
                     case PROGRAM_MODE.INDUCTIVE_INVARIANT:
                         {
-                            Instance.Sys.checkInductiveInvariants();
+                            Instance.Sys.checkInductiveInvariants(false);
                             break;
                         }
                     case PROGRAM_MODE.DRAW_SYSTEM:
@@ -1180,7 +1212,9 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
                                 if (batch)
                                 {
                                     fnall = fn + "_" + "N=" + Instance.IndexNValue + ".pha";
-                                    phaver_out_filename = Instance.OutPath + "\\phaver\\" + Instance.BatchSuffix + "\\" + fnall; // todo: generalize
+                                    //phaver_out_filename = Instance.OutPath + "\\phaver\\" + Instance.BatchSuffix + "\\" + fnall; // todo: generalize
+                                    phaver_out_filename = Instance.OutPath + "\\phaver\\" + fnall; // todo: generalize
+
                                 }
                                 else
                                 {
@@ -1207,7 +1241,7 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
 
                             //Instance.Sys.removeDuplicateProperties(); // remove duplicate properties (may get more during projection)
                             Instance.appendMeasurement("invariance_start", expName);
-                            Instance.Sys.checkInductiveInvariants();
+                            Instance.Sys.checkInductiveInvariants(true);
                             Instance.appendMeasurement("invariance_end", expName);
                             break;
                         }
@@ -1224,12 +1258,13 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
                                 if (batch)
                                 {
                                     fnall = fn + "_" + "N=" + Instance.IndexNValue + ".pha";
-                                    phaver_out_filename = Instance.OutPath + "\\phaver\\" + Instance.BatchSuffix + "\\" + fnall; // todo: generalize
+                                    //phaver_out_filename = Instance.OutPath + Path.DirectorySeparatorChar + "phaver" + Path.DirectorySeparatorChar + Instance.BatchSuffix + Path.DirectorySeparatorChar + fnall; // todo: generalize
+                                    phaver_out_filename = Instance.OutPath + Path.DirectorySeparatorChar + "phaver" + Path.DirectorySeparatorChar + fnall; // todo: generalize
                                 }
                                 else
                                 {
                                     fnall = fn + "_" + "N=" + Instance.IndexNValue + "_" + now + ".pha";
-                                    phaver_out_filename = Instance.OutPath + "\\phaver\\" + fnall; // todo: generalize
+                                    phaver_out_filename = Instance.OutPath + Path.DirectorySeparatorChar + "phaver" + Path.DirectorySeparatorChar + fnall; // todo: generalize
                                 }
 
                                 Controller.OutputPhaver(fnall, phaver_out_filename, expName, batch, "", 0);
@@ -1242,7 +1277,7 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
 
                             //Instance.Sys.removeDuplicateProperties(); // remove duplicate properties (may get more during projection)
                             Instance.appendMeasurement("invariance_start", expNameL);
-                            Instance.Sys.checkInductiveInvariants();
+                            Instance.Sys.checkInductiveInvariants(true);
                             Instance.appendMeasurement("invariance_end", expNameL);
                             break;
                         }
@@ -1255,6 +1290,7 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
                             Expr lastReach = Instance.Z3.MkFalse();
                             bool fp = false;
                             BoolExpr[] prevSplit = { Instance.Z3.MkFalse(), Instance.Z3.MkFalse() };
+                            List<Property> generatedInvariants = new List<Property>();
 
                             while (!fp) // breakout if fixedpoint
                             {
@@ -1268,7 +1304,6 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
                                     newInitial = newInitialNext;
                                     newInitialNext = new List<string>();
                                 }
-
 
                                 //List<String> reachsets = new List<string>();
                                 for (uint nval = lb; nval <= ub; nval++)
@@ -1286,12 +1321,13 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
                                     if (batch)
                                     {
                                         fnall = fn + "_" + "N=" + Instance.IndexNValue + ".pha";
-                                        phaver_out_filename = Instance.OutPath + "\\phaver\\" + Instance.BatchSuffix + "\\" + fnall; // todo: generalize
+                                        //phaver_out_filename = Instance.OutPath + Path.DirectorySeparatorChar + "phaver" + Path.DirectorySeparatorChar + Instance.BatchSuffix + Path.DirectorySeparatorChar + fnall; // todo: generalize
+                                        phaver_out_filename = Instance.OutPath + Path.DirectorySeparatorChar + "phaver" + Path.DirectorySeparatorChar + fnall; // todo: generalize
                                     }
                                     else
                                     {
                                         fnall = fn + "_" + "N=" + Instance.IndexNValue + "_" + now + ".pha";
-                                        phaver_out_filename = Instance.OutPath + "\\phaver\\" + fnall; // todo: generalize
+                                        phaver_out_filename = Instance.OutPath + Path.DirectorySeparatorChar + "phaver" + Path.DirectorySeparatorChar + fnall; // todo: generalize
                                     }
 
                                     foreach (var nis in newInitial)
@@ -1301,7 +1337,6 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
 
                                         Controller.OutputPhaver(fnall, phaver_out_filename, expName, batch, nis, iteration);
                                         Controller.CallPhaver(fnall, expName);
-
                                         List<Expr> pgcreachset = Controller.InputReach(nval, expName, true, null, true, prevSplit);
 
                                         Console.WriteLine("PREVIOUS SPLIT: ");
@@ -1320,30 +1355,26 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
                                             Model m;
                                             Expr[] core;
                                             String stat;
+                                            System.Console.WriteLine("Fixedpoint check: \n\r" + fixedpoint + "\n\r\n\r");
                                             if (!Instance.Z3.proveTerm(fixedpoint, out m, out core, out stat)) // not a fp
                                             {
                                                 allfp &= false;
                                             }
 
                                             fixedpoint = Instance.Z3.MkImplies((BoolExpr)projecting[1].Unquantified, (BoolExpr)prevSplit[1]);
+                                            System.Console.WriteLine("Fixedpoint check: \n\r" + fixedpoint + "\n\r\n\r");
                                             if (!Instance.Z3.proveTerm(fixedpoint, out m, out core, out stat)) // not a fp
                                             {
                                                 allfp &= false;
                                             }
-
-
                                             prevSplit[0] = (BoolExpr)projecting[0].Unquantified;
                                             projecting[0].Unquantified = null;
                                             prevSplit[1] = (BoolExpr)projecting[1].Unquantified;
                                             projecting[1].Unquantified = null;
-
-
-
                                         }
                                         //prevSplit[0] = (BoolExpr)Instance.Sys.Properties[first].Unquantified;
                                         //prevSplit[1] = (BoolExpr)Instance.Sys.Properties[first + 1].Unquantified;
 
-                                        
                                         foreach (var v in pgcreachset)
                                         {/*
                                             BoolExpr fixedpoint = Instance.Z3.MkImplies((BoolExpr)v, (BoolExpr)lastReach);
@@ -1356,8 +1387,6 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
                                             }*/
                                             lastReach = v;
 
-
-
                                             newInitialNext.Add(pgreachToInitial(v, Instance.IndexNValue));
                                         }
 
@@ -1368,22 +1397,24 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
                                         }
                                         else
                                         {
-                                            Instance.Sys.Properties.RemoveAll(prop => prop.SourceType != SourceTypes.user);
+                                            generatedInvariants.AddRange(Instance.Sys.Properties.FindAll(prop => prop.SourceType != SourceTypes.user)); // save and then remove
+                                            generatedInvariants = generatedInvariants.Distinct().ToList();
+                                            Instance.Sys.Properties.RemoveAll(prop => prop.SourceType != SourceTypes.user); // need to do this for correctness of earlier part
                                         }
 
                                         iteration++;
                                     }
                                 }
                             }
+                            Instance.Sys.Properties.AddRange(generatedInvariants); // add back all generated invariants
                             String expNameL = AutomatonName + "_N=" + Instance.IndexNValue;
                             //Controller.InputReach(expNameL, false, reachsets); // for use with custom bmc
-
 
                             // todo: fixed point check with pgreachset
 
                             //Instance.Sys.removeDuplicateProperties(); // remove duplicate properties (may get more during projection)
                             Instance.appendMeasurement("invariance_start", expNameL);
-                            Instance.Sys.checkInductiveInvariants();
+                            Instance.Sys.checkInductiveInvariants(true);
                             Instance.appendMeasurement("invariance_end", expNameL);
                             break;
                         }
@@ -1427,8 +1458,7 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
             string itemStart = "starting";
             string itemEnd = "invariance_end";
 
-
-            if (batch && (Instance.OPERATION == PROGRAM_MODE.INDUCTIVE_INVARIANT || Instance.OPERATION == PROGRAM_MODE.INPUT_PHAVER))
+            if (batch) //  && (Instance.OPERATION == PROGRAM_MODE.INDUCTIVE_INVARIANT || Instance.OPERATION == PROGRAM_MODE.INPUT_PHAVER)
             {
                 foreach (var v in Instance.TimeMeasurements)
                 {
@@ -1436,7 +1466,10 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
                     {
                         meas += v.name + ",";
 
-                        String logname = "C:\\Users\\tjohnson\\Dropbox\\Research\\tools\\passel\\repos\\trunk\\output\\phaver\\" + Instance.BatchSuffix + "\\" + v.name + ".pha.log"; // TODO: use path constants
+                        //String logname = "C:\\Users\\tjohnson\\Dropbox\\Research\\tools\\passel\\repos\\trunk\\output\\phaver\\" + Instance.BatchSuffix + "\\" + v.name + ".pha.log"; // TODO: use path constants
+                        //String logname = "C:\\Users\\tjohnson\\Dropbox\\Research\\tools\\passel\\repos\\trunk\\output\\phaver\\" + Instance.BatchSuffix + "\\" + v.name + ".pha.log"; // TODO: use path constants
+                        //String logname = Instance.OutPath + Path.DirectorySeparatorChar + v.name + ".pha.log"; // TODO: use path constants
+                        String logname = Instance.PhaverPathWindows + v.name + ".pha_VIX_LOG.txt";
                         if (File.Exists(logname))
                         {
                             String[] lns = Tail(File.OpenText(@logname), 10);
@@ -1453,6 +1486,7 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
 
                             String[] words = lns[idx].Split(',', '-');
 
+                            // parse strings like: //0.39 user, 0.30 system, 0.71 elapsed -- Max VSize = 6212KB, Max RSS = 3164KB
                             foreach (var s in words)
                             {
                                 String tmp = s.Trim();
@@ -1467,7 +1501,6 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
                                     meas += (double.Parse(ss) / 1024.0) + ","; // KB -> MB
                                 }
                             }
-                            //0.39 user, 0.30 system, 0.71 elapsed -- Max VSize = 6212KB, Max RSS = 3164KB
                         }
                         else
                         {
@@ -1505,7 +1538,9 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
                     prev = v.name;
                 }
                 meas = header + meas;
-                System.IO.File.WriteAllText(@"C:\Users\tjohnson\Dropbox\Research\tools\passel\repos\trunk\output\phaver\" + Instance.BatchSuffix + "\runtime.csv", meas);
+                System.IO.File.WriteAllText(@Instance.OutPath + Path.DirectorySeparatorChar + Path.DirectorySeparatorChar + "runtime.csv", meas); // TODO: generalize path
+                //System.IO.File.WriteAllText(@"C:\Users\tjohnson\Dropbox\Research\tools\passel\repos\trunk\output\" + Instance.BatchSuffix + "\phaver\runtime.csv", meas); // TODO: generalize path
+                //System.IO.File.WriteAllText(@"C:\Users\tjohnson\Dropbox\Research\tools\passel\repos\trunk\output\" + Instance.BatchSuffix + "\phaver\runtime.csv", meas); // TODO: generalize path
             }
         }
 
@@ -1546,7 +1581,16 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
             {*/
             if (phaver)
             {
-                String reachname = Instance.ReachPathWindows + Instance.Sys.HybridAutomata[0].Name + "_N=" + N + ".reach";
+                String reachname = "";
+                if (Controller.IsWindows)
+                {
+                    reachname = Instance.ReachPathWindows;
+                }
+                else if (Controller.IsLinux)
+                {
+                    reachname = Instance.ReachPathLinux;
+                }
+                reachname += Instance.Sys.HybridAutomata[0].Name + "_N=" + N + ".reach";
                 System.Console.WriteLine("Opening phaver output (reach set) file: " + reachname);
                 reachset = ParseHyXML.ParseReach(reachname, false); // parse reach set
             }
@@ -1652,7 +1696,10 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
                         }
                         pr.makePost(); // update post-state formula
                     }
-                    Instance.Sys.Properties.Add(pr); // TODO: never seems to be satisfied: this won't be, it's the AND version that's the problem---the quantified invariant would need to be IMPLIES
+                    if (Instance.InvariantSynthesisMethods.Contains(InvariantSynthesisMethodsType.invisible_implication))
+                    {
+                        Instance.Sys.Properties.Add(pr); // TODO: never seems to be satisfied: this won't be, it's the AND version that's the problem---the quantified invariant would need to be IMPLIES
+                    }
                 }
                 result.Add(projectAndGeneralize(input_mode, prall, expName, projectN, N, doSplit, prevSplit));
             }
@@ -1875,7 +1922,6 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
                     output.Debug.Write(p.Formula.ToString() + "\n\r\n\r", output.Debug.VERBOSE_STEPS);
                 }
             }
-
             Instance.Sys.Properties.RemoveAll(p => p.Status == StatusTypes.toDelete); // remove all useless properties
         }
 
@@ -1893,6 +1939,7 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
             bool toDelete = false;
 
             // TODO: measure prall length by iterating over all elements and adding up # total arguments? actually, could probably do this with a tactic...
+            List<BoolExpr> newallNoContinuous = new List<BoolExpr>();
             List<BoolExpr> newallNoGlobal = new List<BoolExpr>();
             List<BoolExpr> newall = new List<BoolExpr>();
             switch (input_mode)
@@ -1901,7 +1948,7 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
                     {
                         Instance.appendMeasurement("P=" + projectN + "done_parsing->projection", expName);
                         // PROJECTION
-                        for (int i = 0; i < 2; i++)
+                        for (int i = 0; i < 3; i++) // TODO: rewrite, nasty...
                         {
                             foreach (var v in prall)
                             {
@@ -1922,12 +1969,31 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
 
                                 if (i == 0)
                                 {
-                                    // add index variables to project away
+                                    // add global index variables to project away
                                     foreach (var gv in Controller.Instance.Sys.Variables)
                                     {
                                         if (gv.Type == Variable.VarType.index)
                                         {
                                             bi.Add(Controller.instance.GlobalVariables[gv.Name]);
+                                        }
+                                    }
+                                }
+
+                                if (i == 1)
+                                {
+                                    // add global index variables to project away
+                                    foreach (var iv in Controller.Instance.Sys.HybridAutomata[0].Variables)
+                                    {
+                                        if (iv.UpdateType == Variable.VarUpdateType.continuous)
+                                        {
+                                            for (uint it = 1; it <= N; it++)
+                                            {
+                                                Expr vt = Instance.UndefinedVariables[iv.Name + it.ToString()];
+                                                if (!bi.Contains(vt))
+                                                {
+                                                    bi.Add(vt);
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -2000,7 +2066,10 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
                                         if (i == 0)
                                         {
                                             newallNoGlobal.Add((BoolExpr)cp);
-
+                                        }
+                                        else if (i == 1)
+                                        {
+                                            newallNoContinuous.Add((BoolExpr)cp);
                                         }
                                         else
                                         {
@@ -2010,22 +2079,37 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
                                 }
                             }
                         }
+                       
+                        if (Instance.InvariantSynthesisMethods.Contains(InvariantSynthesisMethodsType.invisible_full_noglobal))
+                        {
+                            Property prandNoGlobal = new Property(Instance.Z3.MkOr(newallNoGlobal.ToArray()));
+                            prandNoGlobal.SourceType = SourceTypes.invisible_invariants;
+                            prandNoGlobal.Formula = Instance.simplifyFormula(prandNoGlobal.Formula);
+                            prandNoGlobal.makePost();
+                            prandNoGlobal.Status = StatusTypes.toProcess;
+                            prandNoGlobal.Type = Property.PropertyType.safety;
+                            prandNoGlobal = Instance.GeneralizeProperty(prandNoGlobal, projectN, N, true);
+                            Instance.Sys.Properties.Add(prandNoGlobal);
+                        }
 
-                        Property prandNoGlobal = new Property(Instance.Z3.MkOr(newallNoGlobal.ToArray()));
-                        prandNoGlobal.SourceType = SourceTypes.invisible_invariants;
-                        prandNoGlobal.Formula = Instance.simplifyFormula(prandNoGlobal.Formula);
-                        prandNoGlobal.makePost();
-
-                        Instance.appendMeasurement("done_projection->generalization", expName);
-
-                        prandNoGlobal.Status = StatusTypes.toProcess;
-                        prandNoGlobal.Type = Property.PropertyType.safety;
-                        prandNoGlobal = Instance.GeneralizeProperty(prandNoGlobal, projectN, N, true);
+                        if (Instance.InvariantSynthesisMethods.Contains(InvariantSynthesisMethodsType.invisible_full_nocont))
+                        {
+                            Property prandNoContinuous = new Property(Instance.Z3.MkOr(newallNoContinuous.ToArray()));
+                            prandNoContinuous.SourceType = SourceTypes.invisible_invariants;
+                            prandNoContinuous.Formula = Instance.simplifyFormula(prandNoContinuous.Formula);
+                            prandNoContinuous.makePost();
+                            prandNoContinuous.Status = StatusTypes.toProcess;
+                            prandNoContinuous.Type = Property.PropertyType.safety;
+                            prandNoContinuous = Instance.GeneralizeProperty(prandNoContinuous, projectN, N, true);
+                            Instance.Sys.Properties.Add(prandNoContinuous);
+                        }
 
                         Property prand = new Property(Instance.Z3.MkOr(newall.ToArray()));
                         prand.SourceType = SourceTypes.invisible_invariants;
                         prand.Formula = Instance.simplifyFormula(prand.Formula);
                         prand.makePost();
+
+                        Instance.appendMeasurement("done_projection->generalization", expName);
 
                         if (toDelete)
                         {
@@ -2046,7 +2130,7 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
                             prand = Instance.GeneralizeProperty(prand, projectN, N, false); // generalized without quantifiers (instantiating next)
                             prand.Unquantified = prand.Formula;
 
-                            for (uint i = 1; i <= N; i++)
+                            for (uint i = 1; i <= N; i++) // instantiate i
                             {
                                 Expr concretized = Instance.Z3.copyExpr(prand.Formula); // deep copy (doing substitution)
                                 concretized = Instance.Z3.MkOr(prevSplit[projectN - 1], (BoolExpr)concretized); //
@@ -2056,10 +2140,13 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
 
                                 if (projectN >= 2)
                                 {
-                                    for (uint j = 1; j <= N; j++)
+                                    for (uint j = 1; j <= N; j++) // instantiate j
                                     {
                                         if (i == j)
+                                        {
                                             continue;
+                                        }
+                                        concretized = Instance.Z3.copyExpr(prand.Formula); // copy formula with symbols
                                         concretized = (BoolExpr)concretized.Substitute(new Expr[] { Instance.Indices["i"], Instance.Indices["j"] }, new Expr[] { Instance.Z3.MkInt(i), Instance.Z3.MkInt(j) });
 
                                         /*
@@ -2081,6 +2168,7 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
                                     //clist.Add(Instance.Z3.MkAnd((BoolExpr)concretizedNew, (BoolExpr)concretized.Substitute(Instance.Indices["i"], Instance.Z3.MkInt(i))));
                                     concretizedNew = Instance.Z3.ToCNF(concretizedNew); // actually dnf
                                 }
+                                concretizedNew = concretizedNew.Simplify();
                             }
                             //concretizedNew = Instance.Z3.ToCNF(concretizedNew); // actually dnf
 
@@ -2104,11 +2192,11 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
                         ApplyResult ar = simplifier.Apply(goal);
                         Goal[] sgs = ar.Subgoals;
                         ar = ar;*/
-                         
 
-
-                        Instance.Sys.Properties.Add(prand);
-                        Instance.Sys.Properties.Add(prandNoGlobal); // disable no-global generated invariants for now
+                        if (Instance.InvariantSynthesisMethods.Contains(InvariantSynthesisMethodsType.invisible_full))
+                        {
+                            Instance.Sys.Properties.Add(prand);
+                        }
 
                         Instance.appendMeasurement("done_generalization->invariance", expName);
 
@@ -2158,7 +2246,10 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
                             {
                                 sout = sout.Replace("q_" + i.ToString(), "");
                                 sout = sout.Replace("==", ""); // todo: check generality
-                                idxToLoc.Add(i, sout.Trim());
+                                if (!idxToLoc.ContainsKey(i))
+                                {
+                                    idxToLoc.Add(i, sout.Trim());
+                                }
                             }
                         }
                     }
@@ -2198,7 +2289,7 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
                 }
                 allnewic += ",";
             }
-            output.Debug.Write(allnewic, output.Debug.MINIMAL);
+            output.Debug.Write("New initial states: " + allnewic, output.Debug.MINIMAL);
 
             allnewic = allnewic.Substring(0, allnewic.Length - 1);
 
@@ -2230,111 +2321,130 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
          */
         public static void CallPhaver(string fnall, string expName)
         {
-            // from: http://tranxcoder.wordpress.com/2008/05/14/using-the-vixcom-library/
-            string hostName = "localhost";
-            string hostUser = "";
-            string hostPassword = "";
-            string virtualMachineUsername = "tjohnson";
-            string virtualMachinePassword = "asdf!234";
-            Instance.VMPath = "D:\\Virtual Machines\\Ubuntu\\Ubuntu.vmx";
-            string exePath = Instance.PhaverPathLinux + "phaver";
-            string phaver_out_filepath_vmware = "/mnt/hgfs/Dropbox/Research/tools/passel/repos/trunk/output/phaver/"; // TODO: generalize
+            //string exePath = Instance.MemtimePathLinux + " " + Instance.PhaverPathLinux + "phaver";
+            //string exePath =  Instance.PhaverPathLinux + "phaver";
+            string exePath = Instance.MemtimePathLinux;
+            //string phaver_out_filepath_vmware = "/mnt/hgfs/Dropbox/Research/tools/passel/repos/trunk/output/phaver/"; // TODO: generalize
+            string phaver_out_filepath_vmware = Instance.PhaverInputPathLinux; // input phaver files
+            string exeParameters = " " + Instance.PhaverPathLinux + "phaver" + " " + phaver_out_filepath_vmware + fnall + " &> " + Instance.PhaverPathLinux + fnall + "_VIX_LOG.txt";
 
-            string exeParameters = phaver_out_filepath_vmware + fnall + " > " + Instance.PhaverPathLinux + fnall + "_VIX_LOG.txt";
-            bool returnValue = false;
-            // vmware vix is 32-bit, but I can't set project to 32-bit, because then Z3 won't work (get an exception when using the 32-bit library in 32-bit compilation mode...)
-            try
+            if (Controller.IsWindows)
             {
-                VixWrapper vix = new VixWrapper();
-
-                //
-                // Connect to the VMWare Server
-                //
-                if (vix.Connect(hostName, hostUser, hostPassword))
+                // from: http://tranxcoder.wordpress.com/2008/05/14/using-the-vixcom-library/
+                string hostName = "localhost";
+                string hostUser = "";
+                string hostPassword = "";
+                string virtualMachineUsername = "tjohnson"; // TODO: add to app.config
+                string virtualMachinePassword = "asdf!234"; // TODO: add to app.config
+                Instance.VMPath = "D:\\Virtual Machines\\Ubuntu\\Ubuntu.vmx"; // TODO: add to app.config
+                bool returnValue = false;
+                // vmware vix is 32-bit, but I can't set project to 32-bit, because then Z3 won't work (get an exception when using the 32-bit library in 32-bit compilation mode...)
+                try
                 {
+                    VixWrapper vix = new VixWrapper();
+
                     //
-                    // Opening the VMX File
+                    // Connect to the VMWare Server
                     //
-                    if (vix.Open(Instance.VMPath))
+                    if (vix.Connect(hostName, hostUser, hostPassword))
                     {
                         //
-                        // Reverting to the ‘only’ snapshot
+                        // Opening the VMX File
                         //
-                        //if (vix.RevertToLastSnapshot())
-                        //{
-                        //
-                        // Powering on the Virtual Machine
-                        //
-                        if (vix.PowerOn())
+                        if (vix.Open(Instance.VMPath))
                         {
                             //
-                            // Logging in to the Virtual Machine
+                            // Reverting to the ‘only’ snapshot
                             //
-                            if (vix.LogIn(virtualMachineUsername, virtualMachinePassword))
+                            //if (vix.RevertToLastSnapshot())
+                            //{
+                            //
+                            // Powering on the Virtual Machine
+                            //
+                            if (vix.PowerOn())
                             {
                                 //
-                                // Run the test program
+                                // Logging in to the Virtual Machine
                                 //
-                                int resultCode = 0;
-
-                                System.Console.WriteLine("Calling phaver via VIX: " + exePath + exeParameters);
-
-                                if (vix.RunProgram(exePath, exeParameters, out resultCode))
+                                if (vix.LogIn(virtualMachineUsername, virtualMachinePassword))
                                 {
-                                    if (resultCode == 0)
+                                    //
+                                    // Run the test program
+                                    //
+                                    int resultCode = 0;
+
+                                    System.Console.WriteLine("Calling phaver via VIX: " + exePath + exeParameters);
+
+                                    if (vix.RunProgram(exePath, exeParameters, out resultCode))
                                     {
-                                        //
-                                        // The test PASSED!
-                                        //
-                                        returnValue = true;
+                                        if (resultCode == 0)
+                                        {
+                                            //
+                                            // The test PASSED!
+                                            //
+                                            returnValue = true;
+                                        }
+                                        else
+                                        {
+                                            // The test FAILED!
+                                            returnValue = false;
+                                        }
                                     }
                                     else
                                     {
-                                        // The test FAILED!
-                                        returnValue = false;
+                                        //
+                                        // Unable to run test
+                                        //
                                     }
                                 }
                                 else
                                 {
-                                    //
-                                    // Unable to run test
-                                    //
+                                    // Unable to login to the virtual machine
                                 }
+
+                                //vix.PowerOff();
                             }
                             else
                             {
-                                // Unable to login to the virtual machine
+                                // Unable to power on the virtual machine
                             }
-
-                            //vix.PowerOff();
+                            //}
+                            //else
+                            //{
+                            // Unable to revert to the last snapshot
+                            //}
                         }
                         else
                         {
-                            // Unable to power on the virtual machine
+                            // Unable to open the VMX file
                         }
-                        //}
-                        //else
-                        //{
-                        // Unable to revert to the last snapshot
-                        //}
                     }
                     else
                     {
-                        // Unable to open the VMX file
+                        // Unable to connect to the host
                     }
-                }
-                else
-                {
-                    // Unable to connect to the host
-                }
 
-                //return returnValue;
+                    //return returnValue;
+                }
+                catch (COMException comExc)
+                {
+                    //
+                    // COM Exception
+                    //
+                }
             }
-            catch (COMException comExc)
+            else if (Controller.IsLinux)
             {
-                //
-                // COM Exception
-                //
+                // call natively
+                Process p = new Process();
+                p.StartInfo.FileName = exePath;
+                //p.StartInfo.Arguments = "/c dir *.cs";
+                p.StartInfo.UseShellExecute = false;
+                //p.StartInfo.RedirectStandardOutput = true;
+                p.Start();
+
+                //string output = p.StandardOutput.ReadToEnd();
+                p.WaitForExit();
             }
         }
 
