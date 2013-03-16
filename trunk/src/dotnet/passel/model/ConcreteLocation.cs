@@ -23,7 +23,7 @@ namespace passel.model
         {
 
 	    }
-
+        /*
         public override object Clone()
         {
             // deep copy the list
@@ -38,6 +38,6 @@ namespace passel.model
             cl.VariableRates = this.VariableRates;
 
             return cl;
-        }
+        }*/
     }
 }

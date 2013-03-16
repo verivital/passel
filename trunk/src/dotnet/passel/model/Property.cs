@@ -47,6 +47,11 @@ namespace passel.model
         public List<Expr> InductiveInvariants = new List<Expr>();
         public List<String> Statistics = new List<String>();
 
+        public List<Transition> TransitionsProved = new List<Transition>();
+        public Boolean TrajectoryProved = false;
+        public Boolean InitialProved = false;
+
+
         // have to use this since the .NET apis have poor support for traversing quantifiers (e.g., have to do crazy things like string replacement since you apparently can access a mapping from fresh variable names to quantified variables)
         public Expr Unquantified;
 
