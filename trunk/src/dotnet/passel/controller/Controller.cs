@@ -263,17 +263,18 @@ namespace passel.controller
             this.PathsWindows = (NameValueCollection)System.Configuration.ConfigurationManager.GetSection("WindowsPaths");
             this.PathsLinux = (NameValueCollection)System.Configuration.ConfigurationManager.GetSection("LinuxPaths");
 
-            //if (System.Environment.MachineName.ToLower().StartsWith("lh-laptop-w8")) // debugging
-            //{
-            //    this.InOutPath = Directory.GetCurrentDirectory() + Path.DirectorySeparatorChar + ".." + Path.DirectorySeparatorChar + ".." + Path.DirectorySeparatorChar + ".." + Path.DirectorySeparatorChar + ".." + Path.DirectorySeparatorChar + ".." + Path.DirectorySeparatorChar;
-            //}
-            //else
-            //{
+            if (this.InteractionMode == INTERACTION_MODE.interactive)
+            {
+                this.InOutPath = this.Paths["InOutDirectory"];
+                this.InputPath = this.InOutPath + "input" + Path.DirectorySeparatorChar;
+                this.OutPath = this.InOutPath + "output" + Path.DirectorySeparatorChar;
+            }
+            else
+            {
                 this.InOutPath = Directory.GetCurrentDirectory() + Path.DirectorySeparatorChar;
-            //}
-
-            this.InputPath = this.InOutPath + ".." + Path.DirectorySeparatorChar + "input" + Path.DirectorySeparatorChar;
-            this.OutPath = this.InOutPath + ".." + Path.DirectorySeparatorChar + "output" + Path.DirectorySeparatorChar;
+                this.InputPath = this.InOutPath + ".." + Path.DirectorySeparatorChar + "input" + Path.DirectorySeparatorChar;
+                this.OutPath = this.InOutPath + ".." + Path.DirectorySeparatorChar + "output" + Path.DirectorySeparatorChar;
+            }
 
             this.BatchSuffix = this.Paths["BatchName"];
 
@@ -283,7 +284,7 @@ namespace passel.controller
                 this.MemtimePathLinux = this.PathsLinux["MemtimeDirectory"];
                 this.PhaverInputPathLinux = this.PathsLinux["PhaverInputFileDirectory"] + this.BatchSuffix + "/phaver/";
 
-                this.PhaverPathWindows = "D:" + Path.DirectorySeparatorChar + "Dropbox" + Path.DirectorySeparatorChar + "Research" + Path.DirectorySeparatorChar + "tools" + Path.DirectorySeparatorChar + "phaver" + Path.DirectorySeparatorChar;
+                this.PhaverPathWindows = this.PathsWindows["PhaverDirectory"];
                 this.ReachPathLinux = this.PhaverPathLinux + "reach/";
                 this.ReachPathWindows = this.PhaverPathWindows + "reach" + Path.DirectorySeparatorChar;
             }
