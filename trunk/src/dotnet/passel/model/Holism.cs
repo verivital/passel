@@ -114,42 +114,63 @@ namespace passel.model
         /**
          * Remove duplicate properties
          */
-        public void removeDuplicateProperties()
+        public void removeDuplicateProperties(uint longCheck)
         {
             this.Properties = this.Properties.Distinct().ToList();
-
             this.Properties = this.Properties.GroupBy(p1 => p1.Formula).Select(same => same.First()).ToList();
             this.Properties = this.Properties.GroupBy(p1 => p1.Formula.ToString()).Select(same => same.First()).ToList();
 
-            /*
             // todo: use distinct as in previous line combined with comparer that looks at Property.Formula
-            // remove duplicates by formulas
+
             int c = this.Properties.Count;
             for (int i = 0; i < c; i++)
             {
-                for (int j = 1; j < c; j++)
+                // remove unsatisfiables
+                if (longCheck >= 1)
                 {
-                    if (i == j || i == this.Properties.Count || j == this.Properties.Count)
-                    {
-                        continue;
-                    }
-
-                    // try proving them equal
-                    Controller.Instance.Z3.slvr.Push(); // save original context
-                    BoolExpr p = Controller.Instance.Z3.MkIff((BoolExpr)this.Properties[i].Formula, (BoolExpr)this.Properties[j].Formula); // prop_i = prop_j
+                    Controller.Instance.Z3.slvr.Push();
                     Model m;
                     Expr[] core;
-                    String stat;
-
-                    if (this.Properties[i].Formula.Equals(this.Properties[j].Formula) || Controller.Instance.Z3.proveTerm(p, out m, out core, out stat)) // short-circuit, don't prove them equal if we can do the simple check
+                    // if assertion is unsatisfiable already, it obviously can't be an invariant
+                    if (!Controller.Instance.Z3.checkTerm(this.Properties[i].Formula, out m, out core))
                     {
-                        System.Console.WriteLine("REMOVING PROPERTY, DUPLICATE\n\r");
-                        this.Properties.RemoveAt(j);
+                        System.Console.WriteLine("REMOVING PROPERTY, EQUIVALENT TO FALSE\n\r");
+                        this.Properties.RemoveAt(i);
                         c = this.Properties.Count; // update count
+                        i--;
                     }
-                    Controller.Instance.Z3.slvr.Pop(); // restore original context
+                    Controller.Instance.Z3.slvr.Pop();
                 }
-            }*/
+
+                // remove duplicates by formulas
+                if (longCheck >= 2)
+                {
+                    for (int j = 0; j < c; j++)
+                    {
+                        if (i == j || i == this.Properties.Count || j == this.Properties.Count)
+                        {
+                            continue;
+                        }
+
+                        // try proving them equal
+                        Controller.Instance.Z3.slvr.Push(); // save original context
+                        BoolExpr p = Controller.Instance.Z3.MkIff((BoolExpr)this.Properties[i].Formula, (BoolExpr)this.Properties[j].Formula); // prop_i = prop_j
+                        Model m;
+                        Expr[] core;
+                        String stat;
+
+                        if (this.Properties[i].Formula.Equals(this.Properties[j].Formula) || Controller.Instance.Z3.proveTerm(p, out m, out core, out stat)) // short-circuit, don't prove them equal if we can do the simple check
+                        {
+                            System.Console.WriteLine("REMOVING PROPERTY, DUPLICATE\n\r");
+                            this.Properties.RemoveAt(j);
+                            c = this.Properties.Count; // update count
+                            i--;
+                            j--;
+                        }
+                        Controller.Instance.Z3.slvr.Pop(); // restore original context
+                    }
+                }
+            }
         }
 
         /**
@@ -187,7 +208,7 @@ namespace passel.model
             //z3.Assumptions.RemoveAll(a => a.IsQuantifier);
 
             this.Properties.RemoveAll(ptmp => ptmp.Status == StatusTypes.toDelete); // remove all useless properties
-            this.removeDuplicateProperties();
+            this.removeDuplicateProperties(1);
 
             this.z3.slvr.Assert(this.z3.Assumptions.ToArray()); // assert all the data-type assumptions
             this.z3.slvr.Assert(this.z3.AssumptionsUniversal.ToArray()); // assert all the data-type assumptions
@@ -206,13 +227,21 @@ namespace passel.model
 
             while (true)
             { 
-                if (!restart && property_idx == this.Properties.Count) // && this.Properties[property_idx].Status != StatusTypes.toProcess)
+                // termination condition: no restart and on the last property (from last iteration, before incrementing)
+                if (!restart && property_idx == this.Properties.Count && this.Properties[property_idx-1].Status != StatusTypes.toProcess)
                 {
                     break;
                 }
 
-                //if (restart)
-                if (restart && property_idx == this.Properties.Count || loops <= 0) // only restart after we go through the whole list of properties (worst case behavior is the same, but on average this seems better)
+                // all inductive invariants
+                if (shortCircuit && (this.Properties.FindAll(pv => pv.SourceType == SourceTypes.user).All(pa => pa.Status == StatusTypes.inductiveInvariant)))
+                {
+                    Debug.Write("STATUS: all user supplied properties proved, breaking out of loop", Debug.MINIMAL);
+                    break;
+                }
+
+                // only restart after we go through the whole list of properties (worst case behavior is the same, but on average this seems better)
+                if ((restart && property_idx == this.Properties.Count) || loops <= 0)
                 {
                     p = null;
                     proofPass++;
@@ -260,19 +289,13 @@ namespace passel.model
                     Expr[] a = z3.slvr.Assertions;
                     System.Console.WriteLine("\n\r\n\rSTATUS: ASSUMPTIONS: \n\r" + z3.ExprArrayToString(a) + "\n\r\n\r");
 
-                    /*
-                    Microsoft.Z3.Tactic t = z3.MkTactic();
-                    Microsoft.Z3.Goal g = z3.MkGoal();
-                    g.Assert(z3.slvr.Assertions);
-                    t.Apply(g);
-                     */
-
                     Status ca = z3.slvr.Check();
                     if (ca == Status.UNKNOWN || ca == Status.UNSATISFIABLE)
                     {
                         Debug.Write("WARNING: basic assumptions on data types, indices, etc. cannot be satisfied!", Debug.MINIMAL);
                         //throw new Exception("ERROR: basic assumptions on data types, indices, etc. cannot be satisfied!");
                     }
+
                     try
                     {
                         if (z3.slvr.Model != null)
@@ -310,7 +333,8 @@ namespace passel.model
 
                 Debug.Write("STATUS: starting inductive invariance proof for iteration " + proofPass.ToString() + ", property " + property_idx + "/" + (this.Properties.Count-1), Debug.VERBOSE_STEPS);
 
-                p = this._properties[property_idx++]; // increment after read
+                p = this._properties[property_idx];
+                property_idx++; // increment after read
 
                 if (p.Status == StatusTypes.toProcess)
                 {
@@ -783,12 +807,12 @@ namespace passel.model
                 loops++;
             }
 
-            Debug.Write("\n\rDISPROVED INVARIANTS >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n\r", Debug.VERBOSE_STEPS);
+            Debug.Write("\n\rUNPROVED INVARIANTS >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n\r", Debug.VERBOSE_STEPS);
             foreach (Property pi in this.Properties)
             {
-                if (pi.Status == StatusTypes.disproved)
+                if (pi.Status != StatusTypes.inductiveInvariant)
                 {
-                    Debug.Write("PROPERTY DISPROVED =====================================================================\n\r", Debug.VERBOSE_STEPS);
+                    Debug.Write("PROPERTY UNPROVED =====================================================================\n\r", Debug.VERBOSE_STEPS);
                     Debug.Write(pi.Formula.ToString() + "\n\r\n\r", Debug.VERBOSE_STEPS);
 
                     Debug.Write("Time: " + String.Format("{0}", pi.Time.TotalSeconds) + "\n\r", Debug.VERBOSE_STEPS);
@@ -856,7 +880,7 @@ namespace passel.model
                         //    System.Console.WriteLine("\n\r\n\r");
                         //}
                     }
-                    Debug.Write("END PROPERTY DISPROVED =====================================================================\n\r\n\r", Debug.VERBOSE_STEPS);
+                    Debug.Write("END PROPERTY UNPROVED =====================================================================\n\r\n\r", Debug.VERBOSE_STEPS);
                 }
             }
 
@@ -910,11 +934,11 @@ namespace passel.model
 
 
 
-            System.Console.WriteLine("DISPROVED INVARIANTS SUMMARY >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n\r");
+            System.Console.WriteLine("UNPROVED INVARIANTS SUMMARY >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n\r");
             int num_dis = 0;
             foreach (Property pi in this.Properties)
             {
-                if (pi.Status == StatusTypes.disproved)
+                if (pi.Status != StatusTypes.inductiveInvariant)
                 {
                     System.Console.WriteLine(pi.Formula.ToString() + "\n\r");
                     System.Console.WriteLine("Time: " + String.Format("{0}", pi.Time.TotalSeconds) + "\n\r\n\r");
@@ -962,7 +986,7 @@ namespace passel.model
             }*/
 
             System.Console.WriteLine("\n\rSUMMARY\n\r");
-            System.Console.WriteLine("Disproved: " + num_dis.ToString());
+            System.Console.WriteLine("Unproved: " + num_dis.ToString());
             System.Console.WriteLine("Invariant: " + num_inv.ToString() + "\n\r");
             //System.Console.WriteLine("Inductive: " + num_ind.ToString());
 

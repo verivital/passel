@@ -13,7 +13,6 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x86'">
     <EnableUnmanagedDebugging>false</EnableUnmanagedDebugging>
-    <StartArguments>
-    </StartArguments>
+    <StartArguments>-I</StartArguments>
   </PropertyGroup>
 </Project>

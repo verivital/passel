@@ -116,6 +116,16 @@ namespace passel.controller
         public Expr IndexN;
 
         /**
+         * Break out of inductive invariance checks more quickly (worse for manual refinement since it only shows one violating transition, better for runtimes since it quits early)
+         */
+        public Boolean ShortCircuit = true;
+
+        /**
+         * Batch processing mode
+         */
+        public Boolean BatchProcess = false;
+
+        /**
          * Value selected for N (if any)
          */
         public uint IndexNValue;
@@ -138,8 +148,6 @@ namespace passel.controller
         public String PhaverInputPathLinux;
         public String OutPath; // passel output file path (logs, phaver input files, etc.)
         public String InputPath; // passel input file path
-
-        public String VMPath;
 
         /**
          * filename
@@ -250,47 +258,68 @@ namespace passel.controller
          */
         private void ReadSettings()
         {
+            this.VirtualMachine = (NameValueCollection)System.Configuration.ConfigurationManager.GetSection("VirtualMachine");
+            this.Paths = (NameValueCollection)System.Configuration.ConfigurationManager.GetSection("Paths");
             this.PathsWindows = (NameValueCollection)System.Configuration.ConfigurationManager.GetSection("WindowsPaths");
             this.PathsLinux = (NameValueCollection)System.Configuration.ConfigurationManager.GetSection("LinuxPaths");
 
-            if (System.Environment.MachineName.ToLower().StartsWith("lh-laptop-w8")) // debugging
-            {
-                this.InOutPath = Directory.GetCurrentDirectory() + Path.DirectorySeparatorChar + ".." + Path.DirectorySeparatorChar + ".." + Path.DirectorySeparatorChar + ".." + Path.DirectorySeparatorChar + ".." + Path.DirectorySeparatorChar + ".." + Path.DirectorySeparatorChar;
-            }
-            else
-            {
+            //if (System.Environment.MachineName.ToLower().StartsWith("lh-laptop-w8")) // debugging
+            //{
+            //    this.InOutPath = Directory.GetCurrentDirectory() + Path.DirectorySeparatorChar + ".." + Path.DirectorySeparatorChar + ".." + Path.DirectorySeparatorChar + ".." + Path.DirectorySeparatorChar + ".." + Path.DirectorySeparatorChar + ".." + Path.DirectorySeparatorChar;
+            //}
+            //else
+            //{
                 this.InOutPath = Directory.GetCurrentDirectory() + Path.DirectorySeparatorChar;
-            }
+            //}
 
-            this.InputPath = this.InOutPath + "input" + Path.DirectorySeparatorChar;
-            this.OutPath = this.InOutPath + "output" + Path.DirectorySeparatorChar;
+            this.InputPath = this.InOutPath + ".." + Path.DirectorySeparatorChar + "input" + Path.DirectorySeparatorChar;
+            this.OutPath = this.InOutPath + ".." + Path.DirectorySeparatorChar + "output" + Path.DirectorySeparatorChar;
 
-            this.BatchSuffix = "spin2013";
+            this.BatchSuffix = this.Paths["BatchName"];
+
             if (Controller.IsWindows)
             {
-                this.PhaverPathLinux = "/mnt/hgfs/Dropbox/Research/tools/phaver/";
-                this.MemtimePathLinux = "/mnt/hgfs/Dropbox/Research/tools/memtime/memtime-1.3/memtime";
-                this.PhaverInputPathLinux = "/mnt/hgfs/Dropbox/Research/tools/passel/repos/trunk/output/" + this.BatchSuffix + "/phaver/";
+                this.PhaverPathLinux = this.PathsLinux["PhaverDirectory"];
+                this.MemtimePathLinux = this.PathsLinux["MemtimeDirectory"];
+                this.PhaverInputPathLinux = this.PathsLinux["PhaverInputFileDirectory"] + this.BatchSuffix + "/phaver/";
 
-                this.PhaverPathWindows = "D:\\Dropbox\\Research\\tools\\phaver\\";
+                this.PhaverPathWindows = "D:" + Path.DirectorySeparatorChar + "Dropbox" + Path.DirectorySeparatorChar + "Research" + Path.DirectorySeparatorChar + "tools" + Path.DirectorySeparatorChar + "phaver" + Path.DirectorySeparatorChar;
                 this.ReachPathLinux = this.PhaverPathLinux + "reach/";
-                this.ReachPathWindows = this.PhaverPathWindows + "reach\\";
+                this.ReachPathWindows = this.PhaverPathWindows + "reach" + Path.DirectorySeparatorChar;
             }
             else if (Controller.IsLinux)
             {
                 this.PhaverPathLinux = this.PathsLinux["PhaverDirectory"];
                 this.MemtimePathLinux = this.PathsLinux["MemtimeDirectory"];
-                this.PhaverInputPathLinux = this.PathsLinux["PhaverInputFileDirectory"] + this.BatchSuffix + "/"; // todo: use general path
-
-                this.PhaverPathWindows = "D:\\Dropbox\\Research\\tools\\phaver\\";
-                this.ReachPathLinux = this.PhaverPathLinux + "reach/";
-                this.ReachPathWindows = this.PhaverPathWindows + "reach\\";
+                //this.PhaverPathWindows = "D:\\Dropbox\\Research\\tools\\phaver\\";
+                this.ReachPathLinux = this.PhaverPathLinux + "reach" + Path.DirectorySeparatorChar;
+                //this.ReachPathWindows = this.PhaverPathWindows + "reach\\";
             }
         }
 
+        /**
+         * Virtual machine settings (for calling Linux via Windows)
+         */
+        public NameValueCollection VirtualMachine;
 
+        /**
+         * Miscellaneous paths
+         */
+        public NameValueCollection Paths;
+
+        /**
+         * Windows Paths (calls Phaver via Linux)
+         */
         public NameValueCollection PathsWindows;
+        /**
+         * Linux Paths (all on Linux; may call VMWare virtual machine from Windows to run Phaver)
+         */
         public NameValueCollection PathsLinux;
+
+        public static bool OldApiParameters()
+        {
+            return Microsoft.Z3.Version.Major <= 4 && Microsoft.Z3.Version.Minor <= 3 && Microsoft.Z3.Version.Build <= 1;
+        }
 
         /**
          * Instantiate data structures, create Z3 object, populate data structures with pointers to Z3 objects, etc.
@@ -323,165 +352,262 @@ namespace passel.controller
 
             this.Config = new Dictionary<string, string>();
 
-            this.Config.Add("AUTO_CONFIG", "false"); // disable auto-configuration (use all logics)
 
-            // fixed point options
-            //this.Config.Add("DL_COMPILE_WITH_WIDENING", "true");
-            //this.Config.Add("DL_UNBOUND_COMPRESSOR", "false"); 
-
-            /*this.Config.Add("ARRAY_CANONIZE", "true");
-            this.Config.Add("ARRAY_CG", "true");
-            this.Config.Add("ARRAY_LAZY_IEQ", "true");
-            this.Config.Add("ARRAY_WEAK", "true");
-             */
-            //this.Config.Add("ARRAY_SOLVER", "1"); // 0 to 3
-
-            //this.Config.Add("QI_PROFILE", "true");
-            //this.Config.Add("QI_PROFILE_FREQ", "1000");
-            //this.Config.Add("MBQI_TRACE", "true");
-
-            this.Config.Add("MODEL", "true");
-            this.Config.Add("MBQI", "true"); //  (see http://research.microsoft.com/en-us/um/redmond/projects/z3/mbqi-tutorial/)
-
-
-            //this.Config.Add("SOFT_TIMEOUT", "15000"); // in ms
-            this.Config.Add("MODEL_ON_TIMEOUT", "true");
-            
-            //this.Config.Add("MBQI_MAX_CEXS", "500"); // crashes
-            //this.Config.Add("MBQI_MAX_CEXS_INCR", "100");
-            //this.Config.Add("MBQI_MAX_ITERATIONS", "50000");
-
-            //this.Config.Add("NNF_MODE", "3"); // min: 0, max: 3, default: 0, NNF translation mode: 0 - skolem normal form, 1 - 0 + quantifiers in NNF, 2 - 1 + opportunistic, 3 - full.
-
-            // HUGE runtime differences (3 was extremely slow); 1 also slow
-            this.Config.Add("CNF_MODE", "0");
-
-            this.Config.Add("QI_QUICK_CHECKER", "2"); // min: 0, max: 2, default: 0, 0 - do not use (cheap) model checker, 1 - instantiate instances unsatisfied by current model, 2 - 1 + instantiate instances not satisfied by current model.
-
-            this.Config.Add("RECENT_LEMMA_THRESHOLD", "10000"); // default 100
-
-            this.Config.Add("REDUCE_ARGS", "true");
-
-            this.Config.Add("REL_CASE_SPLIT_ORDER", "1");
-
-            this.Config.Add("BB_QUANTIFIERS", "true");
-
-            //this.Config.Add("INST_GEN", "true");
-
-            //this.Config.Add("QI_PROFILE", "true");
-
-
-
-            // the following option was deprecated in version 4.3 of Z3 (latest version that can use it is 4.1)
-            if (Microsoft.Z3.Version.Major <= 4 && Microsoft.Z3.Version.Minor <= 1)
+            // z3 version 4.3.2 has a new parameter setting infrastructure, so we use the old parameters if using earlier DLLs
+            if (Controller.OldApiParameters())
             {
-                this.Config.Add("ELIM_QUANTIFIERS", "true"); // if we fix N to be small, we can rely on MBQI, but if we have N large or unbounded, we may need Q.E.
+                this.Config.Add("AUTO_CONFIG", "false"); // disable auto-configuration (use all logics)
+
+                // fixed point options
+                //this.Config.Add("DL_COMPILE_WITH_WIDENING", "true");
+                //this.Config.Add("DL_UNBOUND_COMPRESSOR", "false"); 
+
+                /*this.Config.Add("ARRAY_CANONIZE", "true");
+                this.Config.Add("ARRAY_CG", "true");
+                this.Config.Add("ARRAY_LAZY_IEQ", "true");
+                this.Config.Add("ARRAY_WEAK", "true");
+                 */
+                //this.Config.Add("ARRAY_SOLVER", "1"); // 0 to 3
+
+                //this.Config.Add("QI_PROFILE", "true");
+                //this.Config.Add("QI_PROFILE_FREQ", "1000");
+                //this.Config.Add("MBQI_TRACE", "true");
+
+                this.Config.Add("MODEL", "true");
+                this.Config.Add("MBQI", "true"); //  (see http://research.microsoft.com/en-us/um/redmond/projects/z3/mbqi-tutorial/)
+
+
+                //this.Config.Add("SOFT_TIMEOUT", "15000"); // in ms
+                this.Config.Add("MODEL_ON_TIMEOUT", "true");
+
+                //this.Config.Add("MBQI_MAX_CEXS", "500"); // crashes
+                //this.Config.Add("MBQI_MAX_CEXS_INCR", "100");
+                //this.Config.Add("MBQI_MAX_ITERATIONS", "50000");
+
+                //this.Config.Add("NNF_MODE", "3"); // min: 0, max: 3, default: 0, NNF translation mode: 0 - skolem normal form, 1 - 0 + quantifiers in NNF, 2 - 1 + opportunistic, 3 - full.
+
+                // HUGE runtime differences (3 was extremely slow); 1 also slow
+                this.Config.Add("CNF_MODE", "0");
+
+                this.Config.Add("QI_QUICK_CHECKER", "2"); // min: 0, max: 2, default: 0, 0 - do not use (cheap) model checker, 1 - instantiate instances unsatisfied by current model, 2 - 1 + instantiate instances not satisfied by current model.
+
+                this.Config.Add("RECENT_LEMMA_THRESHOLD", "10000"); // default 100
+
+                this.Config.Add("REDUCE_ARGS", "true");
+
+                this.Config.Add("REL_CASE_SPLIT_ORDER", "1");
+
+                this.Config.Add("BB_QUANTIFIERS", "true");
+
+                //this.Config.Add("INST_GEN", "true");
+
+                //this.Config.Add("QI_PROFILE", "true");
+
+
+
+                // the following option was deprecated in version 4.3 of Z3 (latest version that can use it is 4.1 [which was named 4.2])
+                if (Microsoft.Z3.Version.Major <= 4 && Microsoft.Z3.Version.Minor <= 2)
+                {
+                    uint bv = Microsoft.Z3.Version.Build;
+                    this.Config.Add("ELIM_QUANTIFIERS", "true"); // if we fix N to be small, we can rely on MBQI, but if we have N large or unbounded, we may need Q.E.
+                }
+                this.Config.Add("ELIM_NLARITH_QUANTIFIERS", "true");
+                this.Config.Add("ELIM_BOUNDS", "true");
+                this.Config.Add("QI_LAZY_INSTANTIATION", "true");
+
+                this.Config.Add("PULL_CHEAP_ITE_TREES", "true");
+                this.Config.Add("EMATCHING", "true");
+                this.Config.Add("MACRO_FINDER", "true");
+                this.Config.Add("STRONG_CONTEXT_SIMPLIFIER", "true");
+                this.Config.Add("CONTEXT_SIMPLIFIER", "true");
+
+                //this.Config.Add("PI_NON_NESTED_ARITH_WEIGHT", "10");
+                this.Config.Add("PI_PULL_QUANTIFIERS", "true");     // check with on / off 
+                this.Config.Add("PULL_NESTED_QUANTIFIERS", "true"); // check with on / off (see mbqi tutorial)
+                this.Config.Add("MODEL_PARTIAL", "false");
+                this.Config.Add("MODEL_V2", "true");
+                //this.Config.Add("VERBOSE", "10");
+
+                this.Config.Add("DISPLAY_ERROR_FOR_VISUAL_STUDIO", "true");
+                this.Config.Add("DISTRIBUTE_FORALL", "true");
+                //this.Config.Add("SOLVER", "true");                              // SOLVER: boolean, default: false, enable solver during preprocessing step.
+
+                this.Config.Add("MODEL_COMPACT", "true"); // slower, but more accurate (as in the models are more useful) it seems
+                //this.Config.Add("MODEL_ON_FINAL_CHECK", "true"); // leave this off, prints lots of warnings, etc., but not to console out, might be a debug stream we aren't redirecting
+                this.Config.Add("MODEL_COMPLETION", "false");
+                this.Config.Add("DISPLAY_UNSAT_CORE", "false");
+
+                this.Config.Add("Z3_SOLVER_LL_PP", "true");
+                //this.Config.Add("Z3_SOLVER_SMT_PP", "true");
+
+
+                this.Config.Add("PP_MAX_DEPTH", "32");
+                this.Config.Add("PP_MIN_ALIAS_SIZE", "1000");
+                this.Config.Add("PP_DECIMAL", "true");
+                //this.Config.Add("PP_MIN_ALIAS_SIZE", "true");
+                this.Config.Add("PP_SIMPLIFY_IMPLIES", "true");
+
+
+                // bad syntax for next...
+                //this.Config.Add("produce-proofs", "true");
+                //this.Config.Add("produce-models", "true");
+                //this.Config.Add("produce-unsat-cores", "true");
+                //this.Config.Add("produce-assignments", "true");
+                //this.Config.Add("expand-definitions", "true");
+
+                //this.Config.Add("CNF_FACTOR", "10");
+                //this.Config.Add("CNF_MODE", "3");
+
+                //todo: SOFT_TIMEOUT // can use this option to force queries to return unknown instead of running forever
+
+                //this.Config.Add("SPC", "true");
+
+                //this.Config.Add("STATISTICS", "true"); // crashes
+                /*
+                this.Config.Add("ARITH_SOLVER", "2"); // simplex solver
+
+                // we need nonlinear real arithmetic for converting the rectangular flow relation to a flow function
+                this.Config.Add("NL_ARITH", "true"); // nonlinear arithmetic support: requires arith_solver 2
+                this.Config.Add("NL_ARITH_GB_EQS", "true"); // boolean, default: false, enable/disable equations in the Grobner Basis to be copied to the Simplex tableau..
+                this.Config.Add("NL_ARITH_ROUNDS", "2048"); // unsigned integer, default: 1024, threshold for number of (nested) final checks for non linear arithmetic..
+                this.Config.Add("NL_ARITH_GB_THRESHOLD", "1024"); // unsigned integer, default: 512, Grobner basis computation can be very expensive. This is a threshold on the number of new equalities that can be generated..
+                */
+                /*
+                NL_ARITH: boolean, default: true, enable/disable non linear arithmetic support. This option is ignored when ARITH_SOLVER != 2..
+                NL_ARITH_BRANCHING: boolean, default: true, enable/disable branching on integer variables in non linear clusters.
+                NL_ARITH_GB: boolean, default: true, enable/disable Grobner Basis computation. This option is ignored when NL_ARITH=false.
+                NL_ARITH_GB_PERTURBATE: boolean, default: true, enable/disable perturbation of the variable order in GB when searching for new polynomials..
+                NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing new monomials..
+                 */
+
+
+                //this.Config.Add("ARITH_ADAPTIVE", "true"); // TODO: REENABLE
+                //this.Config.Add("ARITH_PROCESS_ALL_EQS", "true"); // TODO: RENABLE
+
+
+                //this.Config.Add("ARITH_EUCLIDEAN_SOLVER", "true");
+                //this.Config.Add("ARITH_FORCE_SIMPLEX", "true");
+                //this.Config.Add("ARITH_MAX_LEMMA_SIZE", "512"); // default 128
+
+                //this.Config.Add("CHECK_PROOF", "true");
+                //this.Config.Add("DL_COMPILE_WITH_WIDENING", "true");
+                //this.Config.Add("DACK", "2");
+                //this.Config.Add("DACK_EQ", "true");
+
+                // some bugs in the next ones
+                //this.Config.Add("FWD_SR_CHEAP", "true");
+                //this.Config.Add("LOOKAHEAD", "true");
+                //this.Config.Add("MBQI_MAX_CEXS", "true"); // crashes
+                //this.Config.Add("MODEL_VALIDATE", "true"); // corrupts memory?
+                // end buggy ones
+
+
+                //this.Config.Add("LOOKAHEAD_DISEQ", "true");
+
+                //this.Config.Add("LIFT_ITE", "2"); // buggy: get memory corruption sometimes
+                //this.Config.Add("ELIM_TERM_ITE", "true"); // buggy: get memory corruption sometimes
+
+                //this.Config.Add("MINIMIZE_LEMMAS_STRUCT", "true");
+                //this.Config.Add("MODEL_DISPLAY_ARG_SORT", "true");
+
+
+                //this.Config.Add("enable-cores", "true");
+
+                //this.Config.Add("DISPLAY_PROOF", "true");
+                //this.Config.Add("PROOF_MODE", "1"); // BUG: DO NOT USE THIS OPTION, IT CAN CAUSE FORMULAS TO TOGGLE SATISFIABILITY (i.e., toggling the option toggles the SAT check result), WE REPORTED IT
             }
-            this.Config.Add("ELIM_NLARITH_QUANTIFIERS", "true");
-            this.Config.Add("ELIM_BOUNDS", "true");
-            this.Config.Add("QI_LAZY_INSTANTIATION", "true");
+            // new parameter setting infrastructure for Z3 version >= 4.3.2
+            else
+            {
+                this.Config.Add("auto_config", "false"); // disable auto-configuration (use all logics)
 
-            this.Config.Add("PULL_CHEAP_ITE_TREES", "true");
-            this.Config.Add("EMATCHING", "true");
-            this.Config.Add("MACRO_FINDER", "true");
-            this.Config.Add("STRONG_CONTEXT_SIMPLIFIER", "true");
-            this.Config.Add("CONTEXT_SIMPLIFIER", "true");
+                //this.Config.Add("QI_PROFILE", "true");
+                //this.Config.Add("QI_PROFILE_FREQ", "1000");
+                //this.Config.Add("MBQI_TRACE", "true");
 
-            //this.Config.Add("PI_NON_NESTED_ARITH_WEIGHT", "10");
-            this.Config.Add("PI_PULL_QUANTIFIERS", "true");     // check with on / off 
-            this.Config.Add("PULL_NESTED_QUANTIFIERS", "true"); // check with on / off (see mbqi tutorial)
-            this.Config.Add("MODEL_PARTIAL", "false");
-            this.Config.Add("MODEL_V2", "true");
-            //this.Config.Add("VERBOSE", "10");
-
-            this.Config.Add("DISPLAY_ERROR_FOR_VISUAL_STUDIO", "true");
-            this.Config.Add("DISTRIBUTE_FORALL", "true");
-            //this.Config.Add("SOLVER", "true");                              // SOLVER: boolean, default: false, enable solver during preprocessing step.
-
-            this.Config.Add("MODEL_COMPACT", "true"); // slower, but more accurate (as in the models are more useful) it seems
-            //this.Config.Add("MODEL_ON_FINAL_CHECK", "true"); // leave this off, prints lots of warnings, etc., but not to console out, might be a debug stream we aren't redirecting
-            this.Config.Add("MODEL_COMPLETION", "false");
-            this.Config.Add("DISPLAY_UNSAT_CORE", "false");
-
-            this.Config.Add("Z3_SOLVER_LL_PP", "true");
-            //this.Config.Add("Z3_SOLVER_SMT_PP", "true");
+                this.Config.Add("model", "true"); // model generation
 
 
-            this.Config.Add("PP_MAX_DEPTH", "32");
-            this.Config.Add("PP_MIN_ALIAS_SIZE", "1000");
-            this.Config.Add("PP_DECIMAL", "true");
-            //this.Config.Add("PP_MIN_ALIAS_SIZE", "true");
-            this.Config.Add("PP_SIMPLIFY_IMPLIES", "true");
-            
+                /*
+                this.Config.Add("smt.mbqi", "true"); // model-based quantifier instantiation (MBQI)  (see http://research.microsoft.com/en-us/um/redmond/projects/z3/mbqi-tutorial/)
+                this.Config.Add("sat.minimize_lemmas", "true");
+this.Config.Add("smt.macro_finder", "true");
+                this.Config.Add("smt.ematching", "true");
 
-            // bad syntax for next...
-            //this.Config.Add("produce-proofs", "true");
-            //this.Config.Add("produce-models", "true");
-            //this.Config.Add("produce-unsat-cores", "true");
-            //this.Config.Add("produce-assignments", "true");
-            //this.Config.Add("expand-definitions", "true");
+                this.Config.Add("smt.qi.profile", "true");
+this.Config.Add("rewriter.pull_cheap_ite", "true");
 
-            //this.Config.Add("CNF_FACTOR", "10");
-            //this.Config.Add("CNF_MODE", "3");
+                this.Config.Add("pi.pull_quantifiers", "true");
+                this.Config.Add("smt.pull_nested_quantifiers", "true");     // check with on / off 
+                this.Config.Add("model.compact", "true"); 
+                this.Config.Add("model.partial", "false"); 
+                this.Config.Add("model.v2", "true");
+this.Config.Add("pp.simplify_implies", "false"); // try true
+                this.Config.Add("pp.max_depth", "32");
+                this.Config.Add("pp.min_alias_size", "1000");
+                this.Config.Add("pp.decimal", "true");
 
-            //todo: SOFT_TIMEOUT // can use this option to force queries to return unknown instead of running forever
+                this.Config.Add("parser.error_for_visual_studio", "true");
+                 */
 
-            //this.Config.Add("SPC", "true");
+                //this.Config.Add("SOFT_TIMEOUT", "15000"); // in ms
+                //this.Config.Add("MODEL_ON_TIMEOUT", "true"); // TODO: doesn't exist in 4.3.2 apparently
 
-            //this.Config.Add("STATISTICS", "true"); // crashes
-            /*
-            this.Config.Add("ARITH_SOLVER", "2"); // simplex solver
+                //this.Config.Add("mbqi.max_cexs", "500"); // crashes
+                //this.Config.Add("mbqi.max_cexs_incr", "100");
+                //this.Config.Add("mbqi.max_iterations", "50000");
 
-            // we need nonlinear real arithmetic for converting the rectangular flow relation to a flow function
-            this.Config.Add("NL_ARITH", "true"); // nonlinear arithmetic support: requires arith_solver 2
-            this.Config.Add("NL_ARITH_GB_EQS", "true"); // boolean, default: false, enable/disable equations in the Grobner Basis to be copied to the Simplex tableau..
-            this.Config.Add("NL_ARITH_ROUNDS", "2048"); // unsigned integer, default: 1024, threshold for number of (nested) final checks for non linear arithmetic..
-            this.Config.Add("NL_ARITH_GB_THRESHOLD", "1024"); // unsigned integer, default: 512, Grobner basis computation can be very expensive. This is a threshold on the number of new equalities that can be generated..
-            */
-/*
-NL_ARITH: boolean, default: true, enable/disable non linear arithmetic support. This option is ignored when ARITH_SOLVER != 2..
-NL_ARITH_BRANCHING: boolean, default: true, enable/disable branching on integer variables in non linear clusters.
-NL_ARITH_GB: boolean, default: true, enable/disable Grobner Basis computation. This option is ignored when NL_ARITH=false.
-NL_ARITH_GB_PERTURBATE: boolean, default: true, enable/disable perturbation of the variable order in GB when searching for new polynomials..
-NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing new monomials..
- */
+                //this.Config.Add("NNF_MODE", "3"); // min: 0, max: 3, default: 0, NNF translation mode: 0 - skolem normal form, 1 - 0 + quantifiers in NNF, 2 - 1 + opportunistic, 3 - full.
+
+                // HUGE runtime differences (3 was extremely slow); 1 also slow
+                //this.Config.Add("CNF_MODE", "0"); // TODO: doesn't exist in 4.3.2 apparently
+
+                // TODO: doesn't exist in 4.3.2 apparently
+                //this.Config.Add("QI_QUICK_CHECKER", "2"); // min: 0, max: 2, default: 0, 0 - do not use (cheap) model checker, 1 - instantiate instances unsatisfied by current model, 2 - 1 + instantiate instances not satisfied by current model.
 
 
-            //this.Config.Add("ARITH_ADAPTIVE", "true"); // TODO: REENABLE
-            //this.Config.Add("ARITH_PROCESS_ALL_EQS", "true"); // TODO: RENABLE
+                // TODO: doesn't exist in 4.3.2 apparently
+                //this.Config.Add("RECENT_LEMMA_THRESHOLD", "10000"); // default 100
+
+                // TODO: doesn't exist in 4.3.2 apparently
+                //this.Config.Add("REDUCE_ARGS", "true");
+
+                // TODO: doesn't exist in 4.3.2 apparently
+                //this.Config.Add("REL_CASE_SPLIT_ORDER", "1");
+
+                // TODO: doesn't exist in 4.3.2 apparently
+                //this.Config.Add("BB_QUANTIFIERS", "true");
 
 
-            //this.Config.Add("ARITH_EUCLIDEAN_SOLVER", "true");
-            //this.Config.Add("ARITH_FORCE_SIMPLEX", "true");
-            //this.Config.Add("ARITH_MAX_LEMMA_SIZE", "512"); // default 128
+                //this.Config.Add("INST_GEN", "true");
+                //this.Config.Add("QI_PROFILE", "true");
 
-            //this.Config.Add("CHECK_PROOF", "true");
-            //this.Config.Add("DL_COMPILE_WITH_WIDENING", "true");
-            //this.Config.Add("DACK", "2");
-            //this.Config.Add("DACK_EQ", "true");
-
-            // some bugs in the next ones
-            //this.Config.Add("FWD_SR_CHEAP", "true");
-            //this.Config.Add("LOOKAHEAD", "true");
-            //this.Config.Add("MBQI_MAX_CEXS", "true"); // crashes
-            //this.Config.Add("MODEL_VALIDATE", "true"); // corrupts memory?
-            // end buggy ones
-
-
-            //this.Config.Add("LOOKAHEAD_DISEQ", "true");
-
-            //this.Config.Add("LIFT_ITE", "2"); // buggy: get memory corruption sometimes
-            //this.Config.Add("ELIM_TERM_ITE", "true"); // buggy: get memory corruption sometimes
-
-            //this.Config.Add("MINIMIZE_LEMMAS_STRUCT", "true");
-            //this.Config.Add("MODEL_DISPLAY_ARG_SORT", "true");
+                
 
 
 
-            //this.Config.Add("enable-cores", "true");
 
-            //this.Config.Add("DISPLAY_PROOF", "true");
-            //this.Config.Add("PROOF_MODE", "1"); // BUG: DO NOT USE THIS OPTION, IT CAN CAUSE FORMULAS TO TOGGLE SATISFIABILITY
+                // the following option was deprecated in version 4.3 of Z3 (latest version that can use it is 4.1)
+                //if (Microsoft.Z3.Version.Major <= 4 && Microsoft.Z3.Version.Minor <= 1)
+                //{
+                //    uint bv = Microsoft.Z3.Version.Build;
+                //    // TODO: doesn't exist in 4.3.2 apparently
+               //     this.Config.Add("ELIM_QUANTIFIERS", "true"); // if we fix N to be small, we can rely on MBQI, but if we have N large or unbounded, we may need Q.E.
+                //}
+                //this.Config.Add("ELIM_NLARITH_QUANTIFIERS", "true");
+
+                
+                //this.Config.Add("DISTRIBUTE_FORALL", "true");
+                //this.Config.Add("SOLVER", "true");                              // SOLVER: boolean, default: false, enable solver during preprocessing step.
+
+                //this.Config.Add("MODEL_ON_FINAL_CHECK", "true"); // leave this off, prints lots of warnings, etc., but not to console out, might be a debug stream we aren't redirecting
+                //this.Config.Add("MODEL_COMPLETION", "false");
+                //this.Config.Add("DISPLAY_UNSAT_CORE", "false");
+
+                //this.Config.Add("Z3_SOLVER_SMT_PP", "true");
+
+                
+            }
 
             this.Z3 = new Z3Wrapper(this.Config);
             this.Z3.PrintMode = Z3_ast_print_mode.Z3_PRINT_SMTLIB2_COMPLIANT;
@@ -747,6 +873,10 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
 
         enum PHAVER_INPUT_MODE { reachable_forward, reachable_backward };
 
+        public enum INTERACTION_MODE { interactive, command_line };
+
+        public INTERACTION_MODE InteractionMode;
+
         public static Expr[] getNIndices(uint N)
         {
             List<Expr> ids = new List<Expr>();
@@ -758,6 +888,25 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
             }
             return ids.ToArray();
         }
+
+        public static void DisplayCommandLineOptions()
+        {
+            System.Console.WriteLine("Usage: " + Environment.NewLine);
+            System.Console.WriteLine("passel.exe ");
+            System.Console.WriteLine("-N <integer> (number of processes in concretized system [must be specified to synthesize invariants])");
+            System.Console.WriteLine("-P <integer> (number of processes to project onto during project-and-generalize [if unspecified, assumes both 1 and 2])");
+            System.Console.WriteLine("-i <filepath> (input file path [assumes present working directory, unless specified in app.config differently])");
+            System.Console.WriteLine("-o <directory> (path for output logs [assumes present working directory, unless specified in app.config differently])");
+            System.Console.WriteLine("-I (uses interactive mode)");
+            System.Console.WriteLine("-M <mode> (sets program mode: 0 = inductive invariant checking, 3 = invisible invariants, 4 = split invariants, other modes not currently available)");
+            System.Console.WriteLine("-s (disables short-circuiting out of inductive invariance checks [breaks out on first failure]; on is better for runtimes, but worse for manual refinement)");
+            System.Console.WriteLine("-b (batch processing mode: checks all files in input directory specified in app.config)");
+        }
+
+        /**
+         * Use object's initialized type to perform proper parsing (e.g., use an integer value or string value)
+         */
+        public Dictionary<String, Object> CommandLineArguments;
 
         /**
          * Main entry to program
@@ -771,357 +920,510 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
             Dictionary<int, string> inputFiles = new Dictionary<int, string>();
             int inputFileCount = 0;
 
-            inputFiles.Add(inputFileCount++, "fischer-rect.xml");
-            inputFiles.Add(inputFileCount++, "fischer-timed.xml");
-            inputFiles.Add(inputFileCount++, "fischer-rect-buggy.xml");
-            inputFiles.Add(inputFileCount++, "fischer-timed-buggy.xml");
+            Instance.CommandLineArguments = new Dictionary<string, Object>();
 
+            Instance.CommandLineArguments.Add("I", null);
+            Instance.CommandLineArguments.Add("M", PROGRAM_MODE.INDUCTIVE_INVARIANT);
+            Instance.CommandLineArguments.Add("N", 0);
+            Instance.CommandLineArguments.Add("P", 0);
+            Instance.CommandLineArguments.Add("i", "");
+            Instance.CommandLineArguments.Add("s", null);
+            Instance.CommandLineArguments.Add("b", null);
 
+            Instance.InteractionMode = INTERACTION_MODE.command_line; // override if specified in command-line arguments
 
-            inputFiles.Add(inputFileCount++, "fischer_umeno.xml");
-            inputFiles.Add(inputFileCount++, "fischer_umeno_buggy.xml");
-            inputFiles.Add(inputFileCount++, "fischer_umeno_five_state.xml");
-            inputFiles.Add(inputFileCount++, "fischer_umeno_five_state_buggy.xml");
-            inputFiles.Add(inputFileCount++, "fischer_umeno_global_clock.xml");
-            inputFiles.Add(inputFileCount++, "fischer_umeno_global_clock_buggy.xml");
-            inputFiles.Add(inputFileCount++, "fischer_aux.xml");
-            inputFiles.Add(inputFileCount++, "fischer_phaver.xml");
-            inputFiles.Add(inputFileCount++, "fischer_phaver_const.xml");
-            inputFiles.Add(inputFileCount++, "fischer_phaver_const_lastin.xml");
-            inputFiles.Add(inputFileCount++, "fischer.xml");
-            inputFiles.Add(inputFileCount++, "fischer_buggy.xml");
-            inputFiles.Add(inputFileCount++, "fischer_bit.xml");
-            inputFiles.Add(inputFileCount++, "fischer-equiv.xml");
-            inputFiles.Add(inputFileCount++, "fischer-inv.xml");
-            inputFiles.Add(inputFileCount++, "lynch_shavit.xml");
-            inputFiles.Add(inputFileCount++, "sats_full.xml");
-            inputFiles.Add(inputFileCount++, "sats.xml");
-            inputFiles.Add(inputFileCount++, "sats_buggy.xml");
-            inputFiles.Add(inputFileCount++, "sats_timed.xml");
-            inputFiles.Add(inputFileCount++, "sats_timed_buggy.xml");
-            inputFiles.Add(inputFileCount++, "sats_timed_counter.xml");
-            inputFiles.Add(inputFileCount++, "sats-ii.xml");
-            inputFiles.Add(inputFileCount++, "sats-ii-harder.xml");
-            inputFiles.Add(inputFileCount++, "sats-ii-harder-3loc.xml");
-            inputFiles.Add(inputFileCount++, "sats-ii-harder-3loc-global-pointer.xml");
-            inputFiles.Add(inputFileCount++, "sats-ii-harder-basefinal.xml");
-            inputFiles.Add(inputFileCount++, "sats-ii-harder-sides.xml");
-            inputFiles.Add(inputFileCount++, "sats-ii-harder-sides-miss.xml");
-            inputFiles.Add(inputFileCount++, "sats-ii-harder-sides-miss-dynamics.xml");
-            inputFiles.Add(inputFileCount++, "sats-ii-harder-sides-miss-global.xml");
-            inputFiles.Add(inputFileCount++, "sats-ii-harder-sides-miss-global-dynamics.xml");
-            inputFiles.Add(inputFileCount++, "sats-ii-harder-sides-miss-global-pointer.xml");
-            inputFiles.Add(inputFileCount++, "sats-ii-pointer.xml");
-            inputFiles.Add(inputFileCount++, "mux-sem.xml");
-            inputFiles.Add(inputFileCount++, "mux-sem-lastin.xml");
-            inputFiles.Add(inputFileCount++, "mux-index.xml");
-            inputFiles.Add(inputFileCount++, "mux-index-ta.xml");
-            inputFiles.Add(inputFileCount++, "mux-sats.xml");
-            inputFiles.Add(inputFileCount++, "ta-general.xml");
-            inputFiles.Add(inputFileCount++, "ta-general-bool.xml");
-            inputFiles.Add(inputFileCount++, "djikstra.xml");
-            inputFiles.Add(inputFileCount++, "bakery-lynch.xml");
-            inputFiles.Add(inputFileCount++, "german.xml");
-            inputFiles.Add(inputFileCount++, "peterson.xml");
-            inputFiles.Add(inputFileCount++, "szymanski.xml");
-            inputFiles.Add(inputFileCount++, "token-ring.xml");
-            inputFiles.Add(inputFileCount++, "bakery.xml");
-            inputFiles.Add(inputFileCount++, "bakery_lamport.xml");
-            inputFiles.Add(inputFileCount++, "bakery_lamport_buggy.xml");
-            inputFiles.Add(inputFileCount++, "nfa.xml");
-            inputFiles.Add(inputFileCount++, "nfa_buggy.xml");
-            inputFiles.Add(inputFileCount++, "ta.xml");
-            inputFiles.Add(inputFileCount++, "ta_buggy.xml");
-            inputFiles.Add(inputFileCount++, "ra.xml");
-            inputFiles.Add(inputFileCount++, "gv.xml");
-            //inputFiles.Add(inputFileCount++, "gv_buggy.xml");
-            inputFiles.Add(inputFileCount++, "flocking.xml");
-            inputFiles.Add(inputFileCount++, "flocking_buggy.xml");
-            inputFiles.Add(inputFileCount++, "bully.xml");
-            inputFiles.Add(inputFileCount++, "bully_buggy.xml");
-            inputFiles.Add(inputFileCount++, "gcd.xml");
-            inputFiles.Add(inputFileCount++, "starl.xml");
-            inputFiles.Add(inputFileCount++, "pointer-example.xml");
-            inputFiles.Add(inputFileCount++, "gpointer-example.xml");
-            inputFiles.Add(inputFileCount++, "hscc-example.xml");
-            inputFiles.Add(inputFileCount++, "clock-sync.xml");
-            inputFiles.Add(inputFileCount++, "prelim.xml");
+            String currentCommandLineArgument = null;
+            bool followingArgument = false;
 
-            //System.Console.WriteLine(System.Environment.MachineName.ToLower());
+            if (args == null || ((args != null) && args.Length == 0))
+            {
+                Controller.DisplayCommandLineOptions();
+            }
+            else
+            {
+                // assert args != null && args.Length > 0
+                foreach (var v in args)
+                {
+                    if (v.StartsWith("-"))
+                    {
+                        // TODO: parse long-style arguments (--interactive)
+                        //if (v.Substring(1,
+                        if (Instance.CommandLineArguments.ContainsKey(v.Substring(1)))
+                        {
+                            currentCommandLineArgument = v.Substring(1);
+
+                            // requires an additional input argument following
+                            if (Instance.CommandLineArguments[v.Substring(1)] != null)
+                            {
+                                followingArgument = true;
+                            }
+                            // no extra input argument required (boolean arguments)
+                            else
+                            {
+                                if (currentCommandLineArgument == "I")
+                                {
+                                    Instance.InteractionMode = INTERACTION_MODE.interactive;
+                                }
+                                if (currentCommandLineArgument == "s")
+                                {
+                                    Instance.ShortCircuit = false;
+                                }
+                                if (currentCommandLineArgument == "b")
+                                {
+                                    Instance.BatchProcess = true;
+                                }
+                            }
+                        }
+                        else
+                        {
+                            System.Console.WriteLine("ERROR: bad command line argument specified: " + v);
+                            Controller.DisplayCommandLineOptions();
+                        }
+                    }
+                    else if (followingArgument)
+                    {
+                        // allow based on input types, e.g., ints for N, paths for input, etc.
+                        followingArgument = false;
+
+                        switch (currentCommandLineArgument)
+                        {
+                            case "N":
+                                {
+                                    if (uint.TryParse(v, out Instance.IndexNValue))
+                                    {
+                                        System.Console.WriteLine("Using N = " + Instance.IndexNValue);
+                                        Instance.IndexNValueLower = Instance.IndexNValue; // TODO: refactor
+                                        Instance.IndexNValueUpper = Instance.IndexNValue;
+                                    }
+                                    else
+                                    {
+                                        // ERROR
+                                    }
+                                    break;
+                                }
+                            case "P":
+                                {
+                                    //TODO:
+                                    //if (!uint.TryParse(v, out Instance.Project))
+                                    //{
+                                        // ERROR
+                                    //}
+                                    break;
+                                }
+                            case "M":
+                                {
+                                    if (Enum.TryParse(v, out Instance.OPERATION))
+                                    {
+                                        System.Console.WriteLine("Using program mode: " + Instance.OPERATION);
+                                    }
+                                    else
+                                    {
+                                        // ERROR
+                                    }
+                                    
+                                    break;
+                                }
+                            case "i":
+                                {
+                                    if (File.Exists(v))
+                                    {
+                                        //Instance.InputFile = v;
+                                        Instance.InputFiles.Add(v);
+                                        System.Console.WriteLine("Trying input specification file: " + v);
+                                    }
+                                    else
+                                    {
+                                        System.Console.WriteLine("ERROR: input file does not exist: " + v);
+                                    }
+                                    break;
+                                }
+                            default:
+                                {
+                                    System.Console.WriteLine("ERROR: Bad command-line argument following the option: " + currentCommandLineArgument);
+                                    break;
+                                }
+                            }
+                    }
+                    else
+                    {
+                        // ERROR
+                    }
+                }
+            }
+
+            // setup phaver input-file path (needs to be outside ReadSettings() since depends on interaction type)
+            if (Controller.IsLinux)
+            {
+                if (Instance.InteractionMode == INTERACTION_MODE.interactive) // use directories from app.config
+                {
+                    Instance.PhaverInputPathLinux = Instance.PathsLinux["PhaverInputFileDirectory"] + Instance.BatchSuffix + "/"; // todo: use general path
+                }
+                else if (Instance.InteractionMode == INTERACTION_MODE.command_line) // use pwd
+                {
+                    Instance.PhaverInputPathLinux = Instance.OutPath + Path.DirectorySeparatorChar + "phaver" + Path.DirectorySeparatorChar;
+                }
+                System.Console.WriteLine("PHAVER INPUT FILES PATH: " + Instance.PhaverInputPathLinux);
+            }
+
 
             if (Controller.LOG_Z3)
             {
                 Microsoft.Z3.Log.Open(Instance.OutPath + "z3_" + System.DateTime.Now.ToString("s").Replace(":", "-") + ".log"); // TODO: DO AS EARLY AS POSSIBLE
             }
 
-            IOSTATE iostate = IOSTATE.SELECT_CASE_STUDY;
-            bool batch = false;
-
-            while (true)
+            // command-line style mode, assumes all arguments specified
+            if (Instance.InteractionMode == INTERACTION_MODE.command_line)
             {
-                if (terminate)
+                
+            }
+            // interactive mode asking arguments from user
+            else if (Instance.InteractionMode == INTERACTION_MODE.interactive)
+            {
+                inputFiles.Add(inputFileCount++, "fischer-rect.xml");
+                inputFiles.Add(inputFileCount++, "fischer-timed.xml");
+                inputFiles.Add(inputFileCount++, "fischer-rect-buggy.xml");
+                inputFiles.Add(inputFileCount++, "fischer-timed-buggy.xml");
+
+                inputFiles.Add(inputFileCount++, "fischer_umeno.xml");
+                inputFiles.Add(inputFileCount++, "fischer_umeno_buggy.xml");
+                inputFiles.Add(inputFileCount++, "fischer_umeno_five_state.xml");
+                inputFiles.Add(inputFileCount++, "fischer_umeno_five_state_buggy.xml");
+                inputFiles.Add(inputFileCount++, "fischer_umeno_global_clock.xml");
+                inputFiles.Add(inputFileCount++, "fischer_umeno_global_clock_buggy.xml");
+                inputFiles.Add(inputFileCount++, "fischer_aux.xml");
+                inputFiles.Add(inputFileCount++, "fischer_phaver.xml");
+                inputFiles.Add(inputFileCount++, "fischer_phaver_const.xml");
+                inputFiles.Add(inputFileCount++, "fischer_phaver_const_lastin.xml");
+                inputFiles.Add(inputFileCount++, "fischer.xml");
+                inputFiles.Add(inputFileCount++, "fischer_buggy.xml");
+                inputFiles.Add(inputFileCount++, "fischer_bit.xml");
+                inputFiles.Add(inputFileCount++, "fischer-equiv.xml");
+                inputFiles.Add(inputFileCount++, "fischer-inv.xml");
+                inputFiles.Add(inputFileCount++, "lynch_shavit.xml");
+                inputFiles.Add(inputFileCount++, "sats_full.xml");
+                inputFiles.Add(inputFileCount++, "sats.xml");
+                inputFiles.Add(inputFileCount++, "sats_buggy.xml");
+                inputFiles.Add(inputFileCount++, "sats_timed.xml");
+                inputFiles.Add(inputFileCount++, "sats_timed_buggy.xml");
+                inputFiles.Add(inputFileCount++, "sats_timed_counter.xml");
+                inputFiles.Add(inputFileCount++, "sats-ii.xml");
+                inputFiles.Add(inputFileCount++, "sats-ii-harder.xml");
+                inputFiles.Add(inputFileCount++, "sats-ii-harder-3loc.xml");
+                inputFiles.Add(inputFileCount++, "sats-ii-harder-3loc-global-pointer.xml");
+                inputFiles.Add(inputFileCount++, "sats-ii-harder-basefinal.xml");
+                inputFiles.Add(inputFileCount++, "sats-ii-harder-sides.xml");
+                inputFiles.Add(inputFileCount++, "sats-ii-harder-sides-miss.xml");
+                inputFiles.Add(inputFileCount++, "sats-ii-harder-sides-miss-dynamics.xml");
+                inputFiles.Add(inputFileCount++, "sats-ii-harder-sides-miss-global.xml");
+                inputFiles.Add(inputFileCount++, "sats-ii-harder-sides-miss-global-dynamics.xml");
+                inputFiles.Add(inputFileCount++, "sats-ii-harder-sides-miss-global-pointer.xml");
+                inputFiles.Add(inputFileCount++, "sats-ii-pointer.xml");
+                inputFiles.Add(inputFileCount++, "mux-sem.xml");
+                inputFiles.Add(inputFileCount++, "mux-sem-lastin.xml");
+                inputFiles.Add(inputFileCount++, "mux-index.xml");
+                inputFiles.Add(inputFileCount++, "mux-index-ta.xml");
+                inputFiles.Add(inputFileCount++, "mux-sats.xml");
+                inputFiles.Add(inputFileCount++, "ta-general.xml");
+                inputFiles.Add(inputFileCount++, "ta-general-bool.xml");
+                inputFiles.Add(inputFileCount++, "djikstra.xml");
+                inputFiles.Add(inputFileCount++, "bakery-lynch.xml");
+                inputFiles.Add(inputFileCount++, "german.xml");
+                inputFiles.Add(inputFileCount++, "peterson.xml");
+                inputFiles.Add(inputFileCount++, "szymanski.xml");
+                inputFiles.Add(inputFileCount++, "token-ring.xml");
+                inputFiles.Add(inputFileCount++, "bakery.xml");
+                inputFiles.Add(inputFileCount++, "bakery_lamport.xml");
+                inputFiles.Add(inputFileCount++, "bakery_lamport_buggy.xml");
+                inputFiles.Add(inputFileCount++, "nfa.xml");
+                inputFiles.Add(inputFileCount++, "nfa_buggy.xml");
+                inputFiles.Add(inputFileCount++, "ta.xml");
+                inputFiles.Add(inputFileCount++, "ta_buggy.xml");
+                inputFiles.Add(inputFileCount++, "ra.xml");
+                inputFiles.Add(inputFileCount++, "gv.xml");
+                //inputFiles.Add(inputFileCount++, "gv_buggy.xml");
+                inputFiles.Add(inputFileCount++, "flocking.xml");
+                inputFiles.Add(inputFileCount++, "flocking_buggy.xml");
+                inputFiles.Add(inputFileCount++, "bully.xml");
+                inputFiles.Add(inputFileCount++, "bully_buggy.xml");
+                inputFiles.Add(inputFileCount++, "gcd.xml");
+                inputFiles.Add(inputFileCount++, "starl.xml");
+                inputFiles.Add(inputFileCount++, "pointer-example.xml");
+                inputFiles.Add(inputFileCount++, "gpointer-example.xml");
+                inputFiles.Add(inputFileCount++, "hscc-example.xml");
+                inputFiles.Add(inputFileCount++, "clock-sync.xml");
+                inputFiles.Add(inputFileCount++, "prelim.xml");
+
+                //System.Console.WriteLine(System.Environment.MachineName.ToLower());
+
+                IOSTATE iostate = IOSTATE.SELECT_CASE_STUDY;
+
+                while (true)
                 {
-                    break;
-                }
+                    if (terminate)
+                    {
+                        break;
+                    }
 
-                switch (iostate)
-                {
-                    case IOSTATE.SELECT_CASE_STUDY:
-                        {
-                            Console.WriteLine("Using directory path: " + Instance.InOutPath);
-                            Console.WriteLine("Assuming input files in path: " + Instance.InputPath);
-
-                            Console.WriteLine("Select an input file: \n\r");
-                            foreach (var f in inputFiles)
+                    switch (iostate)
+                    {
+                        case IOSTATE.SELECT_CASE_STUDY:
                             {
-                                Console.WriteLine("[" + f.Key.ToString() + "]" + " " + f.Value);
-                            }
-                            Console.WriteLine("[253] check all input files");
-                            //Console.WriteLine("[254] generate " + Instance.BatchSuffix + " PHAVer input files");
-                            Console.WriteLine("[255] generate " + Instance.BatchSuffix +  " table\n\r");
-                            Console.WriteLine("[256] enter custom file\n\r");
+                                Console.WriteLine("Using directory path: " + Instance.InOutPath);
+                                Console.WriteLine("Assuming input files in path: " + Instance.InputPath);
 
-                            choice = Console.ReadLine();
-
-                            try
-                            {
-                                if (choice != null)
+                                Console.WriteLine("Select an input file: " + Environment.NewLine);
+                                foreach (var f in inputFiles)
                                 {
-                                    int io_opt = int.Parse(choice);
-
-                                    if (io_opt < inputFileCount)
-                                    {
-                                        Instance.InputFiles.Add(inputFiles[io_opt]);
-                                    }
-                                    else if (io_opt == 253)
-                                    {
-                                        Console.WriteLine("Batch processing, checking all files:");
-
-                                        Instance.InputFiles = inputFiles.Values.ToList();
-
-                                        batch = true;
-                                    }
-                                    else if (io_opt == 254 || io_opt == 255)
-                                    {
-                                        Console.WriteLine("Batch processing:");
-
-                                        Instance.InputPath += Path.DirectorySeparatorChar + Instance.BatchSuffix + Path.DirectorySeparatorChar;
-                                        Instance.OutPath += Path.DirectorySeparatorChar + Instance.BatchSuffix + Path.DirectorySeparatorChar;
-
-                                        bool shorttest = false; // may take a long time if false
-
-
-                                        if (!shorttest)
-                                        {
-                                            Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("fischer-rect.xml")).Value);
-                                            Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("fischer-timed.xml")).Value);
-
-                                            //Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("fischer-timed-buggy.xml")).Value);
-                                            //Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("fischer-rect-buggy.xml")).Value);
-
-                                            Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("sats-ii.xml")).Value);
-                                            Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("sats-ii-harder.xml")).Value);
-                                            Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("sats-ii-harder-3loc.xml")).Value);
-
-                                            Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("sats-ii-harder-3loc-global-pointer.xml")).Value);
-                                            Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("sats-ii-harder-basefinal.xml")).Value);
-                                            Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("sats-ii-harder-sides.xml")).Value);
-                                            Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("sats-ii-harder-sides-miss.xml")).Value);
-                                            Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("sats-ii-harder-sides-miss-dynamics.xml")).Value);
-                                            Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("sats-ii-harder-sides-miss-global.xml")).Value);
-                                            //Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("sats-ii-harder-sides-miss-global-dynamics.xml")).Value);
-                                            //Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("sats-ii-harder-sides-miss-global-pointer.xml")).Value);
-                                            Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("sats-ii-pointer.xml")).Value);
-                                        }
-
-
-
-                                        Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("mux-sem.xml")).Value);
-                                        Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("mux-sem-lastin.xml")).Value);
-                                        Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("mux-index.xml")).Value);
-                                        Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("mux-index-ta.xml")).Value);
-
-                                        Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("token-ring.xml")).Value);
-
-                                        //Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("pointer-example.xml")).Value);
-                                        //Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("gpointer-example.xml")).Value);
-
-                                        //Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("prelim.xml")).Value);
-                                        //Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("fischer.xml")).Value);
-                                        //Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("fischer_aux.xml")).Value);
-
-                                        batch = true;
-                                    }
-                                    else if (io_opt == 257) // forte / fmoods table
-                                    {
-                                        Console.WriteLine("Generating table for paper (correct vs. buggy versions):");
-
-                                        Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("sats")).Value);
-                                        Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("sats_buggy")).Value);
-                                        Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("sats_timed")).Value);
-                                        Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("sats_timed_buggy")).Value);
-                                        Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("fischer_umeno_five_state")).Value);
-                                        Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("fischer_umeno_five_state_buggy")).Value);
-                                        batch = true;
-                                    }
-                                    else if (io_opt == 256)
-                                    {
-                                        Console.WriteLine("Using path " + Instance.InputFiles);
-                                        Instance.InputFiles.Add(Console.ReadLine()); //todo: dangerous
-                                        Console.WriteLine("File: " + Instance.InputFile + "\n\r");
-                                    }
-                                    else
-                                    {
-                                        Console.WriteLine("Error, no file specified.\n\r");
-                                        throw new Exception();
-                                        // todo: handle error
-                                    }
+                                    Console.WriteLine("[" + f.Key.ToString() + "]" + " " + f.Value);
                                 }
-                            }
-                            catch (Exception)
-                            {
-                                Instance.InputFiles.Add("fischer_rect.xml");
-                                Console.WriteLine("Error, picking default file: " + Instance.InputFiles.First() + ".\n\r");
-                            }
+                                Console.WriteLine("[253] check all input files");
+                                //Console.WriteLine("[254] generate " + Instance.BatchSuffix + " PHAVer input files");
+                                Console.WriteLine("[255] generate " + Instance.BatchSuffix + " table" + Environment.NewLine);
+                                Console.WriteLine("[256] enter custom file" + Environment.NewLine);
 
-                            Instance.InputFilePath = Instance.InputPath + Instance.InputFiles.First();
+                                choice = Console.ReadLine();
 
-                            if (File.Exists(Instance.InputFilePath))
-                            {
-                                selected_file = true;
-                            }
-                            else
-                            {
-                                Console.WriteLine("Error: file " + Instance.InputFilePath + " does not exist, try again.");
-                            }
-
-                            if (selected_file)
-                            {
-                                iostate = IOSTATE.SELECT_N;
-                                choice = null;
-                                continue;
-                            }
-                            break;
-                        }
-                    case IOSTATE.SELECT_N:
-                        {
-                            Console.WriteLine("Specify a natural number value for N >= 1 (the number of automata)?  [default 0: enforces N >= 2 with no upper bound]");
-
-                            choice = Console.ReadLine();
-
-                            try
-                            {
-                                if (choice != null)
+                                try
                                 {
-                                    choice = choice.Trim();
-                                    if (choice.Contains("-"))
+                                    if (choice != null)
                                     {
-                                        choice = choice.Replace(" ", "");
-                                        String[] c = choice.Split(new char[] { '-', ',' });
-                                        List<uint> cn = new List<uint>();
+                                        int io_opt = int.Parse(choice);
 
-                                        foreach (var sub in c)
+                                        if (io_opt < inputFileCount)
                                         {
-                                            uint cv = uint.Parse(sub);
-                                            if (cv >= 1)
+                                            Instance.InputFiles.Add(inputFiles[io_opt]);
+                                        }
+                                        else if (io_opt == 253)
+                                        {
+                                            Console.WriteLine("Batch processing, checking all files:");
+
+                                            Instance.InputFiles = inputFiles.Values.ToList();
+
+                                            Instance.BatchProcess = true;
+                                        }
+                                        else if (io_opt == 254 || io_opt == 255)
+                                        {
+                                            Console.WriteLine("Batch processing:");
+
+                                            Instance.InputPath += Path.DirectorySeparatorChar + Instance.BatchSuffix + Path.DirectorySeparatorChar;
+                                            Instance.OutPath += Path.DirectorySeparatorChar + Instance.BatchSuffix + Path.DirectorySeparatorChar;
+
+                                            bool shorttest = true; // may take a long time if false
+
+                                            Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("fischer-timed-buggy.xml")).Value);
+                                            Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("fischer-rect-buggy.xml")).Value);
+
+                                            if (!shorttest)
                                             {
-                                                cn.Add(cv);
+                                                Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("fischer-rect.xml")).Value);
+                                                Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("fischer-timed.xml")).Value);
+
+
+
+                                                //Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("sats-ii.xml")).Value);
+                                                //Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("sats-ii-harder.xml")).Value);
+                                                Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("sats-ii-harder-3loc.xml")).Value);
+
+                                                //Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("sats-ii-harder-3loc-global-pointer.xml")).Value);
+                                                //Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("sats-ii-harder-basefinal.xml")).Value);
+                                                Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("sats-ii-harder-sides.xml")).Value);
+                                                //Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("sats-ii-harder-sides-miss.xml")).Value);
+                                                //Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("sats-ii-harder-sides-miss-dynamics.xml")).Value);
+                                                //Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("sats-ii-harder-sides-miss-global.xml")).Value);
+                                                //Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("sats-ii-harder-sides-miss-global-dynamics.xml")).Value);
+                                                //Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("sats-ii-harder-sides-miss-global-pointer.xml")).Value);
+                                                //Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("sats-ii-pointer.xml")).Value);
                                             }
-                                        }
-                                        Console.WriteLine("Using range of N: ");
 
-                                        if (cn.Count == 2)
-                                        {
-                                            Console.WriteLine(cn[0] + " to " + cn[1]);
-                                            Instance.IndexNValue = cn[0];
-                                            Instance.IndexNValueLower = cn[0];
-                                            Instance.IndexNValueUpper = cn[1];
-                                        }
-                                    }
-                                    else
-                                    {
-                                        uint io_n = uint.Parse(choice);
 
-                                        if (io_n < 1)
+                                            /*
+                                            Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("mux-sem.xml")).Value);
+                                            Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("mux-sem-lastin.xml")).Value);
+                                            Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("mux-index.xml")).Value);
+                                            Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("mux-index-ta.xml")).Value);
+
+                                            Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("token-ring.xml")).Value);
+                                            */
+
+                                            //Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("pointer-example.xml")).Value);
+                                            //Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("gpointer-example.xml")).Value);
+
+                                            //Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("prelim.xml")).Value);
+                                            //Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("fischer.xml")).Value);
+                                            //Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("fischer_aux.xml")).Value);
+
+                                            Instance.BatchProcess = true;
+                                        }
+                                        else if (io_opt == 257) // forte / fmoods table
                                         {
-                                            Console.WriteLine("Using unbounded N");
+                                            Console.WriteLine("Generating table for paper (correct vs. buggy versions):");
+
+                                            Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("sats")).Value);
+                                            Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("sats_buggy")).Value);
+                                            Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("sats_timed")).Value);
+                                            Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("sats_timed_buggy")).Value);
+                                            Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("fischer_umeno_five_state")).Value);
+                                            Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("fischer_umeno_five_state_buggy")).Value);
+                                            Instance.BatchProcess = true;
+                                        }
+                                        else if (io_opt == 256)
+                                        {
+                                            Console.WriteLine("Using path " + Instance.InputFiles);
+                                            Instance.InputFiles.Add(Console.ReadLine()); //todo: dangerous
+                                            Console.WriteLine("File: " + Instance.InputFile + Environment.NewLine);
                                         }
                                         else
                                         {
-                                            Console.WriteLine("Using N = " + io_n);
-                                            Instance.IndexNValue = io_n;
-                                            Instance.IndexNValueLower = io_n;
-                                            Instance.IndexNValueUpper = io_n;
+                                            Console.WriteLine("Error, no file specified." + Environment.NewLine);
+                                            throw new Exception();
+                                            // todo: handle error
                                         }
                                     }
-                                    selected_n = true;
                                 }
-                            }
-                            catch (Exception e)
-                            {
-                            }
-
-                            if (selected_n)
-                            {
-                                iostate = IOSTATE.SELECT_OPERATION;
-                                choice = null;
-                                continue;
-                            }
-                            break;
-                        }
-                    case IOSTATE.SELECT_OPERATION:
-                        {
-                            Console.WriteLine("Select an operation to perform on the input file: ");
-
-                            int i = 0; // todo: ensure i is initialized to lowest enum value and increments as enum does (normally 0, 1, 2, but might as well fix this at some point for general case)
-                            foreach (PROGRAM_MODE p in Enum.GetValues(typeof(PROGRAM_MODE)))
-                            {
-                                Console.WriteLine("[" + i + "]" + p.ToString());
-                                i++;
-                            }
-
-                            choice = Console.ReadLine();
-
-                            try
-                            {
-                                if (choice != null)
+                                catch (Exception)
                                 {
-                                    int io_op = int.Parse(choice);
-
-                                    Instance.OPERATION = (PROGRAM_MODE)Enum.ToObject(typeof(PROGRAM_MODE), io_op); // cast int to enum
-                                    selected_operation = true;
+                                    Instance.InputFiles.Add("fischer_rect.xml");
+                                    Console.WriteLine("Error, picking default file: " + Instance.InputFiles.First() + "." + Environment.NewLine);
                                 }
-                            }
-                            catch
-                            {
-                            }
 
-                            if (selected_operation)
-                            {
-                                iostate = IOSTATE.EXECUTE_OPERATION;
-                                terminate = true;
+                                Instance.InputFilePath = Instance.InputPath + Instance.InputFiles.First();
+
+                                if (File.Exists(Instance.InputFilePath))
+                                {
+                                    selected_file = true;
+                                }
+                                else
+                                {
+                                    Console.WriteLine("Error: file " + Instance.InputFilePath + " does not exist, try again.");
+                                }
+
+                                if (selected_file)
+                                {
+                                    iostate = IOSTATE.SELECT_N;
+                                    choice = null;
+                                    continue;
+                                }
+                                break;
                             }
-                            break;
-                        }
-                    default:
-                        {
-                            // error: should be unreachable
-                            terminate = true;
-                            break;
-                        }
+                        case IOSTATE.SELECT_N:
+                            {
+                                Console.WriteLine("Specify a natural number value for N >= 1 (the number of automata)?  [default 0: enforces N >= 2 with no upper bound]");
+
+                                choice = Console.ReadLine();
+
+                                try
+                                {
+                                    if (choice != null)
+                                    {
+                                        choice = choice.Trim();
+                                        if (choice.Contains("-"))
+                                        {
+                                            choice = choice.Replace(" ", "");
+                                            String[] c = choice.Split(new char[] { '-', ',' });
+                                            List<uint> cn = new List<uint>();
+
+                                            foreach (var sub in c)
+                                            {
+                                                uint cv = uint.Parse(sub);
+                                                if (cv >= 1)
+                                                {
+                                                    cn.Add(cv);
+                                                }
+                                            }
+                                            Console.WriteLine("Using range of N: ");
+
+                                            if (cn.Count == 2)
+                                            {
+                                                Console.WriteLine(cn[0] + " to " + cn[1]);
+                                                Instance.IndexNValue = cn[0];
+                                                Instance.IndexNValueLower = cn[0];
+                                                Instance.IndexNValueUpper = cn[1];
+                                            }
+                                        }
+                                        else
+                                        {
+                                            uint io_n = uint.Parse(choice);
+
+                                            if (io_n < 1)
+                                            {
+                                                Console.WriteLine("Using unbounded N");
+                                            }
+                                            else
+                                            {
+                                                Console.WriteLine("Using N = " + io_n);
+                                                Instance.IndexNValue = io_n;
+                                                Instance.IndexNValueLower = io_n;
+                                                Instance.IndexNValueUpper = io_n;
+                                            }
+                                        }
+                                        selected_n = true;
+                                    }
+                                }
+                                catch (Exception e)
+                                {
+                                }
+
+                                if (selected_n)
+                                {
+                                    iostate = IOSTATE.SELECT_OPERATION;
+                                    choice = null;
+                                    continue;
+                                }
+                                break;
+                            }
+                        case IOSTATE.SELECT_OPERATION:
+                            {
+                                Console.WriteLine("Select an operation to perform on the input file: ");
+
+                                int i = 0; // todo: ensure i is initialized to lowest enum value and increments as enum does (normally 0, 1, 2, but might as well fix this at some point for general case)
+                                foreach (PROGRAM_MODE p in Enum.GetValues(typeof(PROGRAM_MODE)))
+                                {
+                                    Console.WriteLine("[" + i + "]" + p.ToString());
+                                    i++;
+                                }
+
+                                choice = Console.ReadLine();
+
+                                try
+                                {
+                                    if (choice != null)
+                                    {
+                                        int io_op = int.Parse(choice);
+
+                                        Instance.OPERATION = (PROGRAM_MODE)Enum.ToObject(typeof(PROGRAM_MODE), io_op); // cast int to enum
+                                        selected_operation = true;
+                                    }
+                                }
+                                catch
+                                {
+                                }
+
+                                if (selected_operation)
+                                {
+                                    iostate = IOSTATE.EXECUTE_OPERATION;
+                                    terminate = true;
+                                }
+                                break;
+                            }
+                        default:
+                            {
+                                // error: should be unreachable
+                                terminate = true;
+                                break;
+                            }
+                    }
                 }
             }
 
-
-            String phaverBashScript = "#!/bin/bash\n\n" + 
+            String phaverBashScript = "#!/bin/bash\n\n" +
                 "ext=\".pha\"\n\n" +
                 "# iterate over all benchmarks (supposing in subdirectories, e.g., bmname/thrust.pha)\n" +
                 "for bm in " + Instance.PhaverInputPathLinux + "*$ext\n" +
                 "do\n" +
-	            "   for mode in 0\n" +
+                "   for mode in 0\n" +
                 "   do\n" +
                 "       name=\"${bm:0:${#bm}-${#ext}}\" # strip extension\n" +
-		        "       echo \"Running: $name with $mode\"\n" +
+                "       echo \"Running: $name with $mode\"\n" +
                 "       cmd=\"" + Instance.MemtimePathLinux + " " + Instance.PhaverPathLinux + "$bm &> $bm.log\"\n" +
                 "       echo \"$cmd\"\n" +
                 "       #eval $cmd #run command\n" +
@@ -1135,42 +1437,52 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
             // parse each input file (usually just one unless operating in batch mode)
             uint lb = Instance.IndexNValueLower;
             uint ub = Instance.IndexNValueUpper;
-            if (!batch)
+            if (!Instance.BatchProcess)
             {
                 //lb = Controller.Instance.IndexNValue;
                 //ub = Controller.Instance.IndexNValue;
             }
 
-            
             foreach (String f in Instance.InputFiles)
             {
                 Instance.InitializeZ3();
 
-                Instance.InputFile = f;
-                Instance.InputFilePath = Instance.InputPath + f;
+                if (Instance.InteractionMode == INTERACTION_MODE.interactive)
+                {
+                    Instance.InputFile = f;
+                    Instance.InputFilePath = Instance.InputPath + f;
+                }
+                else
+                {
+                    System.Console.WriteLine("Running in command-line mode");
+                    Instance.InputFilePath = f;
+                    Instance.InputFile = Path.GetFileName(f);
+                }
 
-                output.Debug.Write("Checking file: " + Instance.InputFilePath + "\n\r", output.Debug.MINIMAL);
+                output.Debug.Write("Checking file: " + Instance.InputFilePath + Environment.NewLine, output.Debug.MINIMAL);
 
-                String AutomatonName = f.Split('.')[0];
+
+                String AutomatonName = Path.GetFileNameWithoutExtension(Instance.InputFile);
                 String LogFilename = Instance.OutPath + AutomatonName + "-output" + "-" + System.DateTime.Now.ToString("s").Replace(":", "-") + ".log";
 
-                redirectConsole(LogFilename);
+                Controller.redirectConsole(LogFilename);
 
                 output.Debug.Write("STATUS: Start time " + System.DateTime.Now.ToString("s"), output.Debug.MINIMAL);
-                output.Debug.Write("STATUS: File: " + Instance.InputFilePath + "\n\r\n\r", output.Debug.MINIMAL);
+                output.Debug.Write("STATUS: File: " + Instance.InputFilePath + Environment.NewLine, output.Debug.MINIMAL);
+                output.Debug.Write("STATUS: Using Microsoft Z3 version " + Microsoft.Z3.Version.Major + "." + Microsoft.Z3.Version.Minor + "." + Microsoft.Z3.Version.Build + "rv" + Microsoft.Z3.Version.Revision + Environment.NewLine, output.Debug.MINIMAL);
 
                 ParseHyXML.ParseFile(Instance.InputFilePath); // create Sys object
 
                 string InputFileSysName = Instance.InputFile.Substring(0, Instance.InputFile.Length - Instance.InputFileExtension.Length);
                 if (Instance.Sys.HybridAutomata.First().Name != InputFileSysName)
                 {
-                    output.Debug.Write("WARNING: input file name and automaton name do not match; filename is " + InputFileSysName + " and automaton name is " + Instance.sysname, output.Debug.MINIMAL);
+                    output.Debug.Write("WARNING: input file name and automaton name do not match, this may result in path or filename problems; the filename is " + InputFileSysName + " and the automaton name is " + Instance.sysname, output.Debug.MINIMAL);
                 }
 
                 string pat = "yyyy-MM-ddTHH-mm-ss";
                 string now = DateTime.Now.ToString(pat);
 
-                string fn = Instance.InputFile.Substring(0, Instance.InputFile.Length - 4); // strip .xml extension
+                string fn = Path.GetFileName(Instance.InputFile);
                 string fnall = "";
                 String phaver_out_filename = "";
 
@@ -1187,7 +1499,7 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
                     // inductive invariant checking for small model theorem
                     case PROGRAM_MODE.INDUCTIVE_INVARIANT:
                         {
-                            Instance.Sys.checkInductiveInvariants(false);
+                            Instance.Sys.checkInductiveInvariants(Instance.ShortCircuit);
                             break;
                         }
                     case PROGRAM_MODE.DRAW_SYSTEM:
@@ -1211,7 +1523,7 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
                                 String expName = AutomatonName + "_N=" + Instance.IndexNValue;
                                 Controller.Instance.sysname = expName;
 
-                                if (batch)
+                                if (Instance.BatchProcess)
                                 {
                                     fnall = fn + "_" + "N=" + Instance.IndexNValue + ".pha";
                                     //phaver_out_filename = Instance.OutPath + "\\phaver\\" + Instance.BatchSuffix + "\\" + fnall; // todo: generalize
@@ -1227,7 +1539,7 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
 
                                 Instance.appendMeasurement("starting", expName);
 
-                                Controller.OutputPhaver(fnall, phaver_out_filename, expName, batch, "", 0);
+                                Controller.OutputPhaver(fnall, phaver_out_filename, expName, Instance.BatchProcess, "", 0);
                             }
                             break;
                         }
@@ -1243,7 +1555,7 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
 
                             //Instance.Sys.removeDuplicateProperties(); // remove duplicate properties (may get more during projection)
                             Instance.appendMeasurement("invariance_start", expName);
-                            Instance.Sys.checkInductiveInvariants(true);
+                            Instance.Sys.checkInductiveInvariants(Instance.ShortCircuit);
                             Instance.appendMeasurement("invariance_end", expName);
                             break;
                         }
@@ -1257,7 +1569,7 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
                                 Controller.Instance.sysname = expName;
                                 Instance.appendMeasurement("starting", expName);
 
-                                if (batch)
+                                if (Instance.BatchProcess)
                                 {
                                     fnall = fn + "_" + "N=" + Instance.IndexNValue + ".pha";
                                     //phaver_out_filename = Instance.OutPath + Path.DirectorySeparatorChar + "phaver" + Path.DirectorySeparatorChar + Instance.BatchSuffix + Path.DirectorySeparatorChar + fnall; // todo: generalize
@@ -1269,7 +1581,7 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
                                     phaver_out_filename = Instance.OutPath + Path.DirectorySeparatorChar + "phaver" + Path.DirectorySeparatorChar + fnall; // todo: generalize
                                 }
 
-                                Controller.OutputPhaver(fnall, phaver_out_filename, expName, batch, "", 0);
+                                Controller.OutputPhaver(fnall, phaver_out_filename, expName, Instance.BatchProcess, "", 0);
                                 Controller.CallPhaver(fnall, expName);
 
                                 Controller.InputReach(nval, expName, true, null, false, null);
@@ -1279,7 +1591,7 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
 
                             //Instance.Sys.removeDuplicateProperties(); // remove duplicate properties (may get more during projection)
                             Instance.appendMeasurement("invariance_start", expNameL);
-                            Instance.Sys.checkInductiveInvariants(true);
+                            Instance.Sys.checkInductiveInvariants(Instance.ShortCircuit);
                             Instance.appendMeasurement("invariance_end", expNameL);
                             break;
                         }
@@ -1315,12 +1627,12 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
                                     String expName = AutomatonName + "_N=" + Instance.IndexNValue;
                                     Controller.Instance.sysname = expName;
                                     Instance.appendMeasurement("starting", expName);
-                                    //Controller.OutputPhaver(fnall, phaver_out_filename, expName, batch);
+                                    //Controller.OutputPhaver(fnall, phaver_out_filename, expName, Instance.BatchProcess);
                                     //Controller.CallPhaver(fnall, expName);
                                     //Expr reachset = Instance.Sys.boundedModelCheck(Instance.IndexNValue, 0, Instance.Z3.MkFalse()); // compute reach set (BMC to fixed-point with empty set as illegal states => full reach set)
                                     //reachsets.Add(reachset.ToString());
 
-                                    if (batch)
+                                    if (Instance.BatchProcess)
                                     {
                                         fnall = fn + "_" + "N=" + Instance.IndexNValue + ".pha";
                                         //phaver_out_filename = Instance.OutPath + Path.DirectorySeparatorChar + "phaver" + Path.DirectorySeparatorChar + Instance.BatchSuffix + Path.DirectorySeparatorChar + fnall; // todo: generalize
@@ -1337,7 +1649,7 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
                                         output.Debug.Write("STATUS: split invariant iteration " + iteration);
                                         output.Debug.Write("STATUS: split invariant initial states: " + nis);
 
-                                        Controller.OutputPhaver(fnall, phaver_out_filename, expName, batch, nis, iteration);
+                                        Controller.OutputPhaver(fnall, phaver_out_filename, expName, Instance.BatchProcess, nis, iteration);
                                         Controller.CallPhaver(fnall, expName);
                                         List<Expr> pgcreachset = Controller.InputReach(nval, expName, true, null, true, prevSplit);
 
@@ -1357,14 +1669,14 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
                                             Model m;
                                             Expr[] core;
                                             String stat;
-                                            System.Console.WriteLine("Fixedpoint check: \n\r" + fixedpoint + "\n\r\n\r");
+                                            System.Console.WriteLine("Fixedpoint check: " + Environment.NewLine + fixedpoint + Environment.NewLine + Environment.NewLine);
                                             if (!Instance.Z3.proveTerm(fixedpoint, out m, out core, out stat)) // not a fp
                                             {
                                                 allfp &= false;
                                             }
 
                                             fixedpoint = Instance.Z3.MkImplies((BoolExpr)projecting[1].Unquantified, (BoolExpr)prevSplit[1]);
-                                            System.Console.WriteLine("Fixedpoint check: \n\r" + fixedpoint + "\n\r\n\r");
+                                            System.Console.WriteLine("Fixedpoint check: " + Environment.NewLine + fixedpoint + Environment.NewLine + Environment.NewLine);
                                             if (!Instance.Z3.proveTerm(fixedpoint, out m, out core, out stat)) // not a fp
                                             {
                                                 allfp &= false;
@@ -1416,7 +1728,7 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
 
                             //Instance.Sys.removeDuplicateProperties(); // remove duplicate properties (may get more during projection)
                             Instance.appendMeasurement("invariance_start", expNameL);
-                            Instance.Sys.checkInductiveInvariants(true);
+                            Instance.Sys.checkInductiveInvariants(Instance.ShortCircuit);
                             Instance.appendMeasurement("invariance_end", expNameL);
                             break;
                         }
@@ -1431,7 +1743,7 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
                                 String expName = AutomatonName + "_N=" + Instance.IndexNValue;
                                 Controller.Instance.sysname = expName;
                                 Instance.appendMeasurement("starting", expName);
-                                //Controller.OutputPhaver(fnall, phaver_out_filename, expName, batch);
+                                //Controller.OutputPhaver(fnall, phaver_out_filename, expName, Instance.BatchProcess);
                                 //Controller.CallPhaver(fnall, expName);
                                 Expr reachset = Instance.Sys.boundedModelCheck(Instance.IndexNValue, 0, Instance.Z3.MkFalse()); // compute reach set (BMC to fixed-point with empty set as illegal states => full reach set)
                             }
@@ -1447,103 +1759,205 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
                         }
                 }
                 output.Debug.Write("STATUS: stop time " + System.DateTime.Now.ToString("s"), output.Debug.MINIMAL);
+
+                {
+                    String header = "benchmark,";
+                    header += "phaver time (s),phaver memory (MB),";
+                    //String header = "";
+                    String meas = "";
+                    String prev = "";
+                    bool headerDone = false;
+
+                    string itemStart = "starting";
+                    string itemEnd = "invariance_end";
+
+                    if (Instance.BatchProcess) //  && (Instance.OPERATION == PROGRAM_MODE.INDUCTIVE_INVARIANT || Instance.OPERATION == PROGRAM_MODE.INPUT_PHAVER)
+                    {
+                        foreach (var v in Instance.TimeMeasurements)
+                        {
+                            if (v.expname == itemStart)
+                            {
+                                meas += v.name + ",";
+
+                                //String logname = "C:\\Users\\tjohnson\\Dropbox\\Research\\tools\\passel\\repos\\trunk\\output\\phaver\\" + Instance.BatchSuffix + "\\" + v.name + ".pha.log"; // TODO: use path constants
+                                //String logname = "C:\\Users\\tjohnson\\Dropbox\\Research\\tools\\passel\\repos\\trunk\\output\\phaver\\" + Instance.BatchSuffix + "\\" + v.name + ".pha.log"; // TODO: use path constants
+                                //String logname = Instance.OutPath + Path.DirectorySeparatorChar + v.name + ".pha.log"; // TODO: use path constants
+                                String logname = Instance.PhaverPathWindows + v.name + ".pha_VIX_LOG.txt";
+                                if (File.Exists(logname))
+                                {
+                                    String[] lns = Tail(File.OpenText(@logname), 10);
+
+                                    int idx = 0;
+                                    foreach (String ln in lns)
+                                    {
+                                        if (ln.Contains("elapsed"))
+                                        {
+                                            break;
+                                        }
+                                        idx++;
+                                    }
+
+                                    String[] words = lns[idx].Split(',', '-');
+
+                                    // parse strings like: //0.39 user, 0.30 system, 0.71 elapsed -- Max VSize = 6212KB, Max RSS = 3164KB
+                                    foreach (var s in words)
+                                    {
+                                        String tmp = s.Trim();
+                                        if (tmp.EndsWith("elapsed"))
+                                        {
+                                            meas += tmp.Split(' ')[0] + ",";
+                                        }
+                                        if (tmp.StartsWith("Max VSize", StringComparison.CurrentCultureIgnoreCase))
+                                        {
+                                            String ss = tmp.Split('=')[1].Trim();
+                                            ss = ss.Substring(0, ss.Length - "KB".Length);
+                                            meas += (double.Parse(ss) / 1024.0) + ","; // KB -> MB
+                                        }
+                                    }
+                                }
+                                else
+                                {
+                                    meas += "nodata,nodata,";
+                                }
+                            }
+
+                            if (!headerDone)
+                            {
+                                header += v.expname + ",";
+                            }
+
+                            if (v.value == null)
+                            {
+                                meas += v.runtime.TotalSeconds + ",";
+                            }
+                            else
+                            {
+                                meas += v.value + ",";
+                            }
+
+                            if (v.expname == itemEnd)
+                            {
+                                if (!(Instance.TimeMeasurements.IndexOf(v) == Instance.TimeMeasurements.Count - 1))
+                                {
+                                    meas += "\n";
+                                }
+                                if (!headerDone)
+                                {
+                                    header += "\n";
+                                }
+                                headerDone = true;
+                            }
+
+                            prev = v.name;
+                        }
+                        meas = header + meas;
+                    }
+                    output.Debug.Write("STATUS: measurements time " + System.DateTime.Now.ToString("s"), output.Debug.MINIMAL);
+                    output.Debug.Write(meas, output.Debug.MINIMAL);
+                }
+
                 Instance.DeinitializeZ3();
             }
 
-            String header = "benchmark,";
-            header += "phaver time (s),phaver memory (MB),";
-            //String header = "";
-            String meas = "";
-            String prev = "";
-            bool headerDone = false;
-
-            string itemStart = "starting";
-            string itemEnd = "invariance_end";
-
-            if (batch) //  && (Instance.OPERATION == PROGRAM_MODE.INDUCTIVE_INVARIANT || Instance.OPERATION == PROGRAM_MODE.INPUT_PHAVER)
             {
-                foreach (var v in Instance.TimeMeasurements)
+                String header = "benchmark,";
+                header += "phaver time (s),phaver memory (MB),";
+                //String header = "";
+                String meas = "";
+                String prev = "";
+                bool headerDone = false;
+
+                string itemStart = "starting";
+                string itemEnd = "invariance_end";
+
+                if (Instance.BatchProcess) //  && (Instance.OPERATION == PROGRAM_MODE.INDUCTIVE_INVARIANT || Instance.OPERATION == PROGRAM_MODE.INPUT_PHAVER)
                 {
-                    if (v.expname == itemStart)
+                    foreach (var v in Instance.TimeMeasurements)
                     {
-                        meas += v.name + ",";
-
-                        //String logname = "C:\\Users\\tjohnson\\Dropbox\\Research\\tools\\passel\\repos\\trunk\\output\\phaver\\" + Instance.BatchSuffix + "\\" + v.name + ".pha.log"; // TODO: use path constants
-                        //String logname = "C:\\Users\\tjohnson\\Dropbox\\Research\\tools\\passel\\repos\\trunk\\output\\phaver\\" + Instance.BatchSuffix + "\\" + v.name + ".pha.log"; // TODO: use path constants
-                        //String logname = Instance.OutPath + Path.DirectorySeparatorChar + v.name + ".pha.log"; // TODO: use path constants
-                        String logname = Instance.PhaverPathWindows + v.name + ".pha_VIX_LOG.txt";
-                        if (File.Exists(logname))
+                        if (v.expname == itemStart)
                         {
-                            String[] lns = Tail(File.OpenText(@logname), 10);
+                            meas += v.name + ",";
 
-                            int idx = 0;
-                            foreach (String ln in lns)
+                            //String logname = "C:\\Users\\tjohnson\\Dropbox\\Research\\tools\\passel\\repos\\trunk\\output\\phaver\\" + Instance.BatchSuffix + "\\" + v.name + ".pha.log"; // TODO: use path constants
+                            //String logname = "C:\\Users\\tjohnson\\Dropbox\\Research\\tools\\passel\\repos\\trunk\\output\\phaver\\" + Instance.BatchSuffix + "\\" + v.name + ".pha.log"; // TODO: use path constants
+                            //String logname = Instance.OutPath + Path.DirectorySeparatorChar + v.name + ".pha.log"; // TODO: use path constants
+                            String logname = Instance.PhaverPathWindows + v.name + ".pha_VIX_LOG.txt";
+                            if (File.Exists(logname))
                             {
-                                if (ln.Contains("elapsed"))
+                                String[] lns = Tail(File.OpenText(@logname), 10);
+
+                                int idx = 0;
+                                foreach (String ln in lns)
                                 {
-                                    break;
+                                    if (ln.Contains("elapsed"))
+                                    {
+                                        break;
+                                    }
+                                    idx++;
                                 }
-                                idx++;
+
+                                String[] words = lns[idx].Split(',', '-');
+
+                                // parse strings like: //0.39 user, 0.30 system, 0.71 elapsed -- Max VSize = 6212KB, Max RSS = 3164KB
+                                foreach (var s in words)
+                                {
+                                    String tmp = s.Trim();
+                                    if (tmp.EndsWith("elapsed"))
+                                    {
+                                        meas += tmp.Split(' ')[0] + ",";
+                                    }
+                                    if (tmp.StartsWith("Max VSize", StringComparison.CurrentCultureIgnoreCase))
+                                    {
+                                        String ss = tmp.Split('=')[1].Trim();
+                                        ss = ss.Substring(0, ss.Length - "KB".Length);
+                                        meas += (double.Parse(ss) / 1024.0) + ","; // KB -> MB
+                                    }
+                                }
                             }
-
-                            String[] words = lns[idx].Split(',', '-');
-
-                            // parse strings like: //0.39 user, 0.30 system, 0.71 elapsed -- Max VSize = 6212KB, Max RSS = 3164KB
-                            foreach (var s in words)
+                            else
                             {
-                                String tmp = s.Trim();
-                                if (tmp.EndsWith("elapsed"))
-                                {
-                                    meas += tmp.Split(' ')[0] + ",";
-                                }
-                                if (tmp.StartsWith("Max VSize", StringComparison.CurrentCultureIgnoreCase))
-                                {
-                                    String ss = tmp.Split('=')[1].Trim();
-                                    ss = ss.Substring(0, ss.Length - "KB".Length);
-                                    meas += (double.Parse(ss) / 1024.0) + ","; // KB -> MB
-                                }
+                                meas += "nodata,nodata,";
                             }
+                        }
+
+                        if (!headerDone)
+                        {
+                            header += v.expname + ",";
+                        }
+
+                        if (v.value == null)
+                        {
+                            meas += v.runtime.TotalSeconds + ",";
                         }
                         else
                         {
-                            meas += "nodata,nodata,";
+                            meas += v.value + ",";
                         }
-                    }
 
-                    if (!headerDone)
-                    {
-                        header += v.expname + ",";
-                    }
-
-                    if (v.value == null)
-                    {
-                        meas += v.runtime.TotalSeconds + ",";
-                    }
-                    else
-                    {
-                        meas += v.value + ",";
-                    }
-
-                    if (v.expname == itemEnd)
-                    {
-                        if (!(Instance.TimeMeasurements.IndexOf(v) == Instance.TimeMeasurements.Count - 1))
+                        if (v.expname == itemEnd)
                         {
-                            meas += "\n";
+                            if (!(Instance.TimeMeasurements.IndexOf(v) == Instance.TimeMeasurements.Count - 1))
+                            {
+                                meas += "\n";
+                            }
+                            if (!headerDone)
+                            {
+                                header += "\n";
+                            }
+                            headerDone = true;
                         }
-                        if (!headerDone)
-                        {
-                            header += "\n";
-                        }
-                        headerDone = true;
-                    }
 
-                    prev = v.name;
+                        prev = v.name;
+                    }
+                    meas = header + meas;
+                    System.IO.File.WriteAllText(@Instance.OutPath + Path.DirectorySeparatorChar + Path.DirectorySeparatorChar + "runtime.csv", meas); // TODO: generalize path
+                    //System.IO.File.WriteAllText(@"C:\Users\tjohnson\Dropbox\Research\tools\passel\repos\trunk\output\" + Instance.BatchSuffix + "\phaver\runtime.csv", meas); // TODO: generalize path
+                    //System.IO.File.WriteAllText(@"C:\Users\tjohnson\Dropbox\Research\tools\passel\repos\trunk\output\" + Instance.BatchSuffix + "\phaver\runtime.csv", meas); // TODO: generalize path
                 }
-                meas = header + meas;
-                System.IO.File.WriteAllText(@Instance.OutPath + Path.DirectorySeparatorChar + Path.DirectorySeparatorChar + "runtime.csv", meas); // TODO: generalize path
-                //System.IO.File.WriteAllText(@"C:\Users\tjohnson\Dropbox\Research\tools\passel\repos\trunk\output\" + Instance.BatchSuffix + "\phaver\runtime.csv", meas); // TODO: generalize path
-                //System.IO.File.WriteAllText(@"C:\Users\tjohnson\Dropbox\Research\tools\passel\repos\trunk\output\" + Instance.BatchSuffix + "\phaver\runtime.csv", meas); // TODO: generalize path
             }
+            Instance.TimerStats.Stop();
+            Instance.Z3.Dispose();
+            Instance.Z3 = null;
         }
 
         /**
@@ -1715,16 +2129,16 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
             //Controller.Instance.Z3.Assumptions.Add(Controller.Instance.Z3.MkEq(Controller.Instance.IndexN, Controller.Instance.Z3.MkInt(1)));
             //Instance.Sys.removeDuplicateProperties(); // remove duplicate properties
 
-            output.Debug.Write("Universal assumptions (data types, etc.):\n\r", output.Debug.VERBOSE_STEPS);
-            output.Debug.Write(Instance.Z3.ExprArrayToString(Instance.Z3.AssumptionsUniversal.ToArray()) + "\n\r\n\r", output.Debug.VERBOSE_STEPS);
+            output.Debug.Write("Universal assumptions (data types, etc.):" + Environment.NewLine, output.Debug.VERBOSE_STEPS);
+            output.Debug.Write(Instance.Z3.ExprArrayToString(Instance.Z3.AssumptionsUniversal.ToArray()) + Environment.NewLine + Environment.NewLine, output.Debug.VERBOSE_STEPS);
 
             // project all properties specified as such
             foreach (var p in Instance.Sys.Properties)
             {
                 if (p.Status == StatusTypes.toProject)
                 {
-                    System.Console.WriteLine("Property before projection:\n\r");
-                    System.Console.WriteLine(p.Formula.ToString() + "\n\r\n\r");
+                    System.Console.WriteLine("Property before projection:" + Environment.NewLine);
+                    System.Console.WriteLine(p.Formula.ToString() + Environment.NewLine + Environment.NewLine);
                     Goal g = Instance.Z3.MkGoal();
                     //g.Assert(Instance.Z3.AssumptionsUniversal.ToArray()); // data-type assumptions (MUST USE THIS)
 
@@ -1920,8 +2334,8 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
 
                     //:elim-and
                     //distribute-forall
-                    output.Debug.Write("Property after projection and generalization:\n\r", output.Debug.VERBOSE_STEPS);
-                    output.Debug.Write(p.Formula.ToString() + "\n\r\n\r", output.Debug.VERBOSE_STEPS);
+                    output.Debug.Write("Property after projection and generalization:" + Environment.NewLine, output.Debug.VERBOSE_STEPS);
+                    output.Debug.Write(p.Formula.ToString() + Environment.NewLine + Environment.NewLine, output.Debug.VERBOSE_STEPS);
                 }
             }
             Instance.Sys.Properties.RemoveAll(p => p.Status == StatusTypes.toDelete); // remove all useless properties
@@ -2228,13 +2642,16 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
         {
             List<string> newic = new List<string>();
             String allnewic = "";
+            //System.Console.WriteLine("starting new initial state generation" + concretizedNew);
             foreach (var scd in concretizedNew.Args)
             //foreach (var scd in clist)
             {
+                //System.Console.WriteLine("FIRST ARGUMENT ITERATION");
                 SortedDictionary<uint, string> idxToLoc = new SortedDictionary<uint, string>();
                 List<String> terms = new List<string>();
                 foreach (var scc in scd.Args)
                 {
+                    //System.Console.WriteLine("SECOND ARGUMENT ITERATION");
                     //String stmp = scc.ToString(); // minimal clause
                     String sout = "";
                     sout = Instance.Z3.ToStringFormatted(scc, Z3Wrapper.PrintFormatMode.phaver);
@@ -2260,6 +2677,7 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
                         bool breakout = false;
                         foreach (var l in Instance.Sys.HybridAutomata[0].Locations)
                         {
+                            //System.Console.WriteLine("INNER ARGUMENT ITERATION: " + l);
                             breakout |= sout.Contains(l.Label); // drop idle = b001, etc.
                         }
                         if (breakout)
@@ -2282,7 +2700,10 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
                     allnewic += "default~";
                 }
 
-                allnewic += idxToLoc.Values.Aggregate((agg, next) => agg + "~" + next);
+                if (idxToLoc.Values.Count > 0) // shouldn't occur, throw error
+                {
+                    allnewic += idxToLoc.Values.Aggregate((agg, next) => agg + "~" + next);
+                }
 
                 // variable initial values
                 if (terms.Count > 0)
@@ -2314,31 +2735,28 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
             }
             else
             {
-                Console.WriteLine("ERROR: generating PHAVER output requires selecting a finite value for N.");
+                Console.WriteLine("ERROR: generating PHAVer output requires selecting a finite value for N.");
             }
         }
 
         /**
-         * Call PHAVer in virtual machine (via VIX)
+         * Call PHAVer in virtual machine (via VIX) when running on Windows, and via a process thread when executed via Mono on Linux/OSX
          */
         public static void CallPhaver(string fnall, string expName)
         {
-            //string exePath = Instance.MemtimePathLinux + " " + Instance.PhaverPathLinux + "phaver";
-            //string exePath =  Instance.PhaverPathLinux + "phaver";
             string exePath = Instance.MemtimePathLinux;
-            //string phaver_out_filepath_vmware = "/mnt/hgfs/Dropbox/Research/tools/passel/repos/trunk/output/phaver/"; // TODO: generalize
-            string phaver_out_filepath_vmware = Instance.PhaverInputPathLinux; // input phaver files
-            string exeParameters = " " + Instance.PhaverPathLinux + "phaver" + " " + phaver_out_filepath_vmware + fnall + " &> " + Instance.PhaverPathLinux + fnall + "_VIX_LOG.txt";
+
+            System.Console.WriteLine("Calling PHAVer with: " + exePath);
 
             if (Controller.IsWindows)
             {
+                string exeParameters = " " + Instance.PhaverPathLinux + "phaver" + " " + Instance.PhaverInputPathLinux + fnall + " &> " + Instance.PhaverPathLinux + fnall + "_VIX_LOG.txt";
+                System.Console.WriteLine("Calling PHAVer with: " + exeParameters);
+
                 // from: http://tranxcoder.wordpress.com/2008/05/14/using-the-vixcom-library/
                 string hostName = "localhost";
                 string hostUser = "";
                 string hostPassword = "";
-                string virtualMachineUsername = "tjohnson"; // TODO: add to app.config
-                string virtualMachinePassword = "asdf!234"; // TODO: add to app.config
-                Instance.VMPath = "D:\\Virtual Machines\\Ubuntu\\Ubuntu.vmx"; // TODO: add to app.config
                 bool returnValue = false;
                 // vmware vix is 32-bit, but I can't set project to 32-bit, because then Z3 won't work (get an exception when using the 32-bit library in 32-bit compilation mode...)
                 try
@@ -2353,7 +2771,7 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
                         //
                         // Opening the VMX File
                         //
-                        if (vix.Open(Instance.VMPath))
+                        if (vix.Open(Instance.VirtualMachine["Path"]))
                         {
                             //
                             // Reverting to the ‘only’ snapshot
@@ -2368,7 +2786,7 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
                                 //
                                 // Logging in to the Virtual Machine
                                 //
-                                if (vix.LogIn(virtualMachineUsername, virtualMachinePassword))
+                                if (vix.LogIn(Instance.VirtualMachine["Username"], Instance.VirtualMachine["Password"]))
                                 {
                                     //
                                     // Run the test program
@@ -2437,16 +2855,42 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
             }
             else if (Controller.IsLinux)
             {
-                // call natively
-                Process p = new Process();
-                p.StartInfo.FileName = exePath;
-                //p.StartInfo.Arguments = "/c dir *.cs";
-                p.StartInfo.UseShellExecute = false;
-                //p.StartInfo.RedirectStandardOutput = true;
-                p.Start();
+                string exeParameters = " " + Instance.PhaverPathLinux + "phaver" + " " + Instance.PhaverInputPathLinux + fnall;
+                System.Console.WriteLine("Calling phaver with: " + exeParameters);
 
-                //string output = p.StandardOutput.ReadToEnd();
-                p.WaitForExit();
+                System.Console.WriteLine("Calling PHAVer via command line: " + Environment.NewLine + exePath + " " + exeParameters);
+                // call natively
+
+                lock (Controller.Instance)
+                {
+                    Process p = new Process();
+                    p.StartInfo.FileName = exePath;
+                    p.StartInfo.Arguments = exeParameters;
+                    p.StartInfo.UseShellExecute = false;
+                    p.StartInfo.RedirectStandardError = true;
+                    p.StartInfo.RedirectStandardOutput = true;
+
+                    string outFilename = Instance.PhaverPathLinux + fnall + "_VIX_LOG.txt";
+
+                    StreamWriter fileOutput = new StreamWriter(
+                        new FileStream(outFilename, FileMode.Create)
+                    );
+                    fileOutput.AutoFlush = true;
+                    
+                    p.Start();
+                    while (!p.HasExited)
+                    {
+                        p.WaitForExit(2500); // wait for phaver to run
+                    }
+
+                    fileOutput.Write(p.StandardOutput.ReadToEnd());
+                    fileOutput.Write(p.StandardError.ReadToEnd());
+                    fileOutput.Close();
+
+                    //p.Kill();
+                    p.Close();
+                    p.Dispose();
+                }
             }
         }
 
@@ -2620,22 +3064,47 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
 
         public static void redirectConsole(String outFilename)
         {
+            Controller.redirectConsoleStream(outFilename, Console.Out);
+            Console.OpenStandardError();
+            Controller.redirectConsoleStream(outFilename + ".errors", Console.Error);
+        }
+
+        public static void redirectConsoleStream(String outFilename, TextWriter stream)
+        {
             //Console.Clear();
             lock (Controller.Instance)
             {
                 // redirect console output to file
                 StreamWriter fileOutput;
-                oldOutput = Console.Out;
+                if (stream == Console.Out)
+                {
+                    oldOutput = stream;
+                }
+                else if (stream == Console.Error)
+                {
+                    oldError = stream;
+                }
                 fileOutput = new StreamWriter(
                     new FileStream(outFilename, FileMode.Create)
                 );
                 fileOutput.AutoFlush = true;
 
-                Console.SetOut(fileOutput); // do the redirect
+                // do the redirect
+                // TODO: refactor: don't know how to do this for a general stream though
+                if (stream == Console.Out)
+                {
+                    Console.SetOut(fileOutput);
+                }
+                else if (stream == Console.Error)
+                {
+                    System.Console.WriteLine("REDIRECTING STDERR");
+                    Console.SetError(fileOutput);
+                }
             }
         }
 
         public static TextWriter oldOutput = Console.Out;
+        public static TextWriter oldError = Console.Error;
 
         public static void unredirectConsole()
         {
@@ -2643,14 +3112,21 @@ NL_ARITH_MAX_DEGREE: unsigned integer, default: 6, max degree for internalizing 
             lock (Controller.Instance)
             {
                 // redirect console output to file
-                TextWriter fileOutput = oldOutput;
-                oldOutput = Console.Out;
+                TextWriter fileOutput = oldOutput; // restore console stream
+                oldOutput = Console.Out; // file stream
+
+                TextWriter fileOutputError = oldError; // restore console stream
+                oldError = Console.Error; // file stream
                 //fileOutput = new StreamWriter(
                 //    new FileStream(outFilename, FileMode.Create)
                 //);
                 //fileOutput.AutoFlush = true;
 
+                oldOutput.Close();
+                oldError.Close();
+
                 Console.SetOut(fileOutput); // do the redirect
+                Console.SetError(fileOutputError); // do the redirect
             }
             Instance.SW = Stopwatch.StartNew();
         }
