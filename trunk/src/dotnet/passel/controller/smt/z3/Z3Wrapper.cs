@@ -109,8 +109,6 @@ namespace passel.controller.smt.z3
 
             //p = this.MkParams();
 
-
-
             t = this.With(this.Repeat(this.Then(tsimplify, tctxsimplify, tdistributeForall, tpreprocess, tqe, tvsubst, tsmt)), p);
             //lts.AddRange(new Tactic[] {tsimplify, tctxsimplify, tpreprocess, tqe, tvsubst, tsmt});
             //Tactic[] tsmore = lts.GetRange(2, lts.Count - 2).ToArray();
@@ -134,8 +132,17 @@ namespace passel.controller.smt.z3
             //System.Console.WriteLine("Custom tactic options:");
             //System.Console.WriteLine(this.slvr.Help);
             //System.Console.WriteLine(this.slvr.ParameterDescriptions);
-            
-            this.slvr = this.MkSolver(); // (par-or smt qe)
+
+            if (Controller.OldApiParameters())
+            {
+                this.slvr = this.MkSolver(); // (par-or smt qe)
+            }
+            else
+            {
+                this.slvr = this.MkSolver();
+                //this.slvr = t.Solver;
+            }
+
             //System.Console.WriteLine("Default tactic options:");
             //System.Console.WriteLine(this.slvr.Help);
             //ParamDescrs pd = this.slvr.ParameterDescriptions;
