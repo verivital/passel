@@ -3,10 +3,10 @@
 <holism>
 	<parameter name='N' type='index' comment='number of processes in the system' />
 	<parameter name='A' assumption='A == 5.0' type='real' comment='smaller constant' />
-	<parameter name='B' assumption='B == 4.0' type='real' comment='larger constant' />
+	<parameter name='B' assumption='B == 50.0' type='real' comment='larger constant' />
 	
 	<parameter name='lb' assumption='lb == 1.0' type='real' comment='lower rate' />
-	<parameter name='ub' assumption='ub == 1.0' type='real' comment='upper rate' />
+	<parameter name='ub' assumption='ub == 2.0' type='real' comment='upper rate' />
 	
 	<variable name='g' initially='g == 0' type='index' update_type='Discrete' comment='lock' />
 	

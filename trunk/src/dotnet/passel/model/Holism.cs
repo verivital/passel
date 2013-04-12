@@ -210,6 +210,7 @@ namespace passel.model
             this.Properties.RemoveAll(ptmp => ptmp.Status == StatusTypes.toDelete); // remove all useless properties
             this.removeDuplicateProperties(1);
 
+            this.z3.slvr.Push();
             this.z3.slvr.Assert(this.z3.Assumptions.ToArray()); // assert all the data-type assumptions
             this.z3.slvr.Assert(this.z3.AssumptionsUniversal.ToArray()); // assert all the data-type assumptions
 
@@ -1015,6 +1016,7 @@ namespace passel.model
                 System.Console.WriteLine(" & $" + timeStr + "$ & $" + qi.ToString() + "$ \\\\ ");
             }
              */
+            this.z3.slvr.Pop(); // remove assumptions
         }
 
 

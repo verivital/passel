@@ -35,7 +35,9 @@ namespace passel.controller
         /**
          * Singleton instance
          */
-        private static Controller instance;
+        public static readonly Controller Instance = new Controller();
+
+        public readonly DateTime StartTime = System.DateTime.Now;
 
         /**
          * Z3 context (wrapper around it)
@@ -144,8 +146,8 @@ namespace passel.controller
         public String PhaverPathWindows;
         public String PhaverPathLinux;
         public String MemtimePathLinux;
-        public String BatchSuffix; // for generating all output files (e.g., hscc2013, cav2013, etc)
-        public String PhaverInputPathLinux;
+        public String PhaverInputPath; // os-independent path to phaver input files (use windows path on windows, use linux path on linu)
+        public String PhaverInputPathLinux; // linux-dependent path to phaver input files (for calling phaver via linux)
         public String OutPath; // passel output file path (logs, phaver input files, etc.)
         public String InputPath; // passel input file path
 
@@ -222,7 +224,6 @@ namespace passel.controller
          */
         private Controller()
         {
-            this.ReadSettings(); // read config file
             this.InitializeZ3();
 
             this.InputFiles = new List<string>(); // don't want to trash these between calls
@@ -269,32 +270,45 @@ namespace passel.controller
                 this.InputPath = this.InOutPath + "input" + Path.DirectorySeparatorChar;
                 this.OutPath = this.InOutPath + "output" + Path.DirectorySeparatorChar;
             }
-            else
+            else if (this.InteractionMode == INTERACTION_MODE.command_line)
             {
                 this.InOutPath = Directory.GetCurrentDirectory() + Path.DirectorySeparatorChar;
                 this.InputPath = this.InOutPath + ".." + Path.DirectorySeparatorChar + "input" + Path.DirectorySeparatorChar;
                 this.OutPath = this.InOutPath + ".." + Path.DirectorySeparatorChar + "output" + Path.DirectorySeparatorChar;
             }
 
-            this.BatchSuffix = this.Paths["BatchName"];
-
+            this.PhaverInputPath = this.OutPath + "phaver" + Path.DirectorySeparatorChar;
+            
             if (Controller.IsWindows)
             {
                 this.PhaverPathLinux = this.PathsLinux["PhaverDirectory"];
-                this.MemtimePathLinux = this.PathsLinux["MemtimeDirectory"];
-                this.PhaverInputPathLinux = this.PathsLinux["PhaverInputFileDirectory"] + this.BatchSuffix + "/phaver/";
+                this.MemtimePathLinux = this.PathsLinux["MemtimePath"];
+                this.PhaverInputPathLinux = this.PathsLinux["PhaverInputFileDirectory"];
 
                 this.PhaverPathWindows = this.PathsWindows["PhaverDirectory"];
-                this.ReachPathLinux = this.PhaverPathLinux + "reach/";
-                this.ReachPathWindows = this.PhaverPathWindows + "reach" + Path.DirectorySeparatorChar;
+                this.ReachPathLinux = this.PhaverInputPathLinux + "reach/";
+                this.ReachPathWindows = this.PhaverInputPath + "reach" + Path.DirectorySeparatorChar;
             }
             else if (Controller.IsLinux)
             {
                 this.PhaverPathLinux = this.PathsLinux["PhaverDirectory"];
-                this.MemtimePathLinux = this.PathsLinux["MemtimeDirectory"];
-                //this.PhaverPathWindows = "D:\\Dropbox\\Research\\tools\\phaver\\";
+                this.MemtimePathLinux = this.PathsLinux["MemtimePath"];
                 this.ReachPathLinux = this.PhaverPathLinux + "reach" + Path.DirectorySeparatorChar;
-                //this.ReachPathWindows = this.PhaverPathWindows + "reach\\";
+            }
+
+
+            if (Controller.IsLinux)
+            {
+                /*if (Instance.InteractionMode == INTERACTION_MODE.interactive) // use directories from app.config
+                {
+                    Instance.PhaverInputPathLinux = Instance.PathsLinux["PhaverInputFileDirectory"] + "/";
+                }
+                else if (Instance.InteractionMode == INTERACTION_MODE.command_line) // use pwd
+                {
+                    Instance.PhaverInputPathLinux = Instance.OutPath + Path.DirectorySeparatorChar + Path.DirectorySeparatorChar;
+                }*/
+                this.PhaverInputPathLinux = this.PhaverInputPath;
+                System.Console.WriteLine("PHAVER INPUT FILES PATH: " + Instance.PhaverInputPathLinux);
             }
         }
 
@@ -734,21 +748,6 @@ this.Config.Add("pp.simplify_implies", "false"); // try true
         }
 
         /**
-         * Singleton
-         */
-        public static Controller Instance
-        {
-            get 
-            {
-                if (instance == null)
-                {
-                    instance = new Controller();
-                }
-                return instance;
-            }
-        }
-
-        /**
          * Integer zero value
          */
         public Expr IntZero;
@@ -860,7 +859,7 @@ this.Config.Add("pp.simplify_implies", "false"); // try true
 
         enum IOSTATE { SELECT_CASE_STUDY, SELECT_N, SELECT_OPERATION, EXECUTE_OPERATION };
 
-        enum PROGRAM_MODE { INDUCTIVE_INVARIANT, OUTPUT_PHAVER, INPUT_PHAVER, INVISIBLE_INVARIANTS, SPLIT_INVARIANTS, BMC, DRAW_SYSTEM };
+        enum PROGRAM_MODE { INDUCTIVE_INVARIANT, OUTPUT_PHAVER, INPUT_PHAVER, INVISIBLE_INVARIANTS, SPLIT_INVARIANTS, BMC, BMC_SYMMETRIC, DRAW_SYSTEM };
         private PROGRAM_MODE OPERATION;
 
         public view.View View;
@@ -876,7 +875,7 @@ this.Config.Add("pp.simplify_implies", "false"); // try true
 
         public enum INTERACTION_MODE { interactive, command_line };
 
-        public INTERACTION_MODE InteractionMode;
+        public INTERACTION_MODE InteractionMode = INTERACTION_MODE.command_line; // override if specified in command-line arguments
 
         public static Expr[] getNIndices(uint N)
         {
@@ -930,8 +929,6 @@ this.Config.Add("pp.simplify_implies", "false"); // try true
             Instance.CommandLineArguments.Add("i", "");
             Instance.CommandLineArguments.Add("s", null);
             Instance.CommandLineArguments.Add("b", null);
-
-            Instance.InteractionMode = INTERACTION_MODE.command_line; // override if specified in command-line arguments
 
             String currentCommandLineArgument = null;
             bool followingArgument = false;
@@ -1053,18 +1050,7 @@ this.Config.Add("pp.simplify_implies", "false"); // try true
             }
 
             // setup phaver input-file path (needs to be outside ReadSettings() since depends on interaction type)
-            if (Controller.IsLinux)
-            {
-                if (Instance.InteractionMode == INTERACTION_MODE.interactive) // use directories from app.config
-                {
-                    Instance.PhaverInputPathLinux = Instance.PathsLinux["PhaverInputFileDirectory"] + Instance.BatchSuffix + "/"; // todo: use general path
-                }
-                else if (Instance.InteractionMode == INTERACTION_MODE.command_line) // use pwd
-                {
-                    Instance.PhaverInputPathLinux = Instance.OutPath + Path.DirectorySeparatorChar + "phaver" + Path.DirectorySeparatorChar;
-                }
-                System.Console.WriteLine("PHAVER INPUT FILES PATH: " + Instance.PhaverInputPathLinux);
-            }
+            Instance.ReadSettings();
 
 
             if (Controller.LOG_Z3)
@@ -1080,6 +1066,7 @@ this.Config.Add("pp.simplify_implies", "false"); // try true
             // interactive mode asking arguments from user
             else if (Instance.InteractionMode == INTERACTION_MODE.interactive)
             {
+                inputFiles.Add(inputFileCount++, "fischer-twovar.xml");
                 inputFiles.Add(inputFileCount++, "fischer-rect.xml");
                 inputFiles.Add(inputFileCount++, "fischer-timed.xml");
                 inputFiles.Add(inputFileCount++, "fischer-rect-buggy.xml");
@@ -1178,8 +1165,7 @@ this.Config.Add("pp.simplify_implies", "false"); // try true
                                     Console.WriteLine("[" + f.Key.ToString() + "]" + " " + f.Value);
                                 }
                                 Console.WriteLine("[253] check all input files");
-                                //Console.WriteLine("[254] generate " + Instance.BatchSuffix + " PHAVer input files");
-                                Console.WriteLine("[255] generate " + Instance.BatchSuffix + " table" + Environment.NewLine);
+                                //Console.WriteLine("[255] generate " + Instance.BatchSuffix + " table" + Environment.NewLine);
                                 Console.WriteLine("[256] enter custom file" + Environment.NewLine);
 
                                 choice = Console.ReadLine();
@@ -1202,6 +1188,7 @@ this.Config.Add("pp.simplify_implies", "false"); // try true
 
                                             Instance.BatchProcess = true;
                                         }
+                                            /*
                                         else if (io_opt == 254 || io_opt == 255)
                                         {
                                             Console.WriteLine("Batch processing:");
@@ -1237,14 +1224,14 @@ this.Config.Add("pp.simplify_implies", "false"); // try true
                                             }
 
 
-                                            /*
-                                            Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("mux-sem.xml")).Value);
-                                            Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("mux-sem-lastin.xml")).Value);
-                                            Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("mux-index.xml")).Value);
-                                            Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("mux-index-ta.xml")).Value);
+                                            
+                                            //Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("mux-sem.xml")).Value);
+                                            //Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("mux-sem-lastin.xml")).Value);
+                                            //Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("mux-index.xml")).Value);
+                                            //Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("mux-index-ta.xml")).Value);
 
-                                            Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("token-ring.xml")).Value);
-                                            */
+                                            //Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("token-ring.xml")).Value);
+                                            
 
                                             //Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("pointer-example.xml")).Value);
                                             //Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("gpointer-example.xml")).Value);
@@ -1266,7 +1253,7 @@ this.Config.Add("pp.simplify_implies", "false"); // try true
                                             Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("fischer_umeno_five_state")).Value);
                                             Instance.InputFiles.Add(inputFiles.First(a => a.Value.Contains("fischer_umeno_five_state_buggy")).Value);
                                             Instance.BatchProcess = true;
-                                        }
+                                        }*/
                                         else if (io_opt == 256)
                                         {
                                             Console.WriteLine("Using path " + Instance.InputFiles);
@@ -1468,7 +1455,7 @@ this.Config.Add("pp.simplify_implies", "false"); // try true
 
                 Controller.redirectConsole(LogFilename);
 
-                output.Debug.Write("STATUS: Start time " + System.DateTime.Now.ToString("s"), output.Debug.MINIMAL);
+                output.Debug.Write("STATUS: Start time " + Instance.StartTime.ToString("s"), output.Debug.MINIMAL);
                 output.Debug.Write("STATUS: File: " + Instance.InputFilePath + Environment.NewLine, output.Debug.MINIMAL);
                 output.Debug.Write("STATUS: Using Microsoft Z3 version " + Microsoft.Z3.Version.Major + "." + Microsoft.Z3.Version.Minor + "." + Microsoft.Z3.Version.Build + "rv" + Microsoft.Z3.Version.Revision + Environment.NewLine, output.Debug.MINIMAL);
 
@@ -1482,10 +1469,7 @@ this.Config.Add("pp.simplify_implies", "false"); // try true
 
                 string pat = "yyyy-MM-ddTHH-mm-ss";
                 string now = DateTime.Now.ToString(pat);
-
                 string fn = Path.GetFileName(Instance.InputFile);
-                string fnall = "";
-                String phaver_out_filename = "";
 
                 switch (Instance.OPERATION)
                 {
@@ -1524,23 +1508,11 @@ this.Config.Add("pp.simplify_implies", "false"); // try true
                                 String expName = AutomatonName + "_N=" + Instance.IndexNValue;
                                 Controller.Instance.sysname = expName;
 
-                                if (Instance.BatchProcess)
-                                {
-                                    fnall = fn + "_" + "N=" + Instance.IndexNValue + ".pha";
-                                    //phaver_out_filename = Instance.OutPath + "\\phaver\\" + Instance.BatchSuffix + "\\" + fnall; // todo: generalize
-                                    phaver_out_filename = Instance.OutPath + "\\phaver\\" + fnall; // todo: generalize
-
-                                }
-                                else
-                                {
-                                    fnall = fn + "_" + "N=" + Instance.IndexNValue + "_" + now + ".pha";
-                                    phaver_out_filename = Instance.OutPath + "\\phaver\\" + fnall; // todo: generalize
-                                }
-
+                                string fnall = fn + "_" + "N=" + Instance.IndexNValue + "_" + now + ".pha";
 
                                 Instance.appendMeasurement("starting", expName);
 
-                                Controller.OutputPhaver(fnall, phaver_out_filename, expName, Instance.BatchProcess, "", 0);
+                                Controller.OutputPhaver(fnall, Instance.PhaverInputPath + fnall, expName, Instance.BatchProcess, "", 0);
                             }
                             break;
                         }
@@ -1551,7 +1523,7 @@ this.Config.Add("pp.simplify_implies", "false"); // try true
                             Controller.Instance.sysname = expName;
                             Instance.appendMeasurement("starting", expName);
 
-                            Controller.InputReach(Instance.IndexNValue, expName, true, null, false, null);
+                            Controller.InputReach(expName, Instance.IndexNValue, expName, true, null, false, null);
                             Controller.projectAllProperties(Instance.IndexNValue);
 
                             //Instance.Sys.removeDuplicateProperties(); // remove duplicate properties (may get more during projection)
@@ -1570,22 +1542,12 @@ this.Config.Add("pp.simplify_implies", "false"); // try true
                                 Controller.Instance.sysname = expName;
                                 Instance.appendMeasurement("starting", expName);
 
-                                if (Instance.BatchProcess)
-                                {
-                                    fnall = fn + "_" + "N=" + Instance.IndexNValue + ".pha";
-                                    //phaver_out_filename = Instance.OutPath + Path.DirectorySeparatorChar + "phaver" + Path.DirectorySeparatorChar + Instance.BatchSuffix + Path.DirectorySeparatorChar + fnall; // todo: generalize
-                                    phaver_out_filename = Instance.OutPath + Path.DirectorySeparatorChar + "phaver" + Path.DirectorySeparatorChar + fnall; // todo: generalize
-                                }
-                                else
-                                {
-                                    fnall = fn + "_" + "N=" + Instance.IndexNValue + "_" + now + ".pha";
-                                    phaver_out_filename = Instance.OutPath + Path.DirectorySeparatorChar + "phaver" + Path.DirectorySeparatorChar + fnall; // todo: generalize
-                                }
+                                string fnall = fn + "_" + "N=" + Instance.IndexNValue + "_" + now + ".pha";
 
-                                Controller.OutputPhaver(fnall, phaver_out_filename, expName, Instance.BatchProcess, "", 0);
+                                Controller.OutputPhaver(fnall, Instance.PhaverInputPath + fnall, expName, Instance.BatchProcess, "", 0);
                                 Controller.CallPhaver(fnall, expName);
 
-                                Controller.InputReach(nval, expName, true, null, false, null);
+                                Controller.InputReach(fnall, nval, expName, true, null, false, null);
                                 Controller.projectAllProperties(Instance.IndexNValue);
                             }
                             String expNameL = AutomatonName + "_N=" + Instance.IndexNValue;
@@ -1633,26 +1595,16 @@ this.Config.Add("pp.simplify_implies", "false"); // try true
                                     //Expr reachset = Instance.Sys.boundedModelCheck(Instance.IndexNValue, 0, Instance.Z3.MkFalse()); // compute reach set (BMC to fixed-point with empty set as illegal states => full reach set)
                                     //reachsets.Add(reachset.ToString());
 
-                                    if (Instance.BatchProcess)
-                                    {
-                                        fnall = fn + "_" + "N=" + Instance.IndexNValue + ".pha";
-                                        //phaver_out_filename = Instance.OutPath + Path.DirectorySeparatorChar + "phaver" + Path.DirectorySeparatorChar + Instance.BatchSuffix + Path.DirectorySeparatorChar + fnall; // todo: generalize
-                                        phaver_out_filename = Instance.OutPath + Path.DirectorySeparatorChar + "phaver" + Path.DirectorySeparatorChar + fnall; // todo: generalize
-                                    }
-                                    else
-                                    {
-                                        fnall = fn + "_" + "N=" + Instance.IndexNValue + "_" + now + ".pha";
-                                        phaver_out_filename = Instance.OutPath + Path.DirectorySeparatorChar + "phaver" + Path.DirectorySeparatorChar + fnall; // todo: generalize
-                                    }
-
                                     foreach (var nis in newInitial)
                                     {
                                         output.Debug.Write("STATUS: split invariant iteration " + iteration);
                                         output.Debug.Write("STATUS: split invariant initial states: " + nis);
 
-                                        Controller.OutputPhaver(fnall, phaver_out_filename, expName, Instance.BatchProcess, nis, iteration);
+                                        string fnall = fn + "_" + "N=" + Instance.IndexNValue + "_" + now + ".pha";
+
+                                        Controller.OutputPhaver(fnall, Instance.PhaverInputPath + fnall, expName, Instance.BatchProcess, nis, iteration);
                                         Controller.CallPhaver(fnall, expName);
-                                        List<Expr> pgcreachset = Controller.InputReach(nval, expName, true, null, true, prevSplit);
+                                        List<Expr> pgcreachset = Controller.InputReach(fnall, nval, expName, true, null, true, prevSplit);
 
                                         Console.WriteLine("PREVIOUS SPLIT: ");
                                         Console.WriteLine(Instance.Z3.ExprArrayToString(prevSplit.ToArray()));
@@ -1753,13 +1705,39 @@ this.Config.Add("pp.simplify_implies", "false"); // try true
 
                             break;
                         }
+                    case PROGRAM_MODE.BMC_SYMMETRIC:
+                        {
+                            //Instance.Sys.boundedModelCheckAllProperties();
+
+                            for (uint nval = lb; nval <= ub; nval++)
+                            {
+                                Instance.IndexNValue = nval;
+                                Console.WriteLine("Performing operations assuming N = " + Instance.IndexNValue);
+                                String expName = AutomatonName + "_N=" + Instance.IndexNValue;
+                                Controller.Instance.sysname = expName;
+                                Instance.appendMeasurement("starting", expName);
+                                //Controller.OutputPhaver(fnall, phaver_out_filename, expName, Instance.BatchProcess);
+                                //Controller.CallPhaver(fnall, expName);
+                                //Expr reachset = Instance.Sys.boundedModelCheck(Instance.IndexNValue, 0, Instance.Z3.MkFalse()); // compute reach set (BMC to fixed-point with empty set as illegal states => full reach set)
+
+                                // set specific N value being used
+                                Instance.Z3.Assumptions.Add(Instance.Z3.MkEq(Instance.IndexN, Instance.Z3.MkInt(nval)));
+
+                                ReachSymmetric r = new ReachSymmetric();
+                                r.ComputeReach(Instance.Sys, nval);
+                            }
+                            //String expNameL = AutomatonName + "_N=" + Instance.IndexNValue;
+                            //Controller.InputPhaver(expNameL);
+
+                            break;
+                        }
                     default:
                         {
                             //TODO: throw error should be unreachable
                             break;
                         }
                 }
-                output.Debug.Write("STATUS: stop time " + System.DateTime.Now.ToString("s"), output.Debug.MINIMAL);
+                output.Debug.Write("STATUS: end time " + System.DateTime.Now.ToString("s"), output.Debug.MINIMAL);
 
                 {
                     String header = "benchmark,";
@@ -1779,11 +1757,20 @@ this.Config.Add("pp.simplify_implies", "false"); // try true
                             if (v.expname == itemStart)
                             {
                                 meas += v.name + ",";
+                                string fnall = fn + "_" + "N=" + Instance.IndexNValue + "_" + now;
+                                //String logname = v.name + ".pha_PHAVER_LOG.txt";
+                                String logname = fnall + ".pha_PHAVER_LOG.txt";
+                                if (Controller.IsWindows)
+                                {
+                                    logname = Instance.PhaverInputPath + logname;
+                                }
+                                else
+                                {
+                                    logname = Instance.PhaverInputPathLinux + logname;
+                                }
 
-                                //String logname = "C:\\Users\\tjohnson\\Dropbox\\Research\\tools\\passel\\repos\\trunk\\output\\phaver\\" + Instance.BatchSuffix + "\\" + v.name + ".pha.log"; // TODO: use path constants
-                                //String logname = "C:\\Users\\tjohnson\\Dropbox\\Research\\tools\\passel\\repos\\trunk\\output\\phaver\\" + Instance.BatchSuffix + "\\" + v.name + ".pha.log"; // TODO: use path constants
-                                //String logname = Instance.OutPath + Path.DirectorySeparatorChar + v.name + ".pha.log"; // TODO: use path constants
-                                String logname = Instance.PhaverPathWindows + v.name + ".pha_VIX_LOG.txt";
+                                System.Console.WriteLine("Memtime and phaver log file: " + logname);
+
                                 if (File.Exists(logname))
                                 {
                                     String[] lns = Tail(File.OpenText(@logname), 10);
@@ -1819,6 +1806,7 @@ this.Config.Add("pp.simplify_implies", "false"); // try true
                                 else
                                 {
                                     meas += "nodata,nodata,";
+                                    System.Console.WriteLine("WARNING: phaver call log with memtime data not found");
                                 }
                             }
 
@@ -1860,6 +1848,7 @@ this.Config.Add("pp.simplify_implies", "false"); // try true
                 Instance.DeinitializeZ3();
             }
 
+            /*
             {
                 String header = "benchmark,";
                 header += "phaver time (s),phaver memory (MB),";
@@ -1882,7 +1871,16 @@ this.Config.Add("pp.simplify_implies", "false"); // try true
                             //String logname = "C:\\Users\\tjohnson\\Dropbox\\Research\\tools\\passel\\repos\\trunk\\output\\phaver\\" + Instance.BatchSuffix + "\\" + v.name + ".pha.log"; // TODO: use path constants
                             //String logname = "C:\\Users\\tjohnson\\Dropbox\\Research\\tools\\passel\\repos\\trunk\\output\\phaver\\" + Instance.BatchSuffix + "\\" + v.name + ".pha.log"; // TODO: use path constants
                             //String logname = Instance.OutPath + Path.DirectorySeparatorChar + v.name + ".pha.log"; // TODO: use path constants
-                            String logname = Instance.PhaverPathWindows + v.name + ".pha_VIX_LOG.txt";
+                            //String logname = v.name + ".pha_VIX_LOG.txt"; // RENAME IF UNCOMMENTED
+                            if (Controller.IsWindows)
+                            {
+                                logname = Instance.PhaverPathWindows + logname;
+                            }
+                            else if (Controller.IsLinux)
+                            {
+                                logname = Instance.PhaverPathWindows + logname;
+                            }
+
                             if (File.Exists(logname))
                             {
                                 String[] lns = Tail(File.OpenText(@logname), 10);
@@ -1951,23 +1949,27 @@ this.Config.Add("pp.simplify_implies", "false"); // try true
                         prev = v.name;
                     }
                     meas = header + meas;
-                    System.IO.File.WriteAllText(@Instance.OutPath + Path.DirectorySeparatorChar + Path.DirectorySeparatorChar + "runtime.csv", meas); // TODO: generalize path
-                    //System.IO.File.WriteAllText(@"C:\Users\tjohnson\Dropbox\Research\tools\passel\repos\trunk\output\" + Instance.BatchSuffix + "\phaver\runtime.csv", meas); // TODO: generalize path
-                    //System.IO.File.WriteAllText(@"C:\Users\tjohnson\Dropbox\Research\tools\passel\repos\trunk\output\" + Instance.BatchSuffix + "\phaver\runtime.csv", meas); // TODO: generalize path
+                    System.IO.File.WriteAllText(@Instance.OutPath + Path.DirectorySeparatorChar + "runtime.csv", meas);
                 }
             }
-            Instance.TimerStats.Stop();
-            Instance.Z3.Dispose();
+            Instance.TimerStats.Stop();*/
+            //Instance.DeinitializeZ3();
+            //Instance.Z3.Dispose();
             Instance.Z3 = null;
+
+            // pause to display result to user
+            if (Instance.InteractionMode == INTERACTION_MODE.interactive)
+            {
+                Console.ReadLine();
+            }
         }
 
         /**
          * Use phaver input file for invisible invariants
          */
-        public static List<Expr> InputReach(uint N, String expName, bool phaver, List<String> reachsets, bool doSplit, BoolExpr[] prevSplit)
+        public static List<Expr> InputReach(String fnall, uint N, String expName, bool phaver, List<String> reachsets, bool doSplit, BoolExpr[] prevSplit)
         {
             List<Expr> result = new List<Expr>();
-            //Instance.Z3.MkFalse();
             Instance.appendMeasurement("init_done->starting_parsing", expName);
             //Instance.Sys.Properties = new List<Property>(); // clear all properties (todo: can add them back...)
 
@@ -1976,38 +1978,13 @@ this.Config.Add("pp.simplify_implies", "false"); // try true
             PHAVER_INPUT_MODE input_mode = PHAVER_INPUT_MODE.reachable_forward;
 
             Controller.Instance.IndexNValue = N; // set global variable value
-            //List<Expr> reachset = ParseHyXML.ParseReach("C:\\Users\\tjohnson\\Dropbox\\Research\\tools\\phaver\\ii_reach_N" + N); // parse reach set
             // TODO: generalize for > 1 automata
             List<String> reachset = null;
-            /*try
-            {
-                if (N == 1)
-                {
-                    reachset = ParseHyXML.ParseReach("C:\\Users\\tjohnson\\Dropbox\\Research\\tools\\phaver\\" + Instance.Sys.HybridAutomata[0].Name + "_ii_reach_N" + N, false); // parse reach set
-                }
-                else if (N == 2)
-                {
-                    reachset = ParseHyXML.ParseReach("C:\\Users\\tjohnson\\Dropbox\\Research\\tools\\phaver\\" + Instance.Sys.HybridAutomata[0].Name + "_ii_reach_N" + N + "projected11", false); // parse reach set
-                }
-                else if (N >= 3)
-                {
-                    reachset = ParseHyXML.ParseReach("C:\\Users\\tjohnson\\Dropbox\\Research\\tools\\phaver\\" + Instance.Sys.HybridAutomata[0].Name + "_ii_reach_N" + N + "projected12", false); // parse reach set
-                }
-            }
-            catch
-            {*/
             if (phaver)
             {
                 String reachname = "";
-                if (Controller.IsWindows)
-                {
-                    reachname = Instance.ReachPathWindows;
-                }
-                else if (Controller.IsLinux)
-                {
-                    reachname = Instance.ReachPathLinux;
-                }
-                reachname += Instance.Sys.HybridAutomata[0].Name + "_N=" + N + ".reach";
+                //reachname += Instance.Sys.HybridAutomata[0].Name + "_N=" + N + ".reach";
+                reachname += Instance.PhaverInputPath + "reach" + Path.DirectorySeparatorChar + fnall + ".reach";
                 System.Console.WriteLine("Opening phaver output (reach set) file: " + reachname);
                 reachset = ParseHyXML.ParseReach(reachname, false); // parse reach set
             }
@@ -2017,8 +1994,6 @@ this.Config.Add("pp.simplify_implies", "false"); // try true
                 //reachset.Add(reach.ToString()); // smt formatted
                 reachset = reachsets;
             }
-
-            //}
 
             uint Nmax = N;
             if (input_mode == PHAVER_INPUT_MODE.reachable_backward)
@@ -2391,7 +2366,7 @@ this.Config.Add("pp.simplify_implies", "false"); // try true
                                     {
                                         if (gv.Type == Variable.VarType.index)
                                         {
-                                            bi.Add(Controller.instance.GlobalVariables[gv.Name]);
+                                            bi.Add(Controller.Instance.GlobalVariables[gv.Name]);
                                         }
                                     }
                                 }
@@ -2727,7 +2702,7 @@ this.Config.Add("pp.simplify_implies", "false"); // try true
         {
             if (Instance.IndexNValue > 0)
             {
-                String out_phaver = Instance.Sys.HybridAutomata[0].outputPhaverN(Instance.IndexNValue, Instance.PhaverPathLinux, newInitial, iteration); // todo: generalize if more than 1 automaton
+                String out_phaver = Instance.Sys.HybridAutomata[0].outputPhaverN(fnall, Instance.IndexNValue, Instance.PhaverInputPathLinux, newInitial, iteration); // todo: generalize if more than 1 automaton
                 StreamWriter writer = new StreamWriter(phaver_out_filename);
                 writer.Write(out_phaver);
                 writer.Close();
@@ -2751,7 +2726,7 @@ this.Config.Add("pp.simplify_implies", "false"); // try true
 
             if (Controller.IsWindows)
             {
-                string exeParameters = " " + Instance.PhaverPathLinux + "phaver" + " " + Instance.PhaverInputPathLinux + fnall + " &> " + Instance.PhaverPathLinux + fnall + "_VIX_LOG.txt";
+                string exeParameters = " " + Instance.PhaverPathLinux + "phaver" + " " + Instance.PhaverInputPathLinux + fnall + " &> " + Instance.PhaverInputPathLinux + fnall + "_PHAVER_LOG.txt";
                 System.Console.WriteLine("Calling PHAVer with: " + exeParameters);
 
                 // from: http://tranxcoder.wordpress.com/2008/05/14/using-the-vixcom-library/
@@ -2871,7 +2846,7 @@ this.Config.Add("pp.simplify_implies", "false"); // try true
                     p.StartInfo.RedirectStandardError = true;
                     p.StartInfo.RedirectStandardOutput = true;
 
-                    string outFilename = Instance.PhaverPathLinux + fnall + "_VIX_LOG.txt";
+                    string outFilename = Instance.PhaverInputPathLinux + fnall + "_PHAVER_LOG.txt";
 
                     StreamWriter fileOutput = new StreamWriter(
                         new FileStream(outFilename, FileMode.Create)
@@ -3053,6 +3028,25 @@ this.Config.Add("pp.simplify_implies", "false"); // try true
                 Microsoft.Z3.Log.Close();
             }
             Instance.Z3.Dispose();
+
+            // show properties proved
+            foreach (var p in Instance.Sys.Properties.FindAll(pv => pv.SourceType == SourceTypes.user))
+            {
+                switch (p.Status)
+                {
+                    case StatusTypes.inductiveInvariant:
+                        {
+                            System.Console.WriteLine("Proved user supplied safety property: " + Environment.NewLine + p.Formula + Environment.NewLine);
+                            break;
+                        }
+                    default:
+                        {
+                            System.Console.WriteLine("Unproven user supplied safety property: " + Environment.NewLine + p.Formula + Environment.NewLine);
+                            break;
+                        }
+                }
+            }
+            System.Console.WriteLine("Total time: " + System.DateTime.Now.Subtract(Instance.StartTime).TotalSeconds);
         }
 
         /**
