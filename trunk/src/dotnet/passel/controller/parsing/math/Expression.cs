@@ -39,6 +39,10 @@ namespace passel.controller.parsing.math
                 }
                 return rule.Tree as CommonTree;
             }
+            catch (NoViableAltException)
+            {
+                throw;
+            }
             catch (Exception)
             {
                 throw;

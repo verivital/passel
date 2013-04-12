@@ -5,7 +5,7 @@
 <holism>
 	<parameter name='N' type='integer' comment='' />
 
-	<assumption equn='N == 10' comment='' />
+	<assumption equn='N &gt;= 2' comment='' />
 
 	<automaton name='nfa'>
 		<mode id='0' name='a' initial='True'>

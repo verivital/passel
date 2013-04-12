@@ -1409,6 +1409,31 @@ namespace passel.controller.smt.z3
             return ret;
         }
 
+        public Boolean ProveEqual(Expr a, Expr b)
+        {
+            Controller.Instance.Z3.slvr.Push();
+            Model m;
+            Expr[] c;
+            String s;
+            Boolean result = Controller.Instance.Z3.proveTerm(Controller.Instance.Z3.MkEq(a, b), out m, out c, out s);
+            Controller.Instance.Z3.slvr.Pop();
+            return result;
+        }
+
+        /**
+         * Prove that a contains b (if b, then a)
+         */
+        public Boolean ProveContains(Expr a, Expr b)
+        {
+            Controller.Instance.Z3.slvr.Push();
+            Model m;
+            Expr[] c;
+            String s;
+            Boolean result = Controller.Instance.Z3.proveTerm(Controller.Instance.Z3.MkImplies((BoolExpr)b, (BoolExpr)a), out m, out c, out s);
+            Controller.Instance.Z3.slvr.Pop();
+            return result;
+        }
+
         /**
          * Prove a term (negation is unsat)
          */
@@ -1675,7 +1700,6 @@ namespace passel.controller.smt.z3
 
                         if (args != null)
                         {
-                            Z3_decl_kind dk = t.FuncDecl.DeclKind;
                             if (args.Length == 0) // nullary (constants, etc.)
                             {
                                 s += t.FuncDecl.Name.ToString();
@@ -1683,10 +1707,13 @@ namespace passel.controller.smt.z3
                             else if (args.Length == 1) // unary (but have to avoid some weird types)
                             {
                                 //s += this.DeclKindToStringLatex(dk);
-                                switch (dk)
+                                switch (((uint)t.FuncDecl.DeclKind))
                                 {
-                                    case Z3_decl_kind.Z3_OP_UNINTERPRETED:
+                                    case (uint)Z3_decl_kind.Z3_OP_UNINTERPRETED:
                                         {
+                                            //System.Console.WriteLine("UNINTERP 1: " + t);
+                                            //System.Console.WriteLine("UNINTERP 1 func: " + t.FuncDecl);
+                                            //System.Console.WriteLine("UNINTERP 1 name: " + t.FuncDecl.Name);
                                             tmp = t.FuncDecl.Name.ToString();
                                             tmp += "[" + this.ToStringFormatted(args[0], o, paren) + "]"; // we do a string replace using brackets for phaver output
                                             // todo: check generality
@@ -1698,8 +1725,8 @@ namespace passel.controller.smt.z3
                                             s += tmp;
                                             break;
                                         }
-                                    case Z3_decl_kind.Z3_OP_NOT:
-                                    case Z3_decl_kind.Z3_OP_BNEG:
+                                    case (uint)Z3_decl_kind.Z3_OP_NOT:
+                                    case (uint)Z3_decl_kind.Z3_OP_BNEG:
                                         {
                                             switch (o)
                                             {
@@ -1735,16 +1762,34 @@ namespace passel.controller.smt.z3
                                             }
                                             break;
                                         }
-                                    case Z3_decl_kind.Z3_OP_SET_DIFFERENCE:
-                                    case Z3_decl_kind.Z3_OP_UMINUS:
-                                    case Z3_decl_kind.Z3_OP_SUB:
+                                    case (uint)Z3_decl_kind.Z3_OP_SET_DIFFERENCE:
+                                    case (uint)Z3_decl_kind.Z3_OP_UMINUS:
+                                    case (uint)Z3_decl_kind.Z3_OP_SUB:
                                         {
                                             s += " - (" + this.ToStringFormatted(args[0], o, paren) + ")";
                                             break;
                                         }
                                     default:
                                         {
-                                            s += this.ToStringFormatted(args[0], o, paren);
+                                            // matches a variable name
+                                            // TODO: generality
+                                            //if (Controller.Instance.Sys.Variables.Any(v => v.Name == t.FuncDecl.Name.ToString())) // (not indexed, globals...)
+                                            if (Controller.Instance.Sys.HybridAutomata[0].Variables.Any(v => v.Name == t.FuncDecl.Name.ToString().Replace(Controller.PRIME_SUFFIX, ""))) // indexed variables
+                                            {
+                                                tmp = t.FuncDecl.Name.ToString();
+                                                tmp += "[" + this.ToStringFormatted(args[0], o, paren) + "]"; // we do a string replace using brackets for phaver output
+                                                if (tmp.Contains(Controller.PRIME_SUFFIX))
+                                                {
+                                                    tmp = tmp.Replace(Controller.PRIME_SUFFIX, "");
+                                                    tmp += Controller.PRIME_SUFFIX;
+                                                }
+                                                s += tmp;
+                                            }
+                                            // not a variable
+                                            else
+                                            {
+                                                s += this.ToStringFormatted(args[0], o, paren);
+                                            }
                                             break;
                                         }
                                 }
@@ -1752,6 +1797,9 @@ namespace passel.controller.smt.z3
                             }
                             else if (args.Length >= 2)
                             {
+                                //System.Console.WriteLine("UNINTERP 2: " + t);
+                                //System.Console.WriteLine("UNINTERP 2 func: " + t.FuncDecl);
+                                //System.Console.WriteLine("UNINTERP 2 name: " + t.FuncDecl.Name);
                                 uint i = 0;
                                 while (i < args.Length)
                                 {
@@ -1774,7 +1822,7 @@ namespace passel.controller.smt.z3
 
                                     if (i < args.Length - 1)
                                     {
-                                        s += this.DeclKindToString(dk, o);
+                                        s += this.DeclKindToString(t.FuncDecl.DeclKind, o);
                                     }
                                     i++;
                                 }

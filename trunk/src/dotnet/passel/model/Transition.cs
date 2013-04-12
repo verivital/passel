@@ -376,6 +376,52 @@ namespace passel.model
 
 
 
+        public Expr MakePost()
+        {
+            ConcreteLocation l = this.Parent;
+
+            List<BoolExpr> resets = new List<BoolExpr>();
+
+            if (this.NextStates.Count > 0)
+            {
+                resets.Add((BoolExpr)this.ToTerm());       // discrete location post-state (e.g., loc'[i] = 2)
+            }
+
+            List<String> globalVariableResets = new List<String>(); // global variables not reset
+            List<String> indexVariableResets = new List<String>();  // indexed variables of process moving that are not reset
+            List<String> universalIndexVariableResets = new List<String>();  // universally quantified indexed variables that are reset
+
+            if (this.Reset != null)
+            {
+                resets.Add((BoolExpr)this.Reset);
+
+                globalVariableResets = Controller.Instance.Z3.findGlobalVariableResets(this.Reset);
+                indexVariableResets = Controller.Instance.Z3.findIndexedVariableResets(this.Reset);
+            }
+            else
+            {
+                // global variable was not mentioned since reset is null: add it to the identity global variables (g' = g)
+                globalVariableResets = Controller.Instance.Z3.findGlobalVariableResets(null);
+                indexVariableResets = Controller.Instance.Z3.findIndexedVariableResets(null);
+            }
+
+            if (this.UGuard != null) // TODO: handle univerasl resets (assume none for now)
+            {
+                universalIndexVariableResets = Controller.Instance.Z3.findIndexedVariableResetsNeg(this.UGuard);
+            }
+
+            Expr resetAnd = null;
+            // create conjunction of pre-state and post-state conditions
+            if (resets.Count > 0)
+            {
+                resetAnd = Controller.Instance.Z3.MkAnd(resets.ToArray());
+            }
+            return resetAnd;
+        }
+
+
+
+
         /**
          * Make terms corresponding to pre and post-state for a transition (can be local or global transition)
          */

@@ -331,7 +331,7 @@ namespace passel.model
         /**
         * Generate a specification of N (for a fixed natural number) automata for Phaver
         */
-        public String outputPhaverN(uint N, String output_path, String newInitial, uint iteration)
+        public String outputPhaverN(string fnall, uint N, String output_path, String newInitial, uint iteration)
         {
             String spec = "";
             String tmp = "";
@@ -715,6 +715,10 @@ namespace passel.model
                                 }
                                 else
                                 {
+                                    //System.Console.WriteLine("GUARD NAME: " + t.Guard);
+                                    //System.Console.WriteLine("GUARD NULL: " + (t.Guard == null));
+                                    //System.Console.WriteLine("UGUARD NAME: " + t.UGuard);
+                                    //System.Console.WriteLine("UGUARD NULL: " + (t.UGuard == null));
                                     if (t.Guard != null)
                                     {
                                         Expr tmpt = t.Guard;
@@ -800,11 +804,13 @@ namespace passel.model
                                         {
                                             if (i != j)
                                             {
-                                                Expr tmpt = t.UGuard;
+                                                Expr tmpt = Controller.Instance.Z3.copyExpr(t.UGuard);
                                                 Expr jIndexConst = Controller.Instance.Z3.MkNumeral(j, Controller.Instance.IndexType);
                                                 tmpt = tmpt.Substitute(Controller.Instance.Indices["j"], jIndexConst); // replace j by j value
-                                                tmp += "(" + Controller.Instance.Z3.ToStringFormatted(tmpt, controller.smt.z3.Z3Wrapper.PrintFormatMode.phaver, true) + ")"; // todo: format appropriately
+                                                tmp += "(" + Controller.Instance.Z3.ToStringFormatted(tmpt, controller.smt.z3.Z3Wrapper.PrintFormatMode.phaver, true) + ")";
 
+                                                //System.Console.WriteLine("UGUARD BEFORE CHANGE (expr): " + tmpt);
+                                                //System.Console.WriteLine("UGUARD BEFORE CHANGE (str ): " + tmp);
 
                                                 if (hasPointer)
                                                 {
@@ -1083,21 +1089,21 @@ namespace passel.model
             }
             spec = spec.Substring(0, spec.Length - 3);
             spec += ";" + newline + newline;
-            spec += "sys.print(\"" + output_path + "system/" + h.Name + "_N=" + Controller.Instance.IndexNValue + ".csys" + "\", 0);" + newline;
+            spec += "sys.print(\"" + output_path + "system/" + fnall + ".csys" + "\", 0);" + newline;
 
             if (newInitial.Length > 0)
             {
                 spec += "newinit = sys.{" + newInitial + "};" + newline;
                 spec += "sys.initial_states(newinit);" + newline;
                 spec += "sys_init = sys.initial_states;" + newline;
-                spec += "sys_init.print(\"" + output_path + "system/" + h.Name + "_N=" + Controller.Instance.IndexNValue + "_Iteration=" + iteration + ".init" + "\", 0);" + newline;
+                spec += "sys_init.print(\"" + output_path + "system/" + fnall + "_Iteration=" + iteration + ".init" + "\", 0);" + newline;
             }
 
             spec += "reg = sys.reachable;" + newline;
 
-            spec += "reg.print(\"" + output_path + "reach/" + h.Name + "_N=" + Controller.Instance.IndexNValue + ".reach" + "\", 0);" + newline;
+            spec += "reg.print(\"" + output_path + "reach/" + fnall + ".reach" + "\", 0);" + newline;
 
-            spec += "reg.print(\"" + output_path + "reach/" + h.Name + "_N=" + Controller.Instance.IndexNValue + "_Iteration=" + iteration + ".reach" + "\", 0);" + newline;
+            spec += "reg.print(\"" + output_path + "reach/" + fnall + "_Iteration=" + iteration + ".reach" + "\", 0);" + newline;
 
             string globalNames = ","; // start with comma
             foreach (var v in this.Parent.Variables)
@@ -1229,6 +1235,47 @@ namespace passel.model
             return init;
         }
 
+        public Expr makeInitialBmcSymmetric()
+        {
+            List<BoolExpr> initList = new List<BoolExpr>();
+
+            foreach (var v in this.Parent.Variables)
+            {
+                initList.Add((BoolExpr)v.Initially);
+            }
+
+            // make initial condition expression for indexed variables
+            List<BoolExpr> qinit = new List<BoolExpr>();
+            foreach (var l in this.Locations)
+            {
+                if (l.Initial)
+                {
+                    qinit.Add((BoolExpr)l.StatePredicate);
+                }
+            }
+            if (qinit.Count == 1)
+            {
+                initList.Add(qinit.First());
+            }
+            else if (qinit.Count > 1)
+            {
+                initList.Add(Controller.Instance.Z3.MkOr(qinit.ToArray()));
+            }
+            else
+            {
+                throw new Exception("ERROR: bad initial states");
+            }
+
+            foreach (var v in this.Variables)
+            {
+                if (v.Name.Equals("q", StringComparison.CurrentCultureIgnoreCase))
+                {
+                    continue;
+                }
+                initList.Add((BoolExpr)v.Initially);
+            }
+            return Controller.Instance.Z3.MkAnd(initList.ToArray());
+        }
 
         public Expr makeInitialBmc(uint N)
         {
@@ -1251,6 +1298,7 @@ namespace passel.model
                         qinit = Controller.Instance.Z3.MkOr(qinit, (BoolExpr)l.StatePredicate.Substitute(Controller.Instance.Indices["i"], Controller.Instance.Z3.MkInt(i)));
                     }
                 }
+                initList.Add(qinit); // TODO: CHECK IF ADDED CORRECTLY HERE
 
                 foreach (var v in this.Variables)
                 {
@@ -1260,7 +1308,6 @@ namespace passel.model
                     }
                     initList.Add((BoolExpr)v.Initially.Substitute(Controller.Instance.Indices["i"], Controller.Instance.Z3.MkInt(i)));
                 }
-                
             }
             return Controller.Instance.Z3.MkAnd(initList.ToArray());
         }
