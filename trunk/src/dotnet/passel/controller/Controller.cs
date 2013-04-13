@@ -35,7 +35,21 @@ namespace passel.controller
         /**
          * Singleton instance
          */
-        public static readonly Controller Instance = new Controller();
+        //public static readonly Controller Instance = new Controller();
+
+        private static Controller _instance;
+
+        public static Controller Instance
+        {
+            get
+            {
+                if (_instance == null)
+                {
+                    _instance = new Controller();
+                }
+                return _instance;
+            }
+        }
 
         public readonly DateTime StartTime = System.DateTime.Now;
 
@@ -225,7 +239,6 @@ namespace passel.controller
         private Controller()
         {
             this.InitializeZ3();
-
             this.InputFiles = new List<string>(); // don't want to trash these between calls
         }
 
@@ -1459,7 +1472,7 @@ this.Config.Add("pp.simplify_implies", "false"); // try true
                 output.Debug.Write("STATUS: File: " + Instance.InputFilePath + Environment.NewLine, output.Debug.MINIMAL);
                 output.Debug.Write("STATUS: Using Microsoft Z3 version " + Microsoft.Z3.Version.Major + "." + Microsoft.Z3.Version.Minor + "." + Microsoft.Z3.Version.Build + "rv" + Microsoft.Z3.Version.Revision + Environment.NewLine, output.Debug.MINIMAL);
 
-                ParseHyXML.ParseFile(Instance.InputFilePath); // create Sys object
+                ParseHyXML.ParseInputFile(Instance.InputFilePath); // create Sys object
 
                 string InputFileSysName = Instance.InputFile.Substring(0, Instance.InputFile.Length - Instance.InputFileExtension.Length);
                 if (Instance.Sys.HybridAutomata.First().Name != InputFileSysName)
@@ -1986,7 +1999,7 @@ this.Config.Add("pp.simplify_implies", "false"); // try true
                 //reachname += Instance.Sys.HybridAutomata[0].Name + "_N=" + N + ".reach";
                 reachname += Instance.PhaverInputPath + "reach" + Path.DirectorySeparatorChar + fnall + ".reach";
                 System.Console.WriteLine("Opening phaver output (reach set) file: " + reachname);
-                reachset = ParseHyXML.ParseReach(reachname, false); // parse reach set
+                reachset = ParsePhaverOutput.ParseReach(reachname, false); // parse reach set
             }
             else
             {

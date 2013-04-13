@@ -17,6 +17,17 @@ namespace passel.controller.parsing.math.ast
 {
     public abstract class LogicalExpression
     {
+        /// <summary>
+        /// Create Z3 expression from string
+        /// </summary>
+        /// <param name="s"></param>
+        /// <returns></returns>
+        public static Microsoft.Z3.Expr CreateTerm(String s)
+        {
+            CommonTree ast = Expression.Parse(s);
+            return LogicalExpression.CreateTerm(ast);
+        }
+
         /**
          * Convert an untype AST to a tree of Microsoft Z3 terms
          */

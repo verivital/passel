@@ -100,6 +100,13 @@ namespace passel.model
             }
         }
 
+        public override bool Equals(object obj)
+        {
+            Variable othervar = (Variable)obj;
+            //return base.Equals(obj);
+            return this.Name == othervar.Name && this.Type == othervar.Type && this.UpdateType == othervar.UpdateType && this.Initially == othervar.Initially;
+        }
+
         public override String ToString()
         {
             return this._name;

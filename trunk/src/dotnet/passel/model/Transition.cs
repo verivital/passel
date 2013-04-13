@@ -305,11 +305,11 @@ namespace passel.model
                     }
 
                 }
-                identity = Controller.Instance.Z3.forallIdentity(gidx, globalVariableResets, indexVariableResets, universalIndexVariableResets, this.UGuard, N); // no process moves if no location
+                identity = Controller.Instance.Sys.forallIdentity(gidx, globalVariableResets, indexVariableResets, universalIndexVariableResets, this.UGuard, N); // no process moves if no location
             }
             else
             {
-                identity = Controller.Instance.Z3.forallIdentity(idx, globalVariableResets, indexVariableResets, universalIndexVariableResets, this.UGuard, N);
+                identity = Controller.Instance.Sys.forallIdentity(idx, globalVariableResets, indexVariableResets, universalIndexVariableResets, this.UGuard, N);
             }
 
             if (resetAnd == null && N == 0)
@@ -340,7 +340,7 @@ namespace passel.model
                     copy = (BoolExpr)copy.Substitute(Controller.Instance.IndexedVariablesPrimed[new KeyValuePair<string, string>(v.Name + Controller.PRIME_SUFFIX, idx.ToString())], Controller.Instance.Sys.ReachValues[new Tuple<string, uint, uint>(v.Name, k + 1, i)]); // substitute to constant (needed for doing q.e.)
                 }
                 copy = (BoolExpr)copy.Substitute(idx, numidx); // must be outside loop
-                copy = Controller.Instance.Z3.MkAnd(copy, (BoolExpr)Controller.Instance.Z3.forallIdentity(Controller.Instance.Z3.MkInt(i), globalVariableResets, indexVariableResets, universalIndexVariableResets, this.UGuard, N));
+                copy = Controller.Instance.Z3.MkAnd(copy, (BoolExpr)Controller.Instance.Sys.forallIdentity(Controller.Instance.Z3.MkInt(i), globalVariableResets, indexVariableResets, universalIndexVariableResets, this.UGuard, N));
 
                 foreach (var v in Controller.Instance.Sys.HybridAutomata[0].Variables) // TODO: generalize
                 {
@@ -376,7 +376,7 @@ namespace passel.model
 
 
 
-        public Expr MakePost()
+        public Expr MakePost(Expr pre)
         {
             ConcreteLocation l = this.Parent;
 
@@ -416,6 +416,8 @@ namespace passel.model
             {
                 resetAnd = Controller.Instance.Z3.MkAnd(resets.ToArray());
             }
+
+            Controller.Instance.Z3.unprimeAllVariables(ref resetAnd);
             return resetAnd;
         }
 
@@ -529,11 +531,11 @@ namespace passel.model
                     }
 
                 }
-                identity = Controller.Instance.Z3.forallIdentity(gidx, globalVariableResets, indexVariableResets, universalIndexVariableResets, this.UGuard, N); // no process moves if no location
+                identity = Controller.Instance.Sys.forallIdentity(gidx, globalVariableResets, indexVariableResets, universalIndexVariableResets, this.UGuard, N); // no process moves if no location
             }
             else
             {
-                identity = Controller.Instance.Z3.forallIdentity(idx, globalVariableResets, indexVariableResets, universalIndexVariableResets, this.UGuard, N);
+                identity = Controller.Instance.Sys.forallIdentity(idx, globalVariableResets, indexVariableResets, universalIndexVariableResets, this.UGuard, N);
             }
 
             if (locInvariantAnd == null && N == 0)
@@ -604,7 +606,7 @@ namespace passel.model
                     }
                     copy = (BoolExpr)copy.Substitute(idx, numidx); // must be outside variable loop
 
-                    copy = Controller.Instance.Z3.MkAnd(copy, (BoolExpr)Controller.Instance.Z3.forallIdentity(Controller.Instance.Z3.MkInt(i), globalVariableResets, indexVariableResets, universalIndexVariableResets, this.UGuard, N));
+                    copy = Controller.Instance.Z3.MkAnd(copy, (BoolExpr)Controller.Instance.Sys.forallIdentity(Controller.Instance.Z3.MkInt(i), globalVariableResets, indexVariableResets, universalIndexVariableResets, this.UGuard, N));
 
                     for (uint j = 1; j <= N; j++)
                     {

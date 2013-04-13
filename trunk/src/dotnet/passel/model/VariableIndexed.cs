@@ -9,7 +9,7 @@ using passel.controller;
 
 namespace passel.model
 {
-    class VariableIndexed : Variable
+    public class VariableIndexed : Variable
     {
         public VariableIndexed(string name, string rate, VarType type, VarUpdateType update_type, string initial) 
             : base(name, rate, type, update_type, initial)
