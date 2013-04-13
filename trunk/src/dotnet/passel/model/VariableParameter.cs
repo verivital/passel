@@ -12,10 +12,10 @@ using passel.controller.parsing.math.ast;
 
 namespace passel.model
 {
-    class VariableParameter : Variable
+    public class VariableParameter : Variable
     {
-        public VariableParameter(string name, string rate, VarType type, VarUpdateType update_type, string assumption)
-            : base(name, rate, type, update_type, assumption)
+        public VariableParameter(string name, VarType type, VarUpdateType update_type, string assumption)
+            : base(name, "", type, update_type, assumption)
         {
             Expr param = null;
             // TODO: refactor all these switches in the constructors into common variable parent class

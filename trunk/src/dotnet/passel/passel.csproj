@@ -152,6 +152,7 @@
     <Compile Include="controller\parsing\math\guard.g3.lexer.cs" />
     <Compile Include="controller\parsing\math\guard.g3.parser.cs" />
     <Compile Include="controller\parsing\ParseHyXML.cs" />
+    <Compile Include="controller\parsing\ParsePhaverOutput.cs" />
     <Compile Include="controller\smt\ISmtSymbols.cs" />
     <Compile Include="controller\smt\z3\ExamplesZ3.cs" />
     <Compile Include="controller\smt\z3\SymbolsZ3.cs" />
@@ -161,6 +162,7 @@
     <Compile Include="model\AgentDataUninterpreted.cs" />
     <Compile Include="model\AHybridAutomaton.cs" />
     <Compile Include="model\AAgentDataTheory.cs" />
+    <Compile Include="model\Factorial.cs" />
     <Compile Include="model\Flow.cs" />
     <Compile Include="model\AState.cs" />
     <Compile Include="model\ReachSymmetric.cs" />

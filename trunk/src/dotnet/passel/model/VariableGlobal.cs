@@ -9,7 +9,7 @@ using passel.controller;
 
 namespace passel.model
 {
-    class VariableGlobal : Variable
+    public class VariableGlobal : Variable
     {
         public VariableGlobal(string name, string rate, VarType type, VarUpdateType update_type, string initial)
             : base(name, rate, type, update_type, initial)
