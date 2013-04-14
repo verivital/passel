@@ -374,6 +374,17 @@ namespace passel.model
             return resetAnd;
         }
 
+        /// <summary>
+        /// Return true if transition is enabled from state pre
+        /// </summary>
+        /// <param name="pre"></param>
+        /// <returns></returns>
+        public Boolean IsEnabled(Expr pre)
+        {
+            Expr tt = this.makeTransitionTerm(this.Parent, Controller.Instance.Indices["i"]);
+            Expr enabled = Controller.Instance.Z3.MkAnd((BoolExpr)pre, (BoolExpr)tt);
+            return Controller.Instance.Z3.checkTerm(enabled);
+        }
 
 
         public Expr MakePost(Expr pre)
@@ -417,8 +428,20 @@ namespace passel.model
                 resetAnd = Controller.Instance.Z3.MkAnd(resets.ToArray());
             }
 
+            resetAnd = Controller.Instance.Z3.copyExpr(resetAnd);
             Controller.Instance.Z3.unprimeAllVariables(ref resetAnd);
             return resetAnd;
+
+
+            /*
+            Expr post = Controller.Instance.Z3.MkExists(new Expr[] { Controller.Instance.Indices["i"] }, (BoolExpr)enabled);
+            Tactic tqe = Controller.Instance.Z3.MkTactic("snf");
+            //tqe = Controller.Instance.Z3.Then(Controller.Instance.Z3.MkTactic("ctx-simplify"), Controller.Instance.Z3.MkTactic("snf"), tqe);
+            Goal g = Controller.Instance.Z3.MkGoal();
+            g.Assert((BoolExpr)post);
+            ApplyResult ar = tqe.Apply(g);
+            System.Console.WriteLine("POST: " + ar.ToString());
+             */
         }
 
 

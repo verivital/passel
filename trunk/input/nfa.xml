@@ -8,6 +8,9 @@
 	<assumption equn='N &gt;= 2' comment='' />
 
 	<automaton name='nfa'>
+		<!-- apparently phaver requires at least one variable specified, else it crashes -->
+		<variable name='dummy[i]' type='real' initially='dummy[i] == 0.0' update_type='discrete' />
+
 		<mode id='0' name='a' initial='True'>
 		</mode>
 
