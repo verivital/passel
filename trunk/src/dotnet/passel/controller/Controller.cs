@@ -1481,7 +1481,11 @@ this.Config.Add("pp.simplify_implies", "false"); // try true
                 }
 
                 string pat = "yyyy-MM-ddTHH-mm-ss";
-                string now = DateTime.Now.ToString(pat);
+                string now = "";
+                if (!Instance.BatchProcess)
+                {
+                    now = DateTime.Now.ToString(pat);
+                }
                 string fn = Path.GetFileName(Instance.InputFile);
 
                 switch (Instance.OPERATION)
@@ -3035,6 +3039,9 @@ this.Config.Add("pp.simplify_implies", "false"); // try true
          */
         public void DeinitializeZ3()
         {
+            // save time to log file
+            System.Console.WriteLine("Total time: " + System.DateTime.Now.Subtract(Instance.StartTime).TotalSeconds);
+
             unredirectConsole();
             if (Controller.LOG_Z3)
             {

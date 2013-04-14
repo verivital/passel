@@ -9,10 +9,21 @@ using Microsoft.Z3;
 
 namespace passel.model
 {
+    /// <summary>
+    /// 
+    /// </summary>
     public class ReachSymmetric
     {
+        /// <summary>
+        /// 
+        /// </summary>
         HashSet<SymmetricState> ReachedStates = new HashSet<SymmetricState>();
 
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="sys"></param>
+        /// <param name="N"></param>
         public void ComputeReach(Holism sys, uint N)
         {
             AHybridAutomaton h = sys.HybridAutomata[0]; // todo: generalize for compositions
@@ -73,30 +84,23 @@ namespace passel.model
 
                     foreach (SymmetricType symt in s.Types)
                     {
-                    foreach (AState q in h.Locations)
-                    {
-                        foreach (Transition tau in q.Transitions)
+                        // skip immediately if no processes in this type
+                        if (symt.TN == 0)
                         {
-                            
-                                // skip immediately if no processes in this type
-                                if (symt.TN == 0)
-                                {
-                                    continue;
-                                }
+                            throw new Exception("Type with no processes...");
+                            continue;
+                        }
 
-                                // check if enabled
-                                Expr tt = tau.makeTransitionTerm((ConcreteLocation)q, Controller.Instance.Indices["i"]);
-                                Expr enabled = Controller.Instance.Z3.MkAnd((BoolExpr)symt.Formula, (BoolExpr)tt);
-                                Model m;
-                                Expr[] c;
-
-                                if (Controller.Instance.Z3.checkTerm(enabled, out m, out c))
+                        foreach (AState q in h.Locations)
+                        {
+                            foreach (Transition tau in q.Transitions)
+                            {
+                                if (tau.IsEnabled(symt.Formula))
                                 {
                                     //List<BoolExpr> newAssignments = new List<BoolExpr>();
                                     //Console.WriteLine("Variables: " + m.Eval(Controller.Instance.Indices["i"]));
                                     //Expr i_value = m.Eval(Controller.Instance.Indices["i"]);
                                     //newAssignments.Add(Controller.Instance.Z3.MkNot(Controller.Instance.Z3.MkEq(Controller.Instance.Indices["i"], i_value)));
-
                                     /*
                                     foreach (var vnew in h.Variables)
                                     {
@@ -107,53 +111,26 @@ namespace passel.model
 
                                         newAssignments.Add(Controller.Instance.Z3.MkNot(Controller.Instance.Z3.MkEq(v, m.Eval(v))));
                                     }
-
                                     foreach (var vnew in sys.Variables)
                                     {
                                         Expr v = Controller.Instance.GlobalVariablesPrimed[vnew.Name];
-
                                         Console.WriteLine("Variables (" + vnew.Name + "): " + m.Eval(v));
-
                                         //newAssignments.Add(Controller.Instance.Z3.MkNot(Controller.Instance.Z3.MkEq(v, m.Eval(v))));
                                     }
                                     */
 
                                     //enabled = Controller.Instance.Z3.MkAnd((BoolExpr)enabled, Controller.Instance.Z3.MkAnd(newAssignments.ToArray()));
 
-                                    /*
-                                    Expr post = Controller.Instance.Z3.MkExists(new Expr[] { Controller.Instance.Indices["i"] }, (BoolExpr)enabled);
-                                    Tactic tqe = Controller.Instance.Z3.MkTactic("snf");
-                                    //tqe = Controller.Instance.Z3.Then(Controller.Instance.Z3.MkTactic("ctx-simplify"), Controller.Instance.Z3.MkTactic("snf"), tqe);
-                                    Goal g = Controller.Instance.Z3.MkGoal();
-                                    g.Assert((BoolExpr)post);
-                                    ApplyResult ar = tqe.Apply(g);
-                                    System.Console.WriteLine("POST: " + ar.ToString());
-                                     */
-
-                                    Expr post = Controller.Instance.Z3.copyExpr(tau.MakePost(symt.Formula));
+                                    Expr post = tau.MakePost(symt.Formula);
 
                                     System.Console.WriteLine("NEXT TYPE: " + post);
 
-                                    //SymmetricState newState = new SymmetricState(N, s.Types, post);
-
                                     // created type before for some reachable state, find it
-                                    if (SymmetricType.AllTypes.Contains(post))
+                                    if (SymmetricType.ExistingType(post))
                                     {
                                         System.Console.WriteLine("Existing type:" + post);
 
-                                        // find state to increment and decrement
-                                        /*
-                                        foreach (var rs in ReachedStates)
-                                        {
-                                            // transition couldn't have been enabled
-                                            if (!rs.Types.Contains(symt))
-                                            {
-                                                continue;
-                                            }
-                                         */
-
-
-                                        if (s.ContainsTypeFormula(post))
+                                        /*if (s.ContainsTypeFormula(post))
                                         {
                                             foreach (var rstype in s.Types)
                                             {
@@ -162,15 +139,12 @@ namespace passel.model
                                                 {
                                                     // found matching type
                                                     System.Console.WriteLine("Found matching state and type: " + s);
-
-                                                    SymmetricType nt = null;
-                                                    SymmetricState ns = null;
+                                                    SymmetricType nt;
+                                                    SymmetricState ns;
 
                                                     // self loop
-                                                    if (post == symt.Formula || Controller.Instance.Z3.ProveEqual((BoolExpr)post, (BoolExpr)symt.Formula))
-                                                    {
-                                                    }
-                                                    else
+                                                    // todo: if self-loop changes variables, have to compute post
+                                                    if (!(post == symt.Formula || Controller.Instance.Z3.ProveEqual((BoolExpr)post, (BoolExpr)symt.Formula)))
                                                     {
                                                         nt = new SymmetricType(rstype.TN + 1, rstype.Formula); // todo: get right formula; todo: handle globals (may decrement all of old type to 0)
                                                         SymmetricType symtnew = new SymmetricType(symt.TN - 1, symt.Formula);
@@ -234,14 +208,11 @@ namespace passel.model
                                             }
                                         }
                                         else
-                                        {
+                                        {*/
                                             System.Console.WriteLine("NEW CASE");
 
-
-
                                             SymmetricType nt;
-                                            SymmetricState ns = null;
-
+                                            SymmetricState ns;
 
                                             nt = new SymmetricType(1, post); // todo: get right formula; todo: handle globals (may decrement all of old type to 0)
                                             SymmetricType symtnew = new SymmetricType(symt.TN - 1, symt.Formula);
@@ -255,77 +226,35 @@ namespace passel.model
                                                 ns = new SymmetricState(N, s.Types.Except(new SymmetricType[] { symt }).Union(new SymmetricType[] { symtnew, nt }).ToArray());
                                             }
 
-                                            bool newState = true;
-                                            foreach (var checkrs in ReachedStates.Union(NewFrontier))
-                                            {
-                                                if (checkrs.Equals(ns))
-                                                {
-                                                    newState = false;
-                                                    break;
-                                                }
-                                            }
-                                            if (newState)
+                                            if (ns.IsNew())
                                             {
                                                 NewFrontier.Add(ns);
+                                                ns.SetNotNew();
                                             }
-                                        }
+                                        //}
                                     }
                                     else
                                     {
-                                        bool newtype = true;
+                                        // new type, create it
+                                        SymmetricType nt;
+                                        SymmetricState ns = null;
 
-                                        foreach (var atype in SymmetricType.AllTypes)
+                                        nt = new SymmetricType(1, post); // todo: get right formula; todo: handle globals (may decrement all of old type to 0)
+                                        SymmetricType symtnew = new SymmetricType(symt.TN - 1, symt.Formula);
+                                        // remove if count is 0
+                                        if (symtnew.TN == 0)
                                         {
-                                            Expr contains;
-                                            contains = Controller.Instance.Z3.MkImplies((BoolExpr)post, (BoolExpr)symt.Formula);
-
-                                            Model mtmp;
-                                            Expr[] ctmp;
-                                            String stmp;
-                                            if (Controller.Instance.Z3.proveTerm(contains, out mtmp, out ctmp, out stmp))
-                                            {
-                                                // type exists, find it
-                                                newtype = false;
-                                                break;
-                                            }
+                                            ns = new SymmetricState(N, s.Types.Except(new SymmetricType[] { symt }).Union(new SymmetricType[] { nt }).ToArray());
+                                        }
+                                        else
+                                        {
+                                            ns = new SymmetricState(N, s.Types.Except(new SymmetricType[] { symt }).Union(new SymmetricType[] { symtnew, nt }).ToArray());
                                         }
 
-                                        if (newtype)
-                                        {
-                                            // new type, create it
-                                            //NewFrontier.Add(new SymmetricState(
-
-                                            SymmetricType nt;
-                                            SymmetricState ns = null;
-
-
-                                            nt = new SymmetricType(1, post); // todo: get right formula; todo: handle globals (may decrement all of old type to 0)
-                                            SymmetricType symtnew = new SymmetricType(symt.TN - 1, symt.Formula);
-                                            // remove if count is 0
-                                            if (symtnew.TN == 0)
-                                            {
-                                                ns = new SymmetricState(N, s.Types.Except(new SymmetricType[] { symt }).Union(new SymmetricType[] { nt }).ToArray());
-                                            }
-                                            else
-                                            {
-                                                ns = new SymmetricState(N, s.Types.Except(new SymmetricType[] { symt }).Union(new SymmetricType[] { symtnew, nt }).ToArray());
-                                            }
-
-                                            bool newState = true;
-                                            foreach (var checkrs in ReachedStates.Union(NewFrontier))
-                                            {
-                                                if (checkrs.Equals(ns))
-                                                {
-                                                    newState = false;
-                                                    break;
-                                                }
-                                            }
-                                            if (newState)
-                                            {
-                                                NewFrontier.Add(ns);
-                                            }
-                                        }
+                                        // has to be new
+                                        NewFrontier.Add(ns);
                                     }
+
                                 }
                             }
                         }
@@ -430,6 +359,22 @@ namespace passel.model
         /// </summary>
         public HashSet<SymmetricType> Types;
 
+        private Boolean _new = true;
+
+        /// <summary>
+        /// Return true if this state is new
+        /// </summary>
+        /// <returns></returns>
+        public Boolean IsNew()
+        {
+            return _new;
+        }
+
+        public void SetNotNew()
+        {
+            this._new = false;
+        }
+
         /// <summary>
         /// Reachable symmetric states from this state (1-hop / edges)
         /// </summary>
@@ -459,6 +404,11 @@ namespace passel.model
             return result;
         }
 
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="obj"></param>
+        /// <returns></returns>
         public override bool Equals(object obj)
         {
             SymmetricState compare = (SymmetricState)obj;
@@ -475,7 +425,8 @@ namespace passel.model
                 Boolean maybe = false;
                 foreach (var tt in this.Types)
                 {
-                    if ((ct.Formula == tt.Formula || Controller.Instance.Z3.ProveEqual(ct.Formula, tt.Formula)) && ct.TN == tt.TN)
+                    // || Controller.Instance.Z3.ProveEqual(ct.Formula, tt.Formula)
+                    if (ct.TN == tt.TN && (ct.Formula == tt.Formula))
                     {
                         maybe = true;
                         break; // short circuit
@@ -521,6 +472,10 @@ namespace passel.model
             return false;
         }
 
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="N"></param>
         public void MergeSameTypes(uint N)
         {
             foreach (var t in this.Types)
@@ -532,7 +487,7 @@ namespace passel.model
                         continue;
                     }
 
-                    if (t.Formula == s.Formula || Controller.Instance.Z3.ProveEqual(t.Formula, s.Formula))
+                    if (t.Formula == s.Formula)// || Controller.Instance.Z3.ProveEqual(t.Formula, s.Formula))
                     {
                         t.TN += s.TN;
                         s.TN = 0;
@@ -559,7 +514,22 @@ namespace passel.model
             this.MergeSameTypes(N);
             if (!this.CheckTypeSum(N))
             {
-                throw new Exception("ERROR: sum of type counts not equal to N");
+                throw new Exception("ERROR: sum of type counts not equal to N.");
+            }
+
+            this._new = true;
+            foreach (var checkrs in SymmetricState.AllStateTypes)
+            {
+                if (checkrs.Equals(this))
+                {
+                    this._new = false;
+                    break;
+                }
+            }
+
+            if (this._new)
+            {
+                SymmetricState.AllStateTypes.Add(this);
             }
         }
 
@@ -739,6 +709,32 @@ namespace passel.model
         /// 
         /// </summary>
         public static HashSet<Expr> AllTypes = new HashSet<Expr>();
+
+
+
+        /// <summary>
+        /// Returns true if type has been created
+        /// </summary>
+        /// <param name="f"></param>
+        /// <returns></returns>
+        public static Boolean ExistingType(Expr f)
+        {
+            Boolean result = false;
+            if (SymmetricType.AllTypes.Contains(f))
+            {
+                return true;
+            }
+
+            foreach (var atype in SymmetricType.AllTypes)
+            {
+                if (Controller.Instance.Z3.ProveContains(atype, f))
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
 
         //public static EqualityComparer<SymmetricType> TypeFormulaComparer = new EqualityComparer<SymmetricType>();
 

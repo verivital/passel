@@ -1083,7 +1083,14 @@ namespace passel.controller.smt.z3
         public Boolean ProveEqual(Expr a, Expr b)
         {
             Controller.Instance.Z3.slvr.Push();
-            Boolean result = Controller.Instance.Z3.proveTerm(Controller.Instance.Z3.MkEq(a, b));
+            Expr eq = Controller.Instance.Z3.MkEq(a, b);
+            Boolean result = false;
+
+            // only try proving equal if checking equal is satisfiable (should be faster in general)
+            //if (Controller.Instance.Z3.checkTerm(eq))
+            //{
+                result = Controller.Instance.Z3.proveTerm(eq);
+            //}
             Controller.Instance.Z3.slvr.Pop();
             return result;
         }

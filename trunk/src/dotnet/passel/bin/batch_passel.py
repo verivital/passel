@@ -12,9 +12,9 @@ def main(**kwargs):
 	inputPath = kwargs['input'][0]
 	
 	if os.name == "nt":
-		os.chdir("Release")
+		os.chdir("bin-win")
 	else:
-		os.chdir("Mono")
+		os.chdir("bin-mono")
 
 	inputPath = os.path.join("..", inputPath)
 	if os.path.exists(inputPath):
