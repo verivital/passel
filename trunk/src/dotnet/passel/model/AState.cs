@@ -22,6 +22,8 @@ namespace passel.model
         public Expr ValueTerm;
         private Expr _statePredicate;
 
+        public AHybridAutomaton Parent;
+
 
         public Expr LabelExpr;
         public Expr BitVectorExpr;
@@ -45,8 +47,9 @@ namespace passel.model
         {
         }
 
-        public AState(String label, UInt32 value, Boolean initial)
+        public AState(AHybridAutomaton h, String label, UInt32 value, Boolean initial)
         {
+            this.Parent = h;
             this._label = label;
             this._value = value;
             this._initial = initial;
@@ -72,8 +75,9 @@ namespace passel.model
             Controller.Instance.LocationNumTermToName.Add(this.ValueTerm, label);
         }
 
-        public AState(String label, UInt32 value, Boolean initial, List<Transition> transitions)
+        public AState(AHybridAutomaton h, String label, UInt32 value, Boolean initial, List<Transition> transitions)
         {
+            this.Parent = h;
             this._label = label;
             this._value = value;
             this._initial = initial;

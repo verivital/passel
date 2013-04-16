@@ -18,8 +18,8 @@ namespace passel.model
         {
         }
 
-	    public ConcreteLocation(String label, UInt32 value, Boolean initial)
-            : base(label, value, initial)
+	    public ConcreteLocation(AHybridAutomaton h, String label, UInt32 value, Boolean initial)
+            : base(h, label, value, initial)
         {
 
 	    }

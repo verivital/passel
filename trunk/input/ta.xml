@@ -14,19 +14,14 @@ In the example:
 <holism>
 	<parameter name='N' type='index' comment='' />
 	
-	<parameter name='zero' type='real' />
-	<parameter name='low' type='real' />
-	<parameter name='high' type='real' />
+	<parameter name='zero' assumption='zero == 0.0' type='real' />
+	<parameter name='low' assumption='low == 5.0' type='real' />
+	<parameter name='high' assumption='high == 43.0' type='real' />
 
-	<assumption equn='N &gt;= 4' comment='' />
-	<assumption equn='zero == 0.0' />
-	<assumption equn='low == 5.0' />
-	<assumption equn='high == 43.0' />
+	<assumption equn='N &gt;= 1' comment='' />
 
 	<automaton name='default_automaton'>
-		<variable name='x[i]' type='nnreal' update_type='Continuous' />
-		
-		<initial equn='(forall i (x[i] = 0.0))' />
+		<variable name='x[i]' initially='x[i] = 0.0' type='nnreal' update_type='Continuous' />
 
 		<mode id='0' name='a' initial='True'>
 			<dai variable='x[i]' equn='x[i]_dot = 1.0'/>
@@ -96,7 +91,7 @@ In the example:
 	
 	
 
-	
+
 	<property equn='forall i ((x[i] &lt;= 2.0*high))' type='safety' expectation='true' />
 	<property equn='forall i ((x[i] &gt; 2.0*high))' type='safety' expectation='false' />
 	

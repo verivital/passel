@@ -386,12 +386,49 @@ namespace passel.model
             return Controller.Instance.Z3.checkTerm(enabled);
         }
 
+        /// <summary>
+        /// Returns true if the transition modifies any global variables
+        /// </summary>
+        /// <returns></returns>
+        public Boolean HasGlobalReset()
+        {
+            if (this.Reset != null)
+            {
+                foreach (var v in Controller.Instance.GlobalVariables.Keys)
+                {
+                    // nasty hack, but probably fast way to do this
+                    if (this.Reset.ToString().Contains(v + Controller.PRIME_SUFFIX))
+                    {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
 
+        // todo: performance versus just keeping local copy in each transition?
+        private static Dictionary<KeyValuePair<Transition, Expr>, Expr> CachePost = new Dictionary<KeyValuePair<Transition, Expr>, Expr>();
+
+        /// <summary>
+        /// Compute post from pre
+        /// </summary>
+        /// <param name="pre"></param>
+        /// <returns></returns>
         public Expr MakePost(Expr pre)
         {
+            KeyValuePair<Transition, Expr> postKey = new KeyValuePair<Transition, Expr>(this, pre);
+            if (Transition.CachePost.ContainsKey(postKey))
+            {
+                return CachePost[postKey];
+            }
+
+            Expr idx = Controller.Instance.Indices["i"];
+
             ConcreteLocation l = this.Parent;
 
             List<BoolExpr> resets = new List<BoolExpr>();
+
+            resets.Add((BoolExpr)pre); // add prestate
 
             if (this.NextStates.Count > 0)
             {
@@ -428,20 +465,102 @@ namespace passel.model
                 resetAnd = Controller.Instance.Z3.MkAnd(resets.ToArray());
             }
 
+
+            Expr identity;
+            if (l == null)
+            {
+                // TODO NEXT: GLOBAL INDEXED VARIABLE COULD CAUSE RESETS / "be the process moving"
+                int i = 0;
+                Expr gidx = null;
+                foreach (var v in Controller.Instance.GlobalVariables)
+                {
+                    if (Controller.Instance.Sys.Variables.Find(
+                        delegate(Variable gv)
+                        {
+                            return gv.Name == v.Key;
+                        }).Type == Variable.VarType.index && Controller.Instance.Z3.findTerm(this.Reset, v.Value, true))
+                    {
+                        gidx = v.Value;
+                        i++;
+                    }
+                    // TODO: need to refactor forall identity to allow multiple processes moving, for now throw exception if it happens
+                    if (i > 1)
+                    {
+                        throw new Exception("Error: too many global index variables used.");
+                    }
+
+                }
+                identity = Controller.Instance.Sys.forallIdentityPost(gidx, globalVariableResets, indexVariableResets, universalIndexVariableResets, this.UGuard, 0); // no process moves if no location
+            }
+            else
+            {
+                identity = Controller.Instance.Sys.forallIdentityPost(idx, globalVariableResets, indexVariableResets, universalIndexVariableResets, this.UGuard, 0);
+            }
+
+            resetAnd = Controller.Instance.Z3.MkAnd((BoolExpr)resetAnd, (BoolExpr)identity);
             resetAnd = Controller.Instance.Z3.copyExpr(resetAnd);
-            Controller.Instance.Z3.unprimeAllVariables(ref resetAnd);
-            return resetAnd;
 
-
+            // short circuit
             /*
-            Expr post = Controller.Instance.Z3.MkExists(new Expr[] { Controller.Instance.Indices["i"] }, (BoolExpr)enabled);
-            Tactic tqe = Controller.Instance.Z3.MkTactic("snf");
-            //tqe = Controller.Instance.Z3.Then(Controller.Instance.Z3.MkTactic("ctx-simplify"), Controller.Instance.Z3.MkTactic("snf"), tqe);
+            if (this.Reset == null && Controller.Instance.Sys.Variables.Count == 0)
+            {
+                return resetAnd;
+            }
+             */
+
+            // replace all function declarations with constants (e.g., (q i) => (qi), where qi is a constant, instead of a function)
+
+            List<Expr> bound = new List<Expr>();
+
+            // TODO: use this.Parent.Parent.Parent, etc to access hybrid automata, holism, etc (will make generalizing to compositions easier)
+            foreach (var v in Controller.Instance.Sys.HybridAutomata[0].Variables)
+            {
+                Expr varConst = Controller.Instance.Z3.MkConst(v.Name + "_" + "i", v.TypeSort);
+                Expr varConstPost = Controller.Instance.Z3.MkConst(v.NamePrimed + "_" + "i", v.TypeSort);
+                resetAnd = resetAnd.Substitute(Controller.Instance.Z3.MkApp(v.Value, idx), varConst);
+                resetAnd = resetAnd.Substitute(Controller.Instance.Z3.MkApp(v.ValuePrimed, idx), varConstPost);
+                bound.Add(varConst);
+            }
+
+            foreach (var v in Controller.Instance.GlobalVariables.Values)
+            {
+                bound.Add(v);
+            }
+
+
+            //Expr post = Controller.Instance.Z3.MkExists(new Expr[] { idx }, (BoolExpr)resetAnd);
+            Expr post = Controller.Instance.Z3.MkExists(bound.ToArray(), (BoolExpr)resetAnd);
+
+            Tactic tqe = Controller.Instance.Z3.Repeat(Controller.Instance.Z3.MkTactic("qe"));
             Goal g = Controller.Instance.Z3.MkGoal();
             g.Assert((BoolExpr)post);
             ApplyResult ar = tqe.Apply(g);
-            System.Console.WriteLine("POST: " + ar.ToString());
-             */
+
+            List<BoolExpr> postStates = new List<BoolExpr>();
+            foreach (var sg in ar.Subgoals)
+            {
+                postStates.AddRange(sg.Formulas);
+            }
+            post = Controller.Instance.Z3.MkAnd(postStates.ToArray());
+
+
+            // convert constants back to functions
+            foreach (var v in Controller.Instance.Sys.HybridAutomata[0].Variables)
+            {
+                Expr varConst = Controller.Instance.Z3.MkConst(v.Name + "_" + "i", v.TypeSort);
+                Expr varConstPost = Controller.Instance.Z3.MkConst(v.NamePrimed + "_" + "i", v.TypeSort);
+                post = post.Substitute(varConst, Controller.Instance.Z3.MkApp(v.Value, idx));
+                post = post.Substitute(varConstPost, Controller.Instance.Z3.MkApp(v.ValuePrimed, idx));
+            }
+            
+            Controller.Instance.Z3.unprimeAllVariables(ref post); // unprime
+
+            System.Console.WriteLine("POST: " + post.ToString());
+
+            // cache result
+            CachePost.Add(postKey, post);
+
+            return post;
         }
 
 

@@ -1045,140 +1045,13 @@ namespace passel.model
                 ArithExpr t2 = (ArithExpr)z3.MkRealConst("t_2"); // universal
 
                 ArithExpr delta = null;
+
                 if (Controller.Instance.FlowOption == Controller.FlowOptionType.relation)
                 {
                     delta = (ArithExpr)z3.MkRealConst("delta"); // existential (for rectangular dynamics)
                 }
 
-                // add invariant
-                if (l.Invariant != null)
-                {
-                    Expr tmpterm = l.Invariant;
-
-                    // indexed variables
-                    foreach (var v in h.Variables)
-                    {
-                        if (Controller.Instance.FlowOption == Controller.FlowOptionType.relation)
-                        {
-                            tmpterm = this.makeFlowTransitionTerm(tmpterm, v, Controller.Instance.IndexedVariables[new KeyValuePair<string, string>(v.Name, "i")], l, t1, t2, delta);
-                        }
-                        else
-                        {
-                            tmpterm = this.makeFlowTransitionTerm(tmpterm, v, Controller.Instance.IndexedVariables[new KeyValuePair<string, string>(v.Name, "i")], l, t1, t2, null);
-                            //tmpterm = z3.MkAnd(tmpterm, tmpterm.Substitute(
-                        }
-                    }
-
-                    // TODO: NEED TO REASSIGNED tmpterm TO THE INVARIANT (AND STOPPING CONDITION IN THE NEXT ONE)?
-
-                    // global variables
-                    foreach (var v in h.Parent.Variables)
-                    {
-                        if (Controller.Instance.FlowOption == Controller.FlowOptionType.relation)
-                        {
-                            tmpterm = this.makeFlowTransitionTerm(tmpterm, v, Controller.Instance.GlobalVariables[v.Name], l, t1, t2, delta);
-                        }
-                        else
-                        {
-                            tmpterm = this.makeFlowTransitionTerm(tmpterm, v, Controller.Instance.GlobalVariables[v.Name], l, t1, t2, null);
-                        }
-                    }
-                    exprlist.Add((BoolExpr)tmpterm);
-                }
-
-                // add stopping condition
-                if (l.Stop != null)
-                {
-                    Expr tmpterm = z3.MkImplies((BoolExpr)l.Stop, z3.MkEq(t1, t2));
-
-                    // indexed variables
-                    foreach (var v in h.Variables)
-                    {
-                        if (Controller.Instance.FlowOption == Controller.FlowOptionType.relation)
-                        {
-                            tmpterm = this.makeFlowTransitionTerm(tmpterm, v, Controller.Instance.IndexedVariables[new KeyValuePair<string, string>(v.Name, "i")], l, t1, t2, delta);
-                        }
-                        else
-                        {
-                            tmpterm = this.makeFlowTransitionTerm(tmpterm, v, Controller.Instance.IndexedVariables[new KeyValuePair<string, string>(v.Name, "i")], l, t1, t2, null);
-                        }
-                    }
-
-                    // global variables
-                    foreach (var v in h.Parent.Variables)
-                    {
-                        if (Controller.Instance.FlowOption == Controller.FlowOptionType.relation)
-                        {
-                            tmpterm = this.makeFlowTransitionTerm(tmpterm, v, Controller.Instance.GlobalVariables[v.Name], l, t1, t2, null);
-                        }
-                        else
-                        {
-                            tmpterm = this.makeFlowTransitionTerm(tmpterm, v, Controller.Instance.GlobalVariables[v.Name], l, t1, t2, null);
-                        }
-                    }
-                    exprlist.Add((BoolExpr)tmpterm);
-                }
-
-                if (l.Flows == null || l.Flows.Count == 0 || l.Flows[0].DynamicsType == Flow.DynamicsTypes.constant) // TODO: CHECK ALL FLOWS, THIS WORKS ONLY FOR ONE VAR
-                {
-                    Expr tmpterm = (BoolExpr)Controller.Instance.Sys.timeNoFlowIdentity(hidx);
-                    tmpterm = tmpterm.Substitute(Controller.Instance.Indices["i"], hidx); // replace i by h
-
-                    exprlist.Add((BoolExpr)tmpterm);
-
-                    //if (timeall.Count != h.Locations.Count) // only continue if nothing in timed list, otherwise if the last location has null flow, the others will also get skipped
-                    //{
-                    //    continue; // no dynamics (e.g., x' == 0), skip time transition
-                    //}
-                    // todo: this makes the most sense, but should we allow the full generality of having an invariant and stopping condition even when we will have identity for time? (i.e., the stop/inv could force a transition, but it would sort of be illegal...)
-                }
-                // do flow afterward, it already has primed variables
-                else if (l.Flows != null)
-                {
-                    foreach (Flow f in l.Flows)
-                    {
-                        switch (f.DynamicsType)
-                        {
-                            case Flow.DynamicsTypes.constant:
-                                {
-                                    exprlist.Add((BoolExpr)f.Value); // constant specifies equality: x[i] == x'[i]
-                                    break;
-                                }
-                            case Flow.DynamicsTypes.rectangular:
-                                {
-                                    Expr flow = f.Value;
-                                    flow = f.Value.Args[0].Args[1]; // todo: generalize
-                                    if (Controller.Instance.FlowOption == Controller.FlowOptionType.relation)
-                                    {
-                                        flow = flow.Substitute(f.RectRateA, delta); // replace A from \dot{x} \in [A,B] with \delta which exists in [A,B]
-                                    }
-
-                                    flow = z3.MkEq(f.Value.Args[0].Args[0], flow);
-                                    
-                                    if (Controller.Instance.FlowOption == Controller.FlowOptionType.relation)
-                                    {
-                                        BoolExpr[] andTerms;
-                                        andTerms = new BoolExpr[] { (BoolExpr)flow, z3.MkGe((ArithExpr)delta, (ArithExpr)f.RectRateA), z3.MkLe((ArithExpr)delta, (ArithExpr)f.RectRateB) }; // constrain: A <= delta <= B
-                                        flow = z3.MkAnd(andTerms);
-                                    }
-                                    else
-                                    {
-                                        flow = f.Value; // TODO: refactor
-                                        //andTerms = new BoolExpr[] { (BoolExpr)flow, z3.MkGe((ArithExpr)delta, (ArithExpr)f.RectRateA), z3.MkLe((ArithExpr)delta, (ArithExpr)f.RectRateB) }; // constrain: A <= delta <= B
-                                    }
-                                    
-                                    exprlist.Add((BoolExpr)flow);
-                                    break;
-                                }
-                            case Flow.DynamicsTypes.timed:
-                            default:
-                                {
-                                    exprlist.Add((BoolExpr)f.Value);
-                                    break;
-                                }
-                        }
-                    }
-                }
+                exprlist.AddRange(l.MakeFlow(hidx, t1, t2, delta));
 
                 List<Expr> bt = new List<Expr>();
                 //hidx = z3.MkConst("h", Controller.Instance.IndexType);
@@ -1239,7 +1112,6 @@ namespace passel.model
 
                     expr = replacePrimeReach(expr, hidx, N, k);
                     tid = replacePrimeReach(tid, hidx, N, k);
-
                 }
 
 
@@ -1298,11 +1170,11 @@ namespace passel.model
                 switch (Controller.Instance.ExistsOption)
                 {
                     case Controller.ExistsOptionType.and:
-                        expr = z3.MkExists(new Expr[] { t1 }, z3.MkAnd(z3.MkGe(t1, Controller.Instance.RealZero), (BoolExpr)expr)); // broken with invariants if using implies
+                        expr = z3.MkExists(new Expr[] { t1 }, z3.MkAnd(z3.MkGt(t1, Controller.Instance.RealZero), (BoolExpr)expr)); // broken with invariants if using implies
                         break;
                     case Controller.ExistsOptionType.implies:
                     default:
-                        expr = z3.MkExists(new Expr[] { t1 }, z3.MkImplies(z3.MkGe(t1, Controller.Instance.RealZero), (BoolExpr)expr));
+                        expr = z3.MkExists(new Expr[] { t1 }, z3.MkImplies(z3.MkGt(t1, Controller.Instance.RealZero), (BoolExpr)expr));
                         break;
                 }
 
@@ -2226,6 +2098,211 @@ namespace passel.model
             }
             return ret;
         }
+
+
+
+
+
+
+
+
+                 
+        /// <summary>
+        /// Identity function for all processes not making a transition
+        /// I.e., forall j \neq i . q[j]' = q[j] /\ \ldots /\ g' = g, if global var g is not modified in transition of i
+        /// </summary>
+        /// <param name="indexMakingMove"></param>
+        /// <param name="globalVariableResets"></param>
+        /// <param name="indexVariableResets"></param>
+        /// <param name="universalIndexVariableResets"></param>
+        /// <param name="uguardReset"></param>
+        /// <param name="paramsList"></param>
+        /// <returns></returns>
+        public Expr forallIdentityPost(Expr indexMakingMove, List<String> globalVariableResets, List<String> indexVariableResets, List<String> universalIndexVariableResets, Expr uguardReset, params uint[] paramsList)
+        {
+            uint N = 0;
+            if (paramsList != null && paramsList.Length > 0)
+            {
+                N = paramsList[0];
+            }
+
+            List<BoolExpr> f = new List<BoolExpr>();
+            List<BoolExpr> outside_forall = new List<BoolExpr>();
+            List<Expr> bound = new List<Expr>();
+            String idx = "j";
+
+            bound.Add(Controller.Instance.Indices[idx]);
+
+            // set equality on unprimed pre-state and primed post-state for all indexed variables of all other processes (those not making the move) (e.g., q[j]' == q[j])
+            switch (Controller.Instance.DataOption)
+            {
+                case Controller.DataOptionType.array:
+                    {
+                        foreach (var v in Controller.Instance.DataA.IndexedVariableDecl)
+                        {
+                            if (!universalIndexVariableResets.Contains(v.Key))
+                            {
+                                //grab only idx
+                                f.Add(Controller.Instance.Z3.MkEq(Controller.Instance.Z3.MkSelect(v.Value, Controller.Instance.Indices[idx]), Controller.Instance.Z3.MkSelect(Controller.Instance.DataA.IndexedVariableDeclPrimed[v.Key], Controller.Instance.Indices[idx])));
+                            }
+                            else
+                            {
+                                if (uguardReset != null)
+                                {
+                                    f.Add((BoolExpr)uguardReset);
+                                }
+                            }
+                        }
+                        break;
+                    }
+                case Controller.DataOptionType.uninterpreted_function:
+                default:
+                    {
+                        foreach (var v in Controller.Instance.DataU.IndexedVariableDecl)
+                        {
+                            if (universalIndexVariableResets != null && !universalIndexVariableResets.Contains(v.Key))
+                            {
+                                //grab only idx
+                                f.Add(Controller.Instance.Z3.MkEq(Controller.Instance.Z3.MkApp(v.Value, Controller.Instance.Indices[idx]), Controller.Instance.Z3.MkApp(Controller.Instance.DataU.IndexedVariableDeclPrimed[v.Key], Controller.Instance.Indices[idx])));
+
+                                // add basic universal guard
+                                // TODO: CHECK IF THIS WORKS WITH RESETS
+                                if (uguardReset != null && !uguardReset.ToString().Contains(Controller.PRIME_SUFFIX) && !uguardReset.ToString().Contains(Controller.PRIME_SUFFIX_PARSER))
+                                {
+                                    f.Add((BoolExpr)uguardReset);
+                                }
+                            }
+                            else
+                            {
+                                if (uguardReset != null)
+                                {
+                                    f.Add((BoolExpr)uguardReset);
+                                }
+                            }
+                        }
+                        break;
+                    }
+            }
+
+            // set equality on all unprimed pre-state and primed post-state of all indexed variables ***NOT APPEARING IN THE RESET*** for the process making the move (e.g., x[h]' == x[h], if x[h] is not reset)
+            if (indexMakingMove != null)
+            {
+                if (indexVariableResets != null)
+                {
+                    foreach (var v in indexVariableResets)
+                    {
+                        switch (Controller.Instance.DataOption)
+                        {
+                            case Controller.DataOptionType.array:
+                                {
+                                    outside_forall.Add(Controller.Instance.Z3.MkEq(Controller.Instance.Z3.MkSelect(Controller.Instance.DataA.IndexedVariableDecl[v], indexMakingMove), Controller.Instance.Z3.MkSelect(Controller.Instance.DataA.IndexedVariableDeclPrimed[v], indexMakingMove)));
+                                    break;
+                                }
+                            case Controller.DataOptionType.uninterpreted_function:
+                            default:
+                                {
+                                    outside_forall.Add(Controller.Instance.Z3.MkEq(Controller.Instance.Z3.MkApp(Controller.Instance.DataU.IndexedVariableDecl[v], indexMakingMove), Controller.Instance.Z3.MkApp(Controller.Instance.DataU.IndexedVariableDeclPrimed[v], indexMakingMove)));
+                                    break;
+                                }
+                        }
+                    }
+                }
+            }
+
+            if (globalVariableResets != null)
+            {
+                // set equality on all unprimed pre-state and primed post-tate of all global variables ***NOT APPEARING IN THE RESET*** (e.g., g' == g, if g is not reset)
+                foreach (var v in globalVariableResets)
+                {
+                    outside_forall.Add(Controller.Instance.Z3.MkEq(Controller.Instance.GlobalVariables[v], Controller.Instance.GlobalVariablesPrimed[v]));
+                }
+            }
+            List<BoolExpr> ibds = new List<BoolExpr>();
+            if (Controller.Instance.IndexOption == Controller.IndexOptionType.naturalOneToN)
+            {
+                ibds.Add(Controller.Instance.Z3.MkGe((ArithExpr)Controller.Instance.Indices[idx], (ArithExpr)Controller.Instance.IndexOne));
+                ibds.Add(Controller.Instance.Z3.MkLe((ArithExpr)Controller.Instance.Indices[idx], (ArithExpr)Controller.Instance.IndexN));
+            }
+
+            Expr ret;
+            Expr fand = Controller.Instance.Z3.MkAnd(f.ToArray());
+            if (indexMakingMove != null)
+            {
+                Expr distinct = Controller.Instance.Z3.MkDistinct(bound.First(), indexMakingMove);
+
+                switch (Controller.Instance.IndexOption)
+                {
+                    case Controller.IndexOptionType.integer:
+                        ret = Controller.Instance.Z3.MkForall(bound.ToArray(), Controller.Instance.Z3.MkImplies((BoolExpr)distinct, (BoolExpr)fand));
+                        break;
+                    case Controller.IndexOptionType.naturalOneToN:
+                        if (N == 0) // symbolic 
+                        {
+                            ibds.Add((BoolExpr)distinct);
+                            ret = Controller.Instance.Z3.MkForall(bound.ToArray(), Controller.Instance.Z3.MkImplies(Controller.Instance.Z3.MkAnd(ibds.ToArray()), (BoolExpr)fand));
+                        }
+                        else // expanded
+                        {
+                            List<BoolExpr> forallList = new List<BoolExpr>();
+                            for (uint i = 1; i <= N; i++)
+                            {
+                                uint ihack = 0;
+                                uint.TryParse(indexMakingMove.ToString(), out ihack);
+
+                                if (i == ihack)
+                                {
+                                    continue;
+                                }
+
+                                // todo next: indexing checking
+                                //BoolExpr fandCopy = (BoolExpr)this.MkImplies((BoolExpr)distinct, (BoolExpr)fand).Substitute(bound[0], this.MkInt(i));
+                                BoolExpr fandCopy = (BoolExpr)fand.Substitute(bound[0], Controller.Instance.Z3.MkInt(i));
+                                forallList.Add(fandCopy);
+                            }
+                            ret = Controller.Instance.Z3.MkAnd(forallList.ToArray());
+                        }
+                        break;
+                    case Controller.IndexOptionType.enumeration:
+                    default:
+                        ret = Controller.Instance.Z3.MkForall(bound.ToArray(), Controller.Instance.Z3.MkImplies((BoolExpr)distinct, (BoolExpr)fand));
+                        break;
+                }
+            }
+            else
+            {
+                switch (Controller.Instance.IndexOption)
+                {
+                    case Controller.IndexOptionType.integer:
+                        ret = Controller.Instance.Z3.MkForall(bound.ToArray(), fand);
+                        break;
+                    case Controller.IndexOptionType.naturalOneToN:
+                        ret = Controller.Instance.Z3.MkForall(bound.ToArray(), Controller.Instance.Z3.MkImplies(Controller.Instance.Z3.MkAnd((BoolExpr[])ibds.ToArray()), (BoolExpr)fand));
+                        break;
+                    case Controller.IndexOptionType.enumeration:
+                    default:
+                        ret = Controller.Instance.Z3.MkForall(bound.ToArray(), fand); // todo: check order of this distinct...in antecedent or consequent?
+                        break;
+                }
+            }
+
+            ret = Controller.Instance.Z3.MkTrue();
+            // only add the outside forall constraints if there are any
+            if (outside_forall.Count > 0)
+            {
+                //outside_forall.Add((BoolExpr)ret); // prettier printing (fewer ands)
+                ret = Controller.Instance.Z3.MkAnd(outside_forall.ToArray());
+            }
+            return ret;
+        }
+
+
+
+
+
+
+
+
+
 
         /**
          * Identity function for all non-continuous variables

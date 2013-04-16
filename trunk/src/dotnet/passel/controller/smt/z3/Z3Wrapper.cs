@@ -572,6 +572,79 @@ namespace passel.controller.smt.z3
             }
         }
 
+        private static Dictionary<Expr, Expr> CacheProjectGlobals = new Dictionary<Expr, Expr>();
+
+        public Expr projectAwayGlobals(Expr f)
+        {
+            if (CacheProjectGlobals.ContainsKey(f))
+            {
+                return CacheProjectGlobals[f];
+            }
+            Tactic tqe = this.MkTactic("qe");
+            Goal g = this.MkGoal();
+            List<Expr> bound = Controller.Instance.GlobalVariables.Values.ToList();
+            BoolExpr qe = this.MkExists(bound.ToArray(), f);
+            g.Assert(qe);
+            ApplyResult ar = tqe.Apply(g);
+            List<BoolExpr> res = new List<BoolExpr>();
+            foreach (var v in ar.Subgoals)
+            {
+                res.AddRange(v.Formulas);
+            }
+            Expr nr = this.MkAnd(res.ToArray());
+            Z3Wrapper.CacheProjectGlobals.Add(f, nr); 
+            return nr;
+        }
+
+        private static Dictionary<Expr, Expr> CacheProjectIndex = new Dictionary<Expr, Expr>();
+
+
+
+        public Expr projectAwayIndexVariables(Expr f)
+        {
+            if (CacheProjectIndex.ContainsKey(f))
+            {
+                return CacheProjectIndex[f];
+            }
+
+            List<Expr> bound = new List<Expr>();
+            Expr idx = Controller.Instance.Indices["i"];
+            Expr newF = this.copyExpr(f);
+
+            foreach (var v in Controller.Instance.Sys.HybridAutomata[0].Variables)
+            {
+                Expr varConst = Controller.Instance.Z3.MkConst(v.Name + "_" + "i", v.TypeSort);
+                newF = newF.Substitute(Controller.Instance.Z3.MkApp(v.Value, idx), varConst);
+                bound.Add(varConst);
+            }
+
+            Tactic tqe = Controller.Instance.Z3.Repeat(Controller.Instance.Z3.MkTactic("qe"));
+            Goal g = Controller.Instance.Z3.MkGoal();
+
+            Expr qe = Controller.Instance.Z3.MkExists(bound.ToArray(), (BoolExpr)newF);
+
+            g.Assert((BoolExpr)qe);
+            ApplyResult ar = tqe.Apply(g);
+
+            List<BoolExpr> projected = new List<BoolExpr>();
+            foreach (var sg in ar.Subgoals)
+            {
+                projected.AddRange(sg.Formulas);
+            }
+            newF = Controller.Instance.Z3.MkAnd(projected.ToArray());
+
+            // convert constants back to functions
+            foreach (var v in Controller.Instance.Sys.HybridAutomata[0].Variables)
+            {
+                Expr varConst = Controller.Instance.Z3.MkConst(v.Name + "_" + "i", v.TypeSort);
+                newF = newF.Substitute(varConst, Controller.Instance.Z3.MkApp(v.Value, idx));
+            }
+
+            CacheProjectIndex.Add(f, newF);
+
+            return newF;
+        }
+
         /**
          * abstract global indexed variables
          */

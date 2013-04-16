@@ -82,6 +82,15 @@ namespace passel.model
                     System.Console.WriteLine("Frontier state: " + Environment.NewLine);
                     System.Console.WriteLine(s.ToString());
 
+
+
+                    if (s.IsTimeEnabled())
+                    {
+                        System.Console.WriteLine("TIME IS ENABLED");
+                    }
+
+
+
                     foreach (SymmetricType symt in s.Types)
                     {
                         // skip immediately if no processes in this type
@@ -214,16 +223,59 @@ namespace passel.model
                                             SymmetricType nt;
                                             SymmetricState ns;
 
+                                        // REFACTOR_START
+                                            Expr globalReset = Controller.Instance.Z3.projectAwayIndexVariables(post);
+
                                             nt = new SymmetricType(1, post); // todo: get right formula; todo: handle globals (may decrement all of old type to 0)
-                                            SymmetricType symtnew = new SymmetricType(symt.TN - 1, symt.Formula);
-                                            // remove if count is 0
-                                            if (symtnew.TN == 0)
+
+                                            if (tau.HasGlobalReset())
                                             {
-                                                ns = new SymmetricState(N, s.Types.Except(new SymmetricType[] { symt }).Union(new SymmetricType[] { nt }).ToArray());
+                                                HashSet<SymmetricType> newTypes = new HashSet<SymmetricType>();
+                                                // 1: project away globals of existing type
+                                                foreach (var ptype in s.Types)
+                                                {
+                                                    // project away globals
+                                                    Expr f = Controller.Instance.Z3.projectAwayGlobals(ptype.Formula);
+
+                                                    if (globalReset.ToString().Contains(" i"))
+                                                    {
+                                                        f = Controller.Instance.Z3.MkAnd((BoolExpr)f, Controller.Instance.Z3.MkAnd(Controller.Instance.Z3.MkNot((BoolExpr)globalReset), Controller.Instance.Z3.MkNot((BoolExpr)Controller.Instance.Sys.Variables[0].Initially)));
+                                                    }
+                                                    else
+                                                    {
+                                                        f = Controller.Instance.Z3.MkAnd((BoolExpr)f, (BoolExpr)globalReset);
+                                                    }
+
+                                                    SymmetricType ntmp = new SymmetricType(ptype.TN, f);
+
+                                                    if (ptype.Formula == symt.Formula)
+                                                    {
+                                                        ntmp.TN -= 1;
+                                                    }
+
+                                                    newTypes.Add(ntmp);
+                                                }
+
+                                                // 2: set globals to values in new type
+                                                //   a: project away non-globals in new type
+                                                //   b: conjunct with each type
+
+                                                ns = new SymmetricState(N, newTypes.Union( new SymmetricType[] { nt }).ToArray());
+
+                                                // REFACTOR_END
                                             }
                                             else
                                             {
-                                                ns = new SymmetricState(N, s.Types.Except(new SymmetricType[] { symt }).Union(new SymmetricType[] { symtnew, nt }).ToArray());
+                                                SymmetricType symtnew = new SymmetricType(symt.TN - 1, symt.Formula);
+                                                // remove if count is 0
+                                                if (symtnew.TN == 0)
+                                                {
+                                                    ns = new SymmetricState(N, s.Types.Except(new SymmetricType[] { symt }).Union(new SymmetricType[] { nt }).ToArray());
+                                                }
+                                                else
+                                                {
+                                                    ns = new SymmetricState(N, s.Types.Except(new SymmetricType[] { symt }).Union(new SymmetricType[] { symtnew, nt }).ToArray());
+                                                }
                                             }
 
                                             if (ns.IsNew())
@@ -239,22 +291,65 @@ namespace passel.model
                                         SymmetricType nt;
                                         SymmetricState ns = null;
 
+                                        // REFACTOR_START
                                         nt = new SymmetricType(1, post); // todo: get right formula; todo: handle globals (may decrement all of old type to 0)
-                                        SymmetricType symtnew = new SymmetricType(symt.TN - 1, symt.Formula);
-                                        // remove if count is 0
-                                        if (symtnew.TN == 0)
-                                        {
-                                            ns = new SymmetricState(N, s.Types.Except(new SymmetricType[] { symt }).Union(new SymmetricType[] { nt }).ToArray());
-                                        }
-                                        else
-                                        {
-                                            ns = new SymmetricState(N, s.Types.Except(new SymmetricType[] { symt }).Union(new SymmetricType[] { symtnew, nt }).ToArray());
-                                        }
+
+                                        Expr globalReset = Controller.Instance.Z3.projectAwayIndexVariables(post);
+
+                                            nt = new SymmetricType(1, post); // todo: get right formula; todo: handle globals (may decrement all of old type to 0)
+
+                                            if (tau.HasGlobalReset())
+                                            {
+                                                HashSet<SymmetricType> newTypes = new HashSet<SymmetricType>();
+                                                // 1: project away globals of existing type
+                                                foreach (var ptype in s.Types)
+                                                {
+                                                    // project away globals
+                                                    Expr f = Controller.Instance.Z3.projectAwayGlobals(ptype.Formula);
+                                                    if (globalReset.ToString().Contains(" i"))
+                                                    {
+                                                        f = Controller.Instance.Z3.MkAnd((BoolExpr)f, Controller.Instance.Z3.MkAnd(Controller.Instance.Z3.MkNot((BoolExpr)globalReset), Controller.Instance.Z3.MkNot((BoolExpr)Controller.Instance.Sys.Variables[0].Initially)));
+                                                    }
+                                                    else
+                                                    {
+                                                        f = Controller.Instance.Z3.MkAnd((BoolExpr)f, (BoolExpr)globalReset);
+                                                    }
+                                                    SymmetricType ntmp = new SymmetricType(ptype.TN, f);
+
+                                                    if (ptype.Formula == symt.Formula)
+                                                    {
+                                                        ntmp.TN -= 1;
+                                                    }
+
+                                                    newTypes.Add(ntmp);
+                                                }
+
+                                                // 2: set globals to values in new type
+                                                //   a: project away non-globals in new type
+                                                //   b: conjunct with each type
+
+                                                ns = new SymmetricState(N, newTypes.Union(new SymmetricType[] { nt }).ToArray());
+                                            }
+                                            // REFACTOR_END
+                                            else
+                                            {
+
+
+                                                SymmetricType symtnew = new SymmetricType(symt.TN - 1, symt.Formula);
+                                                // remove if count is 0
+                                                if (symtnew.TN == 0)
+                                                {
+                                                    ns = new SymmetricState(N, s.Types.Except(new SymmetricType[] { symt }).Union(new SymmetricType[] { nt }).ToArray());
+                                                }
+                                                else
+                                                {
+                                                    ns = new SymmetricState(N, s.Types.Except(new SymmetricType[] { symt }).Union(new SymmetricType[] { symtnew, nt }).ToArray());
+                                                }
+                                            }
 
                                         // has to be new
                                         NewFrontier.Add(ns);
                                     }
-
                                 }
                             }
                         }
@@ -323,6 +418,7 @@ namespace passel.model
             return PermutationsHelper(source.ToArray());
         }
 
+
         private static IEnumerable<IEnumerable<T>> PermutationsHelper<T>(IEnumerable<T> source)
         {
             var c = source.Count();
@@ -353,13 +449,38 @@ namespace passel.model
         /// </summary>
         public static HashSet<SymmetricState> AllStateTypes = new HashSet<SymmetricState>();
 
-
         /// <summary>
         /// Types composing this state
         /// </summary>
         public HashSet<SymmetricType> Types;
 
         private Boolean _new = true;
+
+        /// <summary>
+        /// Returns true if some positive (real) amount of time can elapse
+        /// </summary>
+        public Boolean IsTimeEnabled()
+        {
+            Boolean result = true;
+
+            //foreach (var loc in Controller.Instance.Sys.HybridAutomata[0].Locations)
+            //{
+            //}
+
+            foreach (var t in this.Types)
+            {
+                Expr enabled = Controller.Instance.Sys.makeFlowsAll(Controller.Instance.Sys.HybridAutomata[0], t.Formula);
+                System.Console.WriteLine(enabled.ToString());
+                if (!Controller.Instance.Z3.checkTerm(enabled))
+                {
+                    result = false;
+                    break;
+                }
+            }
+            return result;
+        }
+
+        
 
         /// <summary>
         /// Return true if this state is new
@@ -379,7 +500,6 @@ namespace passel.model
         /// Reachable symmetric states from this state (1-hop / edges)
         /// </summary>
         public HashSet<SymmetricState> Nexts;
-
 
         /// <summary>
         /// Check if two symmetric states have the same types, modulo the counts in the different types
@@ -425,8 +545,9 @@ namespace passel.model
                 Boolean maybe = false;
                 foreach (var tt in this.Types)
                 {
-                    // || Controller.Instance.Z3.ProveEqual(ct.Formula, tt.Formula)
-                    if (ct.TN == tt.TN && (ct.Formula == tt.Formula))
+                    // TODO: add option to toggle this, OR BETTER YET, set up another cache to map all equal formulas
+                    //          DICTIONARY from EXPR to EXPR: given an EXPR, if it is in dictionary, returns expression it has been proven equal to (will save lots of sat checks)
+                    if (ct.TN == tt.TN && (ct.Formula == tt.Formula || Controller.Instance.Z3.ProveEqual(ct.Formula, tt.Formula)))
                     {
                         maybe = true;
                         break; // short circuit
@@ -460,6 +581,11 @@ namespace passel.model
             return false;
         }
 
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="formula"></param>
+        /// <returns></returns>
         public Boolean ContainsTypeFormula(Expr formula)
         {
             foreach (var t in this.Types)
@@ -487,7 +613,7 @@ namespace passel.model
                         continue;
                     }
 
-                    if (t.Formula == s.Formula)// || Controller.Instance.Z3.ProveEqual(t.Formula, s.Formula))
+                    if (t.Formula == s.Formula || Controller.Instance.Z3.ProveEqual(t.Formula, s.Formula))
                     {
                         t.TN += s.TN;
                         s.TN = 0;
