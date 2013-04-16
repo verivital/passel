@@ -1481,11 +1481,7 @@ this.Config.Add("pp.simplify_implies", "false"); // try true
                 }
 
                 string pat = "yyyy-MM-ddTHH-mm-ss";
-                string now = "";
-                if (!Instance.BatchProcess)
-                {
-                    now = DateTime.Now.ToString(pat);
-                }
+                string now = DateTime.Now.ToString(pat);
                 string fn = Path.GetFileName(Instance.InputFile);
 
                 switch (Instance.OPERATION)
@@ -1525,7 +1521,7 @@ this.Config.Add("pp.simplify_implies", "false"); // try true
                                 String expName = AutomatonName + "_N=" + Instance.IndexNValue;
                                 Controller.Instance.sysname = expName;
 
-                                string fnall = fn + "_" + "N=" + Instance.IndexNValue + "_" + now + ".pha";
+                                string fnall = fn + "_" + "N=" + Instance.IndexNValue + (Instance.BatchProcess ? "_" + now : "") + ".pha";
 
                                 Instance.appendMeasurement("starting", expName);
 

@@ -586,7 +586,7 @@ namespace passel.controller.parsing
             {
                 Controller.Instance.LocationNameToNum.Add(label, value);
             }
-            ConcreteLocation l = new ConcreteLocation(label, value, initial);
+            ConcreteLocation l = new ConcreteLocation(h, label, value, initial);
             // bound control location variable values: 0 <= q_i <= # states, 0 <= q_j <= # states, 0 <= q_k <= # states
 
             return l;
