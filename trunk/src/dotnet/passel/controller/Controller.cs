@@ -1082,6 +1082,8 @@ this.Config.Add("pp.simplify_implies", "false"); // try true
                 inputFiles.Add(inputFileCount++, "fischer-twovar.xml");
                 inputFiles.Add(inputFileCount++, "fischer-rect.xml");
                 inputFiles.Add(inputFileCount++, "fischer-timed.xml");
+                inputFiles.Add(inputFileCount++, "fischer-const.xml");
+                inputFiles.Add(inputFileCount++, "fischer-timed-const.xml");
                 inputFiles.Add(inputFileCount++, "fischer-rect-buggy.xml");
                 inputFiles.Add(inputFileCount++, "fischer-timed-buggy.xml");
 
@@ -1121,6 +1123,7 @@ this.Config.Add("pp.simplify_implies", "false"); // try true
                 inputFiles.Add(inputFileCount++, "sats-ii-pointer.xml");
                 inputFiles.Add(inputFileCount++, "mux-sem.xml");
                 inputFiles.Add(inputFileCount++, "mux-sem-lastin.xml");
+                inputFiles.Add(inputFileCount++, "mux-sem-ta.xml");
                 inputFiles.Add(inputFileCount++, "mux-index.xml");
                 inputFiles.Add(inputFileCount++, "mux-index-ta.xml");
                 inputFiles.Add(inputFileCount++, "mux-sats.xml");
@@ -1735,6 +1738,65 @@ this.Config.Add("pp.simplify_implies", "false"); // try true
 
                                 // set specific N value being used
                                 Instance.Z3.Assumptions.Add(Instance.Z3.MkEq(Instance.IndexN, Instance.Z3.MkInt(nval)));
+
+                                string idxName = "i";
+                                for (uint i = 1; i <= 5; i++)
+                                {
+                                    foreach (var v in Instance.Sys.Variables)
+                                    {
+                                        Expr varconst = Instance.Z3.MkConst(v.Name + "_" + idxName, v.TypeSort);
+                                        Expr varconstPost = Instance.Z3.MkConst(v.Name + "_" + idxName + Controller.PRIME_SUFFIX, v.TypeSort);
+                                        if (v.Type == Variable.VarType.index)
+                                        {
+                                            //Instance.Z3.Assumptions.Add(Instance.Z3.MkAnd(Instance.Z3.MkGe((ArithExpr)varconst, Instance.Z3.MkInt(0)), Instance.Z3.MkLe((ArithExpr)varconst, Instance.Z3.MkInt(nval))));
+                                            //Instance.Z3.Assumptions.Add(Instance.Z3.MkAnd(Instance.Z3.MkGe((ArithExpr)varconstPost, Instance.Z3.MkInt(0)), Instance.Z3.MkLe((ArithExpr)varconstPost, Instance.Z3.MkInt(nval))));
+                                        }
+                                    }
+
+
+
+
+
+
+
+
+                                    foreach (var v in Instance.Sys.HybridAutomata[0].Variables)
+                                    {
+                                        Expr varconst = Instance.Z3.MkConst(v.Name + "_" + idxName, v.TypeSort);
+                                        Expr varconstPost = Instance.Z3.MkConst(v.Name + Controller.PRIME_SUFFIX + "_" + idxName, v.TypeSort);
+                                        if (v.Type == Variable.VarType.index)
+                                        {
+                                            Instance.Z3.Assumptions.Add(Instance.Z3.MkAnd(Instance.Z3.MkGe((ArithExpr)varconst, Instance.Z3.MkInt(0)), Instance.Z3.MkLe((ArithExpr)varconst, Instance.Z3.MkInt(nval))));
+                                            Instance.Z3.Assumptions.Add(Instance.Z3.MkAnd(Instance.Z3.MkGe((ArithExpr)varconstPost, Instance.Z3.MkInt(0)), Instance.Z3.MkLe((ArithExpr)varconstPost, Instance.Z3.MkInt(nval))));
+                                        }
+                                        else if (v.Type == Variable.VarType.location)
+                                        {
+                                            List<BoolExpr> controlRangeList = new List<BoolExpr>();
+                                            foreach (var loc in Controller.Instance.Locations.Values.ToArray())
+                                            {
+                                                controlRangeList.Add(Controller.Instance.Z3.MkEq(varconst, loc));
+                                            }
+                                            BoolExpr controlRange;
+                                            BoolExpr controlRangePrime;
+                                            if (controlRangeList.Count > 1)
+                                            {
+                                                controlRange = Controller.Instance.Z3.MkOr(controlRangeList.ToArray());
+                                                controlRangePrime = (BoolExpr)Controller.Instance.Z3.MkOr(controlRangeList.ToArray()).Substitute(varconst, varconstPost);
+                                            }
+                                            else
+                                            {
+                                                controlRange = controlRangeList[0]; // todo: error handling...what if 0?
+                                                controlRangePrime = (BoolExpr)controlRangeList[0].Substitute(varconst, varconstPost);
+                                            }
+
+                                            Instance.Z3.Assumptions.Add(controlRange);
+                                            Instance.Z3.Assumptions.Add(controlRangePrime);
+                                        }
+                                    }
+                                    idxName = ((char)((idxName[0] + (char)0x01))).ToString();
+                                }
+
+
 
                                 ReachSymmetric r = new ReachSymmetric();
                                 r.ComputeReach(Instance.Sys, nval);

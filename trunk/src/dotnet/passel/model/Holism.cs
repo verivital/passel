@@ -1019,7 +1019,13 @@ namespace passel.model
             this.z3.slvr.Pop(); // remove assumptions
         }
 
-
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="h"></param>
+        /// <param name="prestate"></param>
+        /// <param name="paramsList"></param>
+        /// <returns></returns>
         public Expr makeFlowsAll(AHybridAutomaton h, Expr prestate, params uint[] paramsList)
         {
             uint N = 0;
@@ -1113,8 +1119,6 @@ namespace passel.model
                     expr = replacePrimeReach(expr, hidx, N, k);
                     tid = replacePrimeReach(tid, hidx, N, k);
                 }
-
-
 
                 // quantifier order (code in reverse order next as we build them up one after another)
                 // exists t_1 . forall i . exists delta . forall t_2

@@ -1,6 +1,24 @@
 import os
 import argparse
 
+Nstart = 50
+Nend = 500
+Nstep = 25
+
+memtime = '/mnt/hgfs/Dropbox/Research/tools/memtime/memtime-1.3/memtime '
+
+def callPassel(fp):
+	for Ni in xrange(Nstart,Nend+1,Nstep):
+		print str(Ni)
+		if os.path.isfile(fp):
+			command =  " passel.exe -N " + str(Ni) + " -M 6 -i " + fp
+			print command
+
+			if os.name == "nt":
+				os.system(command)
+			else:
+				os.system(memtime + "mono " + command)	
+
 def main(**kwargs):
 	#for key, value in kwargs.iteritems():
 	#	print key, value
@@ -15,31 +33,30 @@ def main(**kwargs):
 		os.chdir("bin-win")
 	else:
 		os.chdir("bin-mono")
-
+	
 	inputPath = os.path.join("..", inputPath)
 	if os.path.exists(inputPath):
-		for filename in os.listdir(inputPath):
-		#for dirname, dirnames, filenames in os.walk(inputPath):
-			# print path to all subdirectories first.
-			#for subdirname in dirnames:
-			#	print os.path.join(dirname, subdirname)
+		
+		# single example
+		if os.path.isfile(inputPath):
+			callPassel(inputPath)
+		else:	
+		
+			for filename in os.listdir(inputPath):
+			#for dirname, dirnames, filenames in os.walk(inputPath):
+				# print path to all subdirectories first.
+				#for subdirname in dirnames:
+				#	print os.path.join(dirname, subdirname)
 
-			# print path to all filenames.
-			#for filename in filenames:
-			#print os.path.join(dirname, filename)
+				# print path to all filenames.
+				#for filename in filenames:
+				#print os.path.join(dirname, filename)
 
-			#command = "passel.exe -N 3 -M 3 -i " + os.path.join(".." + os.sep + dirname, filename)
-			filepath = os.path.join(inputPath, filename)
-			print filepath
+				#command = "passel.exe -N 3 -M 3 -i " + os.path.join(".." + os.sep + dirname, filename)
+				filepath = os.path.join(inputPath, filename)
+				print filepath
+				callPassel(filepath)
 			
-			if os.path.isfile(filepath):
-				command = "passel.exe -N 3 -M 3 -i " + filepath
-				print command
-
-				if os.name == "nt":
-					os.system(command)
-				else:
-					os.system("mono " + command)			
 	
 	os.chdir(".." + os.sep)
 
@@ -57,3 +74,5 @@ if __name__ == '__main__':
 	#parser.add_argument('--out', type=str, default='temp.txt', help='name of output file')
 	args = parser.parse_args()
 	main(**vars(args))
+
+		

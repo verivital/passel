@@ -531,9 +531,33 @@ namespace passel.model
             //Expr post = Controller.Instance.Z3.MkExists(new Expr[] { idx }, (BoolExpr)resetAnd);
             Expr post = Controller.Instance.Z3.MkExists(bound.ToArray(), (BoolExpr)resetAnd);
 
+
+            // HACK: replace all location names with their values...
+            foreach (var loc in Controller.Instance.Sys.HybridAutomata[0].Locations)
+            {
+                post = post.Substitute(loc.LabelExpr, loc.BitVectorExpr);
+            }
+            post = post.Substitute(Controller.Instance.IndexN, Controller.Instance.Z3.MkInt(Controller.Instance.IndexNValue));
+
+
+
             Tactic tqe = Controller.Instance.Z3.Repeat(Controller.Instance.Z3.MkTactic("qe"));
             Goal g = Controller.Instance.Z3.MkGoal();
+
+
+
+
+            List<BoolExpr> remAss = Controller.Instance.Z3.Assumptions.FindAll(a => a.IsQuantifier); // todo: add type constraints to constant (q_i) instead of functions (q i)
+            Controller.Instance.Z3.Assumptions.RemoveAll(a => a.IsQuantifier); // otherwise q.e. will fail
+            g.Assert(Controller.Instance.Z3.Assumptions.ToArray());
+            Controller.Instance.Z3.Assumptions.AddRange(remAss); // add back
+            g.Assert(Controller.Instance.Z3.AssumptionsUniversal.ToArray());
+
+
+
+
             g.Assert((BoolExpr)post);
+            g = g.Simplify();
             ApplyResult ar = tqe.Apply(g);
 
             List<BoolExpr> postStates = new List<BoolExpr>();
@@ -541,8 +565,24 @@ namespace passel.model
             {
                 postStates.AddRange(sg.Formulas);
             }
+
+
+
+            postStates.RemoveAll(fa => Controller.Instance.Z3.Assumptions.Contains(fa));
+            postStates.RemoveAll(fa => Controller.Instance.Z3.AssumptionsUniversal.Contains(fa));
+            
+
+
+
+
             post = Controller.Instance.Z3.MkAnd(postStates.ToArray());
 
+
+            // HACK: replace all location values with their names...
+            foreach (var loc in Controller.Instance.Sys.HybridAutomata[0].Locations)
+            {
+                post = post.Substitute(loc.BitVectorExpr, loc.LabelExpr);
+            }
 
             // convert constants back to functions
             foreach (var v in Controller.Instance.Sys.HybridAutomata[0].Variables)

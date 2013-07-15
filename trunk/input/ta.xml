@@ -13,43 +13,39 @@ In the example:
 
 <holism>
 	<parameter name='N' type='index' comment='' />
-	
-	<parameter name='zero' assumption='zero == 0.0' type='real' />
-	<parameter name='low' assumption='low == 5.0' type='real' />
-	<parameter name='high' assumption='high == 43.0' type='real' />
 
 	<assumption equn='N &gt;= 1' comment='' />
 
-	<automaton name='default_automaton'>
+	<automaton name='ta'>
 		<variable name='x[i]' initially='x[i] = 0.0' type='nnreal' update_type='Continuous' />
 
 		<mode id='0' name='a' initial='True'>
 			<dai variable='x[i]' equn='x[i]_dot = 1.0'/>
-			<invariant equn='x[i] &gt;= zero and x[i] &lt;= high'/>
-			<stop equn='x[i] &gt;= high'/>
+			<invariant equn='x[i] &gt;= 0.0 and x[i] &lt;= 3.0'/>
+			<stop equn='x[i] &gt;= 3.0'/>
 		</mode>
 
 		<mode id='1' name='b' initial='False'>
-			<dai variable='x[i]' equn='x[i]_dot = 2.0'/>
-			<invariant equn='x[i] &gt;= zero and x[i] &lt;= high'/>
-			<stop equn='x[i] &gt;= high'/>
+			<dai variable='x[i]' equn='x[i]_dot = 1.0'/>
+			<invariant equn='x[i] &gt;= 0.0 and x[i] &lt;= 4.0'/>
+			<stop equn='x[i] &gt;= 4.0'/>
 		</mode>
 		
 		<mode id='2' name='c' initial='False'>
-			<dai variable='x[i]' equn='x[i]_dot = 3.0'/>
-			<invariant equn='x[i] &gt;= zero and x[i] &lt;= high'/>
-			<stop equn='x[i] &gt;= high'/>
+			<dai variable='x[i]' equn='x[i]_dot = 1.0'/>
+			<invariant equn='x[i] &gt;= 0.0 and x[i] &lt;= 5.0'/>
+			<stop equn='x[i] &gt;= 5.0'/>
 		</mode>
 		
 		<mode id='3' name='d' initial='False'>
-			<dai variable='x[i]' equn='x[i]_dot = 4.0'/>
-			<invariant equn='x[i] &gt;= zero and x[i] &lt;= 2.0*high'/>
-			<stop equn='x[i] &gt;= 2.0*high'/>
+			<dai variable='x[i]' equn='x[i]_dot = 1.0'/>
+			<invariant equn='x[i] &gt;= 0.0 and x[i] &lt;= 2.0*5.0'/>
+			<stop equn='x[i] &gt;= 2.0*5.0'/>
 		</mode>
 		
 		<mode id='4' name='e' initial='False'>
 			<dai variable='x[i]' equn='x[i]_dot = 0.0'/>
-			<invariant equn='x[i] &lt;= 2.0*high'/>
+			<invariant equn='x[i] &lt;= 2.0*5.0'/>
 		</mode>
 
 		<transition source='a' destination='b'>
@@ -77,11 +73,11 @@ In the example:
 		</transition>
 		
 		<transition source='d' destination='b'>
-			<guard equn='x[i] &lt;= high'/>
+			<guard equn='x[i] &lt;= 5.0'/>
 		</transition>
 
 		<transition source='d' destination='c'>
-			<guard equn='x[i] &lt;= high'/>
+			<guard equn='x[i] &lt;= 4.0'/>
 		</transition>
 
 		<transition source='d' destination='d'>
@@ -91,7 +87,7 @@ In the example:
 	
 	
 
-
+<!--
 	<property equn='forall i ((x[i] &lt;= 2.0*high))' type='safety' expectation='true' />
 	<property equn='forall i ((x[i] &gt; 2.0*high))' type='safety' expectation='false' />
 	
@@ -163,6 +159,7 @@ In the example:
 	<property equn='forall i (true)' type='safety' expectation='true' />
 	<property equn='false' type='safety' expectation='false' />
 	<property equn='true' type='safety' expectation='true' />
+-->
 	
 	
 	<property equn='forall i ((q[i] == a or q[i] == b or q[i] == c || q[i] == d))' type='safety' expectation='true' />
