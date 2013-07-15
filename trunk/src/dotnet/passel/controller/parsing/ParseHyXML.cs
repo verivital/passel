@@ -952,8 +952,10 @@ namespace passel.controller.parsing
                                             {
                                                 if (v.UpdateType == Variable.VarUpdateType.discrete && v.Type == Variable.VarType.index)
                                                 {
-                                                    Controller.Instance.Z3.Assumptions.Add(Controller.Instance.Z3.MkAnd(Controller.Instance.Z3.MkLe((ArithExpr)Controller.Instance.IntZero, (ArithExpr)Controller.Instance.GlobalVariables[v.Name]), Controller.Instance.Z3.MkLe((ArithExpr)Controller.Instance.GlobalVariables[v.Name], (ArithExpr)Controller.Instance.Params["N"])));
-                                                    Controller.Instance.Z3.Assumptions.Add(Controller.Instance.Z3.MkAnd(Controller.Instance.Z3.MkLe((ArithExpr)Controller.Instance.IntZero, (ArithExpr)Controller.Instance.GlobalVariablesPrimed[v.Name]), Controller.Instance.Z3.MkLe((ArithExpr)Controller.Instance.GlobalVariablesPrimed[v.Name], (ArithExpr)Controller.Instance.Params["N"])));
+                                                    Controller.Instance.Z3.Assumptions.Add(Controller.Instance.Z3.MkLe((ArithExpr)Controller.Instance.IntZero, (ArithExpr)Controller.Instance.GlobalVariables[v.Name]));
+                                                    Controller.Instance.Z3.Assumptions.Add(Controller.Instance.Z3.MkLe((ArithExpr)Controller.Instance.GlobalVariables[v.Name], (ArithExpr)Controller.Instance.Params["N"]));
+                                                    Controller.Instance.Z3.Assumptions.Add(Controller.Instance.Z3.MkLe((ArithExpr)Controller.Instance.IntZero, (ArithExpr)Controller.Instance.GlobalVariablesPrimed[v.Name]));
+                                                    Controller.Instance.Z3.Assumptions.Add(Controller.Instance.Z3.MkLe((ArithExpr)Controller.Instance.GlobalVariablesPrimed[v.Name], (ArithExpr)Controller.Instance.Params["N"]));
                                                 }
                                             }
                                             h = null;

@@ -584,6 +584,16 @@ namespace passel.controller.smt.z3
             Goal g = this.MkGoal();
             List<Expr> bound = Controller.Instance.GlobalVariables.Values.ToList();
             BoolExpr qe = this.MkExists(bound.ToArray(), f);
+
+
+            List<BoolExpr> remAss = this.Assumptions.FindAll(a => a.IsQuantifier); // todo: add type constraints to constant (q_i) instead of functions (q i)
+            this.Assumptions.RemoveAll(a => a.IsQuantifier); // otherwise q.e. will fail
+            g.Assert(this.Assumptions.ToArray());
+            this.Assumptions.AddRange(remAss); // add back
+            g.Assert(this.AssumptionsUniversal.ToArray());
+            g = g.Simplify();
+
+
             g.Assert(qe);
             ApplyResult ar = tqe.Apply(g);
             List<BoolExpr> res = new List<BoolExpr>();
@@ -591,15 +601,112 @@ namespace passel.controller.smt.z3
             {
                 res.AddRange(v.Formulas);
             }
+
+            res.RemoveAll(fa => this.Assumptions.Contains(fa));
+            res.RemoveAll(fa => this.AssumptionsUniversal.Contains(fa));
+
             Expr nr = this.MkAnd(res.ToArray());
+
+            // assumptions may have added primed variables
+            this.unprimeAllVariables(ref nr);
+            nr = nr.Simplify();
+
             Z3Wrapper.CacheProjectGlobals.Add(f, nr); 
             return nr;
         }
 
+        private static Dictionary<Tuple<Expr, List<Expr>>, Expr> CacheProject = new Dictionary<Tuple<Expr, List<Expr>>, Expr>();
+
+        // project away given variables
+        public Expr projectAway(Expr f, List<Expr> vars)
+        {
+            // no change
+            if (vars.Count == 0)
+            {
+                return f;
+            }
+
+            Tuple<Expr, List<Expr>> key = new Tuple<Expr, List<Expr>>(f, vars);
+            if (CacheProject.ContainsKey(key))
+            {
+                return CacheProject[key];
+            }
+
+            Expr newF = this.copyExpr(f);
+
+            // HACK: replace all location names with their values...
+            foreach (var loc in Controller.Instance.Sys.HybridAutomata[0].Locations)
+            {
+                newF = newF.Substitute(loc.LabelExpr, loc.BitVectorExpr);
+            }
+            newF = newF.Substitute(Controller.Instance.IndexN, Controller.Instance.Z3.MkInt(Controller.Instance.IndexNValue));
+
+            Params p = this.MkParams();
+            p.Add("qe-nonlinear", true);
+            p.Add("eliminate-variables-as-block", false);
+            //Tactic tqe = Controller.Instance.Z3.Repeat(Controller.Instance.Z3.MkTactic("qe"));
+            Tactic tqe = Controller.Instance.Z3.With(this.MkTactic("qe"), p);
+            tqe = Controller.Instance.Z3.Repeat(this.Then(this.MkTactic("ctx-simplify"), tqe));
+            
+            Goal g = this.MkGoal();
+
+            List<BoolExpr> remAss = this.Assumptions.FindAll(a => a.IsQuantifier); // todo: add type constraints to constant (q_i) instead of functions (q i)
+            this.Assumptions.RemoveAll(a => a.IsQuantifier); // otherwise q.e. will fail
+            g.Assert(this.Assumptions.ToArray());
+
+
+            //TODO: add the discrete locations constraints to the constants now, has to be done
+
+
+            this.Assumptions.AddRange(remAss); // add back
+            g.Assert(this.AssumptionsUniversal.ToArray());
+            g = g.Simplify();
+
+            Expr qe = Controller.Instance.Z3.MkExists(vars.ToArray(), (BoolExpr)newF);
+            System.Console.WriteLine(qe);
+
+            g.Assert((BoolExpr)qe);
+            ApplyResult ar = tqe.Apply(g);
+
+            List<BoolExpr> projected = new List<BoolExpr>();
+            foreach (var sg in ar.Subgoals)
+            {
+                projected.AddRange(sg.Formulas);
+            }
+
+            projected.RemoveAll(fa => this.Assumptions.Contains(fa));
+            projected.RemoveAll(fa => this.AssumptionsUniversal.Contains(fa));
+
+            newF = Controller.Instance.Z3.MkAnd(projected.ToArray());
+
+            // HACK: replace all location values with their names...
+            // todo: this could be bad
+            foreach (var loc in Controller.Instance.Sys.HybridAutomata[0].Locations)
+            {
+                newF = newF.Substitute(loc.BitVectorExpr, loc.LabelExpr);
+            }
+            //newF = newF.Substitute(Controller.Instance.Z3.MkInt(Controller.Instance.IndexNValue), Controller.Instance.IndexN); // todo: this could be bad to do...            
+
+            if (newF.ToString().Contains("#x"))
+            {
+                throw new Exception("Discrete location problem");
+            }
+
+            // assumptions may have added primed variables
+            this.unprimeAllVariables(ref newF);
+
+            newF = newF.Simplify();
+
+
+
+            CacheProject.Add(key, newF);
+
+            return newF;
+        }
+
         private static Dictionary<Expr, Expr> CacheProjectIndex = new Dictionary<Expr, Expr>();
 
-
-
+        // project away all index variables
         public Expr projectAwayIndexVariables(Expr f)
         {
             if (CacheProjectIndex.ContainsKey(f))
@@ -618,8 +725,25 @@ namespace passel.controller.smt.z3
                 bound.Add(varConst);
             }
 
+            foreach (var v in Controller.Instance.Params)
+            {
+                if (v.Key != "N")
+                {
+                    bound.Add(v.Value);
+                }
+            }
+
             Tactic tqe = Controller.Instance.Z3.Repeat(Controller.Instance.Z3.MkTactic("qe"));
             Goal g = Controller.Instance.Z3.MkGoal();
+
+
+            List<BoolExpr> remAss = this.Assumptions.FindAll(a => a.IsQuantifier); // todo: add type constraints to constant (q_i) instead of functions (q i)
+            this.Assumptions.RemoveAll(a => a.IsQuantifier); // otherwise q.e. will fail
+            g.Assert(this.Assumptions.ToArray());
+            this.Assumptions.AddRange(remAss); // add back
+            g.Assert(this.AssumptionsUniversal.ToArray());
+            g = g.Simplify();
+
 
             Expr qe = Controller.Instance.Z3.MkExists(bound.ToArray(), (BoolExpr)newF);
 
@@ -631,6 +755,10 @@ namespace passel.controller.smt.z3
             {
                 projected.AddRange(sg.Formulas);
             }
+
+            projected.RemoveAll(fa => this.Assumptions.Contains(fa));
+            projected.RemoveAll(fa => this.AssumptionsUniversal.Contains(fa));
+
             newF = Controller.Instance.Z3.MkAnd(projected.ToArray());
 
             // convert constants back to functions
@@ -639,6 +767,10 @@ namespace passel.controller.smt.z3
                 Expr varConst = Controller.Instance.Z3.MkConst(v.Name + "_" + "i", v.TypeSort);
                 newF = newF.Substitute(varConst, Controller.Instance.Z3.MkApp(v.Value, idx));
             }
+
+            // assumptions may have added primed variables
+            this.unprimeAllVariables(ref newF);
+            newF = newF.Simplify();
 
             CacheProjectIndex.Add(f, newF);
 

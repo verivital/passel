@@ -61,11 +61,14 @@
 
 	<property equn='true' type='safety' />
 
-<!--
+
 	<property equn='forall i ((q[i] == try) implies (x[i] &lt;= A))' type='safety' />
-	<property equn='forall i j ((q[i] == waits and q[j] == try) implies (g == i implies (B - A) &gt; (x[i] - x[j])))' type='safety' />
+<!--	<property equn='forall i j ((q[i] == waits and q[j] == try) implies (g == i implies (B - A) &gt; (x[i] - x[j])))' type='safety' /> -->
+	<property equn='forall i j ((q[i] == waits and g == i and q[j] == try) implies ((B - A)*((ub - lb)/ub) &gt; (x[i] - x[j])))' type='safety' />
+<!-- crash... --> <!--	<property equn='forall i j ((q[i] == waits and g == i and q[j] == try) implies ((B - A)*((ub - lb)/lb) &gt; (x[i] - x[j])))' type='safety' /> -->
+	<property equn='forall i j ((q[i] == waits and g == i and q[j] == try) implies ((B - A) &gt; (x[i] - x[j])))' type='safety' />
+	
 	<property equn='forall i j ((q[i] == cs) implies (g == i and q[j] != try))' type='safety' />
--->
 
 <!--	<property equn='forall i j ((q[i] == waits and g == i and q[j] == try) implies ((B - A) &gt; (x[i] - x[j])))' type='safety' />-->
 <!--	<property equn='forall i j ((i != j and q[i] == cs) implies (g == i and (q[j] == rem or q[j] == waits)))' type='safety' />-->
@@ -74,7 +77,7 @@
 	
 
 
-	<property equn='forall i j ((i != j) implies (q[i] != cs or q[j] != cs))' type='safety' />
+<!--	<property equn='forall i j ((i != j) implies (q[i] != cs or q[j] != cs))' type='safety' /> 	-->
 	<property equn='forall i j ((i != j and q[i] == cs) implies (q[j] != cs))' type='safety' />
 
 

@@ -20,15 +20,15 @@
 		<variable name='x[i]' initially='x[i] == 0.0' type='nnreal' update_type='Continuous' />
 
 		<mode id='0' name='rem' initial='True'>
-			<dai variable='x[i]' equn='x[i]_dot &gt;= arem and x[i]_dot &lt;= brem'/>
+			<dai variable='x[i]' equn='x[i]_dot = arem'/>
 		</mode>
 
 		<mode id='1' name='try' initial='False'>
-			<dai variable='x[i]' equn='x[i]_dot &gt;= atry and x[i]_dot &lt;= btry'/>
+			<dai variable='x[i]' equn='x[i]_dot = atry'/>
 		</mode>
 		
 		<mode id='2' name='cs' initial='False'>
-			<dai variable='x[i]' equn='x[i]_dot &gt;= acs and x[i]_dot &lt;= bcs'/>
+			<dai variable='x[i]' equn='x[i]_dot = acs'/>
 		</mode>
 		
 		<transition source='rem' destination='try'>
