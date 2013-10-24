@@ -263,7 +263,15 @@ namespace passel.model
                 Controller.Instance.Z3.AssumptionsUniversal.Add(Controller.Instance.Z3.MkEq(Controller.Instance.Locations[Controller.Instance.LocationNumToName[(uint)i]], Controller.Instance.Z3.MkBV(i, Controller.Instance.LocSize)));
             }
 
-            Controller.Instance.Z3.AssumptionsUniversal.Add(Controller.Instance.Z3.MkDistinct(Controller.Instance.Locations.Values.ToArray())); // assert all control locations are different locations
+            // hack for symmetric reachability (z3 will autoconvert to != if less than 3...)
+            if (Controller.Instance.Locations.Count >= 3)
+            {
+                Controller.Instance.Z3.AssumptionsUniversal.Add(Controller.Instance.Z3.MkDistinct(Controller.Instance.Locations.Values.ToArray())); // assert all control locations are different locations
+            }
+            else if (Controller.Instance.Locations.Count == 2)
+            {
+                Controller.Instance.Z3.AssumptionsUniversal.Add(Controller.Instance.Z3.MkNot(Controller.Instance.Z3.MkEq(Controller.Instance.Locations.Values.First(), Controller.Instance.Locations.Values.Last()))); // assert all control locations are different locations
+            }
             List<BoolExpr> controlRangeList = new List<BoolExpr>();
             Expr iidx = Controller.Instance.Indices["i"];
             foreach (var v in Controller.Instance.Locations.Values.ToArray())
@@ -489,7 +497,7 @@ namespace passel.model
                 }
 
                 // local pointer/index variables
-                foreach (var v in h.Variables)
+                foreach (var v in h.Variables.Union(h.Parent.Variables))
                 {
                     if (v.Type == Variable.VarType.index)
                     {
@@ -735,11 +743,11 @@ namespace passel.model
                                                 if (i != j)
                                                 {
                                                     tmp = tmpc;
-                                                    foreach (var v in h.Variables)
+                                                    foreach (var v in h.Variables.Union(h.Parent.Variables))
                                                     {
                                                         if (v.Type == Variable.VarType.index)
                                                         {
-                                                            if (tmp.Contains("! (" + v.Name + "[" + i + "] == 0)"))
+                                                            if (tmp.Contains("! (" + v.Name + "[" + i + "] == 0)") || tmp.Contains("! (" + v.Name + " != i)") || tmp.Contains("! (" + v.Name + " == 0)"))
                                                             {
                                                                 if (!notnull)
                                                                 {
@@ -747,9 +755,21 @@ namespace passel.model
                                                                 }
                                                                 notnull = true; // true for any => true for all
 
-                                                                tmp = tmp.Replace("[" + v.Name + "[" + i + "]]", "_" + j); // replace p[i] with j's actually index, e.g., x[p[i]] -> x_j /\ p[i] = j
-                                                                tmp += " & " + v.Name + "[" + i + "] == " + j;
-                                                            }
+                                                                // for global pointer
+                                                                tmp = tmp.Replace("[" + v.Name + "]", "_" + j);
+                                                                tmp += " & " + v.Name + " == " + j;
+
+                                                                // for local pointer
+                                                                //tmp = tmp.Replace("[" + v.Name + "[" + i + "]]", "_" + j); // replace p[i] with j's actually index, e.g., x[p[i]] -> x_j /\ p[i] = j
+                                                                //tmp += " & " + v.Name + "[" + i + "] == " + j;
+                                                            }/*
+                                                            else
+                                                            {
+                                                                //tmp = tmp.Replace("[" + v.Name + "[" + i + "]]", "_" + j); // replace p[i] with j's actually index, e.g., x[p[i]] -> x_j /\ p[i] = j
+                                                                tmp = tmp.Replace("[" + v.Name + "]", "_" + j);
+                                                                tmp += " & " + v.Name + " == " + j;
+                                                                notnull = true;
+                                                            }*/
                                                         }
                                                     }
                                                     tmp = tmp.Replace("[i]", "_" + i.ToString());

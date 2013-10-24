@@ -126,6 +126,12 @@ namespace passel.model
                         tmpterm = this.Parent.Parent.makeFlowTransitionTerm(tmpterm, v, Controller.Instance.GlobalVariables[v.Name], this, t1, t2, null);
                     }
                 }
+
+                // add invariant on primed vars
+                Expr invCopy = Controller.Instance.Z3.copyExpr(this.Invariant);
+                Controller.Instance.Z3.primeAllVariables(ref invCopy);
+                tmpterm = Controller.Instance.Z3.MkAnd((BoolExpr)tmpterm, (BoolExpr)invCopy);
+
                 exprlist.Add((BoolExpr)tmpterm);
             }
 

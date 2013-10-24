@@ -208,6 +208,18 @@
       <SpecificVersion>False</SpecificVersion>
       <HintPath>..\..\..\..\..\..\z3\z3-4.1\hscc2013\passel\bin\Microsoft.Z3.dll</HintPath>
     </Reference>
+    <Reference Include="QuickGraph">
+      <HintPath>packages\QuickGraph.3.6.61119.7\lib\net4\QuickGraph.dll</HintPath>
+    </Reference>
+    <Reference Include="QuickGraph.Data">
+      <HintPath>packages\QuickGraph.3.6.61119.7\lib\net4\QuickGraph.Data.dll</HintPath>
+    </Reference>
+    <Reference Include="QuickGraph.Graphviz">
+      <HintPath>packages\QuickGraph.3.6.61119.7\lib\net4\QuickGraph.Graphviz.dll</HintPath>
+    </Reference>
+    <Reference Include="QuickGraph.Serialization">
+      <HintPath>packages\QuickGraph.3.6.61119.7\lib\net4\QuickGraph.Serialization.dll</HintPath>
+    </Reference>
     <Reference Include="System" />
     <Reference Include="System.configuration" />
     <Reference Include="System.Data" />
@@ -263,6 +275,7 @@
     <None Include="config\app.Release.config">
       <SubType>Designer</SubType>
     </None>
+    <None Include="packages.config" />
     <None Include="Properties\Settings.settings">
       <Generator>SettingsSingleFileGenerator</Generator>
       <LastGenOutput>Settings.Designer.cs</LastGenOutput>
