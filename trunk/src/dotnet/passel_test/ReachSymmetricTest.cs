@@ -81,7 +81,7 @@ namespace passel_test
         [TestMethod()]
         public void ReachSymmetricConstructorTest()
         {
-            ReachSymmetric target = new ReachSymmetric();
+            //ReachSymmetric target = new ReachSymmetric();
             Assert.Inconclusive("TODO: Implement code to verify target");
         }
 
@@ -91,10 +91,10 @@ namespace passel_test
         [TestMethod()]
         public void ComputeReachTest()
         {
-            ReachSymmetric target = new ReachSymmetric(); // TODO: Initialize to an appropriate value
+            //ReachSymmetric target = new ReachSymmetric(); // TODO: Initialize to an appropriate value
             Holism sys = null; // TODO: Initialize to an appropriate value
             uint N = 0; // TODO: Initialize to an appropriate value
-            target.ComputeReach(sys, N);
+            ReachSymmetric.ComputeReach(sys, N);
             Assert.Inconclusive("A method that does not return a value cannot be verified.");
         }
 

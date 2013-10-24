@@ -8,6 +8,8 @@ using System.Threading;
 
 using System.IO;
 
+using QuickGraph;
+
 using Microsoft.Z3;
 
 //using VixCOM;
@@ -633,12 +635,21 @@ this.Config.Add("pp.simplify_implies", "false"); // try true
                 //this.Config.Add("DISPLAY_UNSAT_CORE", "false");
 
                 //this.Config.Add("Z3_SOLVER_SMT_PP", "true");
-
-                
             }
 
             this.Z3 = new Z3Wrapper(this.Config);
             this.Z3.PrintMode = Z3_ast_print_mode.Z3_PRINT_SMTLIB2_COMPLIANT;
+
+            /*
+            Context z3 = new Context();
+            Sort twoInt = z3.MkTupleSort(z3.MkSymbol("twoInt"), new Symbol[] { z3.MkSymbol("a"), z3.MkSymbol("b") }, new Sort[] { z3.IntSort, z3.IntSort });
+            Sort A = z3.MkArraySort(twoInt, z3.IntSort);
+            ArrayExpr x = z3.MkArrayConst("x", twoInt, z3.IntSort);
+            ArrayExpr y = z3.MkArrayConst("y", twoInt, z3.IntSort);
+            ArrayExpr map = z3.MkMap(z3.MkAdd(z3.MkIntConst("a"), z3.MkIntConst("b")).FuncDecl, x, y);
+            System.Console.WriteLine("map: " + map.ToString());
+             */
+            
 
             this.IntType = this.Z3.MkIntSort();
             this.RealType = this.Z3.MkRealSort();
@@ -1124,6 +1135,7 @@ this.Config.Add("pp.simplify_implies", "false"); // try true
                 inputFiles.Add(inputFileCount++, "mux-sem.xml");
                 inputFiles.Add(inputFileCount++, "mux-sem-lastin.xml");
                 inputFiles.Add(inputFileCount++, "mux-sem-ta.xml");
+                inputFiles.Add(inputFileCount++, "mux-sem-ra.xml");
                 inputFiles.Add(inputFileCount++, "mux-index.xml");
                 inputFiles.Add(inputFileCount++, "mux-index-ta.xml");
                 inputFiles.Add(inputFileCount++, "mux-sats.xml");
@@ -1798,8 +1810,17 @@ this.Config.Add("pp.simplify_implies", "false"); // try true
 
 
 
-                                ReachSymmetric r = new ReachSymmetric();
-                                r.ComputeReach(Instance.Sys, nval);
+                                //ReachSymmetric r = new ReachSymmetric();
+                                //r.ComputeReach(Instance.Sys, nval);
+                                ReachSymmetric.ComputeReach(Instance.Sys, nval);
+                                var gviz = new QuickGraph.Graphviz.GraphvizAlgorithm<SymmetricState, IEdge<SymmetricState>>(ReachSymmetric.ReachGraph);
+                                string gvizoutput = gviz.Generate();
+                                //var fviz = File.Create("out.gviz");
+                                StreamWriter writer = new StreamWriter("out.gviz");
+                                writer.Write(gvizoutput);
+                                writer.Close();
+                                
+                                //ReachSymmetric.ReachGraph.ToString
                             }
                             //String expNameL = AutomatonName + "_N=" + Instance.IndexNValue;
                             //Controller.InputPhaver(expNameL);

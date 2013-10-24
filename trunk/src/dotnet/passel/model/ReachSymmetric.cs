@@ -6,32 +6,68 @@ using System.Text;
 using passel.controller;
 
 using Microsoft.Z3;
+using System.Data;
+
+using QuickGraph;
+
+//using System.gra
 
 namespace passel.model
 {
     /// <summary>
     /// 
     /// </summary>
-    public class ReachSymmetric
+    public static class ReachSymmetric
     {
         /// <summary>
         /// 
         /// </summary>
-        HashSet<SymmetricState> ReachedStates = new HashSet<SymmetricState>();
+        public static HashSet<SymmetricState> ReachedStates = new HashSet<SymmetricState>();
+
+        /// <summary>
+        /// 
+        /// </summary>
+        public static AdjacencyGraph<SymmetricState, IEdge<SymmetricState>> ReachGraph = new AdjacencyGraph<SymmetricState, IEdge<SymmetricState>>();
 
         /// <summary>
         /// 
         /// </summary>
         /// <param name="sys"></param>
         /// <param name="N"></param>
-        public void ComputeReach(Holism sys, uint N)
+        public static Dictionary<IEdge<SymmetricState>, Transition> ReachGraphTransitions = new Dictionary<IEdge<SymmetricState>, Transition>();
+
+        /// <summary>
+        /// Add a "weighted" edge to the graph (where weight is the transition)
+        /// </summary>
+        /// <param name="source"></param>
+        /// <param name="target"></param>
+        /// <param name="tau"></param>
+        public static void AddEdgeWithTransition(SymmetricState source, SymmetricState target, Transition tau)
         {
+            var edge = new Edge<SymmetricState>(source, target);
+            ReachGraph.AddVertex(source);
+            ReachGraph.AddVertex(target);
+            ReachGraph.AddEdge(edge);
+            if (tau != null)
+            {
+                ReachGraphTransitions.Add(edge, tau);
+            }
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="sys"></param>
+        /// <param name="N"></param>
+        public static void ComputeReach(Holism sys, uint N)
+        {
+
             AHybridAutomaton h = sys.HybridAutomata[0]; // todo: generalize for compositions
 
             HashSet<SymmetricState> Frontier = new HashSet<SymmetricState>();
             HashSet<SymmetricState> NewFrontier = new HashSet<SymmetricState>();
 
-            SymmetricState init = new SymmetricState(N, new SymmetricType(N, h.makeInitialBmcSymmetric())); // todo: add formula -> typed state converter
+            SymmetricState init = new SymmetricState(N, true, new SymmetricType(N, h.makeInitialBmcSymmetric())); // todo: add formula -> typed state converter
 
             Frontier.Add(init);
 
@@ -91,16 +127,18 @@ namespace passel.model
                     if (h.Variables.Any(v => v.UpdateType == Variable.VarUpdateType.continuous) && s.Types.Any(ts => ts.CreatedHow != SymmetricType.CreationType.Continuous))
                     {
                         // only perform time post if time can flow from this state
-                        if (s.IsTimeEnabled())
+                        if (s.IsTimeEnabled(N))
                         {
                             System.Console.WriteLine("TIME IS ENABLED");
 
-                            SymmetricState newState = s.MakeTimePost(N);
-
-                            if (newState.IsNew() && !s.Equals(newState))
+                            HashSet<SymmetricState> newStates = s.MakeTimePost(N);
+                            foreach (SymmetricState newState in newStates)
                             {
-                                NewFrontier.Add(newState);
-                                newState.SetNotNew();
+                                if (newState.IsNew() && !s.Equals(newState))
+                                {
+                                    NewFrontier.Add(newState);
+                                    newState.SetNotNew();
+                                }
                             }
                         }
                     }
@@ -249,7 +287,7 @@ namespace passel.model
                                                 //   a: project away non-globals in new type
                                                 //   b: conjunct with each type
 
-                                                ns = new SymmetricState(N, newTypes.Union( new SymmetricType[] { nt }).ToArray());
+                                                ns = new SymmetricState(N, s, tau, newTypes.Union( new SymmetricType[] { nt }).ToArray());
                                                 // REFACTOR_END
                                             }
                                             else
@@ -258,11 +296,11 @@ namespace passel.model
                                                 // remove if count is 0
                                                 if (symtnew.TN == 0)
                                                 {
-                                                    ns = new SymmetricState(N, s.Types.Except(new SymmetricType[] { symt }).Union(new SymmetricType[] { nt }).ToArray());
+                                                    ns = new SymmetricState(N, s, tau, s.Types.Except(new SymmetricType[] { symt }).Union(new SymmetricType[] { nt }).ToArray());
                                                 }
                                                 else
                                                 {
-                                                    ns = new SymmetricState(N, s.Types.Except(new SymmetricType[] { symt }).Union(new SymmetricType[] { symtnew, nt }).ToArray());
+                                                    ns = new SymmetricState(N, s, tau, s.Types.Except(new SymmetricType[] { symt }).Union(new SymmetricType[] { symtnew, nt }).ToArray());
                                                 }
                                             }
 
@@ -289,7 +327,7 @@ namespace passel.model
                                             // 2: set globals to values in new type
                                             //   a: project away non-globals in new type
                                             //   b: conjunct with each type
-                                            ns = new SymmetricState(N, newTypes.Union(new SymmetricType[] { nt }).ToArray());
+                                            ns = new SymmetricState(N, s, tau, newTypes.Union(new SymmetricType[] { nt }).ToArray());
                                         }
                                         // REFACTOR_END
                                         else
@@ -298,11 +336,11 @@ namespace passel.model
                                             // remove if count is 0
                                             if (symtnew.TN == 0)
                                             {
-                                                ns = new SymmetricState(N, s.Types.Except(new SymmetricType[] { symt }).Union(new SymmetricType[] { nt }).ToArray());
+                                                ns = new SymmetricState(N, s, tau, s.Types.Except(new SymmetricType[] { symt }).Union(new SymmetricType[] { nt }).ToArray());
                                             }
                                             else
                                             {
-                                                ns = new SymmetricState(N, s.Types.Except(new SymmetricType[] { symt }).Union(new SymmetricType[] { symtnew, nt }).ToArray());
+                                                ns = new SymmetricState(N, s, tau, s.Types.Except(new SymmetricType[] { symt }).Union(new SymmetricType[] { symtnew, nt }).ToArray());
                                             }
                                         }
 
@@ -326,7 +364,7 @@ namespace passel.model
             }   
         }
 
-        private HashSet<SymmetricType> makeTypesWithGlobalReset(SymmetricState oldState, SymmetricType oldType, Expr post)
+        private static HashSet<SymmetricType> makeTypesWithGlobalReset(SymmetricState oldState, SymmetricType oldType, Expr post)
         {
             HashSet<SymmetricType> newTypes = new HashSet<SymmetricType>();
             // 1: project away globals of existing type
@@ -345,7 +383,7 @@ namespace passel.model
             return newTypes;
         }
 
-        private Expr fixGlobals(Expr origFormula, Expr postFormula)
+        private static Expr fixGlobals(Expr origFormula, Expr postFormula)
         {
             Expr globalReset = Controller.Instance.Z3.projectAwayIndexVariables(postFormula);
             Expr f = Controller.Instance.Z3.projectAwayGlobals(origFormula); // remove all globals, we'll add them back
@@ -453,10 +491,16 @@ namespace passel.model
 
         private Boolean _new = true;
 
+        public Boolean Initial = false;
+        public Boolean CreatedByTime = false;
+        public Transition CreatedBy;
+
+        public SymmetricState PreState = null;
+
         /// <summary>
         /// Returns true if some positive (real) amount of time can elapse
         /// </summary>
-        public Boolean IsTimeEnabled()
+        public Boolean IsTimeEnabled(uint N)
         {
             Boolean result = true;
 
@@ -464,45 +508,56 @@ namespace passel.model
             //{
             //}
 
-            foreach (var t in this.Types)
-            {
-                Expr enabled = Controller.Instance.Sys.makeFlowsAll(Controller.Instance.Sys.HybridAutomata[0], t.Formula);
-                System.Console.WriteLine(enabled.ToString());
-                if (!Controller.Instance.Z3.checkTerm(enabled))
+            //foreach (var t in this.Types)
+            //{
+                // TODO: this is never disabled... use the type flow constraint created for the actual time post rather than this
+                //Expr enabled = Controller.Instance.Sys.makeFlowsAll(Controller.Instance.Sys.HybridAutomata[0], t.Formula);
+
+                Expr enabled = this.MakeTimePostFormula(N, false);
+
+                System.Console.WriteLine("Time enabled query?: " + enabled.ToString());
+                Model m;
+                if (!Controller.Instance.Z3.checkTerm(enabled, out m))
                 {
                     result = false;
-                    break;
+                    //break;
                 }
-            }
+                else
+                {
+                    System.Console.WriteLine("Time enabled model: " + m.ToString());
+                }
+            //}
             return result;
         }
 
         private static Dictionary<SymmetricType, Location> CacheTypeLocations = new Dictionary<SymmetricType, Location>();
 
+        private Dictionary<SymmetricType, String> typesToIds = new Dictionary<SymmetricType, string>();
+        private Dictionary<Tuple<Variable, String>, Expr> gvToExpr = new Dictionary<Tuple<Variable, string>, Expr>();
+        private Dictionary<Tuple<Variable, String>, Expr> gvToExprPost = new Dictionary<Tuple<Variable, string>, Expr>();
+
         /// <summary>
-        /// 
+        /// Create formula for time post
         /// </summary>
         /// <param name="N"></param>
         /// <returns></returns>
-        public SymmetricState MakeTimePost(uint N)
+        public Expr MakeTimePostFormula(uint N, bool allExists = false)
         {
-            // time-post closure: time_post(time_post(X)) = time_post(X)
-            if (this.Types.All(t => t.CreatedHow == SymmetricType.CreationType.Continuous))
-            {
-                return this;
-            }
-
-            HashSet<SymmetricType> newTypes = new HashSet<SymmetricType>();
             uint ti = 0;
             List<BoolExpr> timePostList = new List<BoolExpr>();
 
+
+            // initialize shared var
+            this.typesToIds = new Dictionary<SymmetricType, string>();
+            this.gvToExpr = new Dictionary<Tuple<Variable, string>, Expr>();
+            this.gvToExprPost = new Dictionary<Tuple<Variable, string>, Expr>();
+
             List<Expr> bound = new List<Expr>();
 
-            Dictionary<Tuple<Variable, String>, Expr> gvToExpr = new Dictionary<Tuple<Variable, string>, Expr>();
-            Dictionary<Tuple<Variable, String>, Expr> gvToExprPost = new Dictionary<Tuple<Variable, string>, Expr>();
 
 
-            Dictionary<SymmetricType, String> typesToIds = new Dictionary<SymmetricType, string>();
+
+            
 
             string idxName = "i";
 
@@ -519,14 +574,15 @@ namespace passel.model
                 foreach (var t in this.Types)
                 {
                     Expr formula = Controller.Instance.Z3.copyExpr(t.Formula); // deep copy
-                
+
                     /*
                     if (CacheTypeLocations.ContainsKey(t))
                     {
                         // do post
                     }
-                    else*/ if (!Controller.Instance.Z3.ProveContains(loc.StatePredicate, formula))
-                    {   
+                    else*/
+                    if (!Controller.Instance.Z3.ProveContains(loc.StatePredicate, formula))
+                    {
                         /*CacheTypeLocations.Add(t, loc);
                     }
                     else
@@ -538,7 +594,7 @@ namespace passel.model
                     // compute post using dynamics for Location loc from pre-state formula t.Formula
                     Expr idx = Controller.Instance.Indices[idxName];
 
-                    
+
                     List<BoolExpr> dynamicsList = loc.MakeFlow(Controller.Instance.Indices["i"], t1, t2, delta);
 
                     // pre-state
@@ -574,7 +630,11 @@ namespace passel.model
                         Expr varConstPost = Controller.Instance.Z3.MkConst(v.NamePrimed + "_" + idxName, v.TypeSort);
                         post = post.Substitute(Controller.Instance.Z3.MkApp(v.Value, Controller.Instance.Indices["i"]), varConst); // all in terms of i at this point
                         post = post.Substitute(Controller.Instance.Z3.MkApp(v.ValuePrimed, Controller.Instance.Indices["i"]), varConstPost);
-                        bound.Add(varConst);
+
+                        if (allExists)
+                        {
+                            bound.Add(varConst);
+                        }
                     }
 
 
@@ -619,27 +679,26 @@ namespace passel.model
 
                     //if (!typesToIds.ContainsKey(t))
                     //{
-                        typesToIds.Add(t, idxName);
+                    this.typesToIds.Add(t, idxName);
                     //}
 
                     idxName = ((char)((idxName[0] + (char)0x01))).ToString();
                 }
-                
+
             }
 
-            
-            foreach (var v in Controller.Instance.Sys.Variables)
+
+            if (allExists)
             {
-                //bound.Add(Controller.Instance.GlobalVariables[v.Name]);
-                foreach (var t in this.Types)
+                foreach (var v in Controller.Instance.Sys.Variables)
                 {
-                    bound.Add(gvToExpr[new Tuple<Variable, string>(v, typesToIds[t])]);
+                    //bound.Add(Controller.Instance.GlobalVariables[v.Name]);
+                    foreach (var t in this.Types)
+                    {
+                        bound.Add(gvToExpr[new Tuple<Variable, string>(v, typesToIds[t])]);
+                    }
                 }
             }
-
-            //bound.Add(t1);
-
-
 
             BoolExpr timePost;
             if (timePostList.Count == 1)
@@ -649,7 +708,7 @@ namespace passel.model
             else if (timePostList.Count >= 1)
             {
                 timePost = Controller.Instance.Z3.MkAnd(timePostList.ToArray());
-                
+
             }
             else
             {
@@ -657,6 +716,28 @@ namespace passel.model
             }
 
             timePost = Controller.Instance.Z3.MkExists(bound.ToArray(), timePost);
+            return timePost;
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="N"></param>
+        /// <returns></returns>
+        public HashSet<SymmetricState> MakeTimePost(uint N)
+        {
+            HashSet<SymmetricState> newStates = new HashSet<SymmetricState>();
+
+            // time-post closure: time_post(time_post(X)) = time_post(X)
+            // TODO: prove
+            if (this.Types.All(t => t.CreatedHow == SymmetricType.CreationType.Continuous))
+            {
+                newStates.Add(this);
+                return newStates;
+            }
+
+            Expr timePost = this.MakeTimePostFormula(N, true);
+            
 
             Tactic tqe = Controller.Instance.Z3.Repeat(Controller.Instance.Z3.Then(Controller.Instance.Z3.MkTactic("ctx-simplify"), Controller.Instance.Z3.MkTactic("qe")));
             //Tactic tqe = Controller.Instance.Z3.MkTactic("qe");
@@ -687,111 +768,129 @@ namespace passel.model
 
             postStates.RemoveAll(f => Controller.Instance.Z3.Assumptions.Contains(f));
             postStates.RemoveAll(f => Controller.Instance.Z3.AssumptionsUniversal.Contains(f));
+            Controller.Instance.Z3.AssumptionsUniversal.ForEach(f => f.Simplify());
+            postStates.RemoveAll(f => Controller.Instance.Z3.AssumptionsUniversal.Contains(f));
+            //postStates.RemoveAll(f => Controller.Instance.Z3.
 
-            Expr postState = Controller.Instance.Z3.MkAnd(postStates.ToArray());
-            postState = postState.Simplify();
+            Expr postStateOrig = Controller.Instance.Z3.MkAnd(postStates.ToArray());
+            postStateOrig = postStateOrig.Simplify();
 
-            postState = Controller.Instance.simplifyFormula(postState);
+            postStateOrig = Controller.Instance.simplifyFormula(postStateOrig);
 
             // TODO: stronger simplify
 
-            /*
-            if (postState.IsOr)
+            HashSet<Expr> postStatesFixed;
+
+            if (postStateOrig.IsOr)
             {
-                throw new Exception("Make multiple types");
+                // split disjunct into several classes
+                postStatesFixed = new HashSet<Expr>(postStateOrig.Args);
+
+                //throw new Exception("Make multiple types");
             }
-             */
-
-
-            // TODO: at this point, before converting constants back to functions, re-create types
-            // steps
-            // 1. for each type, project away other variables, including type-specific globals (gi, gj, etc): exists (varnames != varname(type)) . formula
-            // 2. perform next constant -> function steps for all these new types (do it with the types instead of formulas in case we need more info like # processes later)
-
-            // potential todo later: associate a number with each var in each type (if we allow more than one, tbd)
-
-            foreach (var t in this.Types)
+            else
             {
-                Expr postStateFixed = Controller.Instance.Z3.copyExpr(postState);
-                List<Expr> projectAway = new List<Expr>();
-                foreach (var ot in this.Types)
+                postStatesFixed = new HashSet<Expr>(new Expr[] { postStateOrig } );
+            }
+
+            foreach (Expr postStateIter in postStatesFixed)
+            {
+                HashSet<SymmetricType> newTypes = new HashSet<SymmetricType>();
+                Expr postState = postStateIter.Simplify();
+
+
+                // TODO: at this point, before converting constants back to functions, re-create types
+                // steps
+                // 1. for each type, project away other variables, including type-specific globals (gi, gj, etc): exists (varnames != varname(type)) . formula
+                // 2. perform next constant -> function steps for all these new types (do it with the types instead of formulas in case we need more info like # processes later)
+
+                // potential todo later: associate a number with each var in each type (if we allow more than one, tbd)
+
+                foreach (var t in this.Types)
                 {
-                    if (t == ot)
+                    Expr postStateFixed = Controller.Instance.Z3.copyExpr(postState);
+                    List<Expr> projectAway = new List<Expr>();
+                    foreach (var ot in this.Types)
                     {
-                        continue;
+                        if (t == ot)
+                        {
+                            continue;
+                        }
+                        //typesToIds[t];
+                        //typesToIds[ot];
+
+                        foreach (var v in Controller.Instance.Sys.HybridAutomata[0].Variables)
+                        {
+                            //projectAway.Add(Controller.Instance.Z3.MkConst( v.Name + "_" + typesToIds[ot], v.TypeSort ));
+                            projectAway.Add(Controller.Instance.Z3.MkConst(v.Name + Controller.PRIME_SUFFIX + "_" + typesToIds[ot], v.TypeSort));
+                        }
+
+                        foreach (var v in Controller.Instance.Sys.Variables)
+                        {
+                            //projectAway.Add(Controller.Instance.Z3.MkConst(v.Name + "_" + typesToIds[ot], v.TypeSort));
+                            projectAway.Add(Controller.Instance.Z3.MkConst(v.Name + "_" + typesToIds[ot] + Controller.PRIME_SUFFIX, v.TypeSort));
+                        }
                     }
-                    //typesToIds[t];
-                    //typesToIds[ot];
+
+                    // do the projection, create the type
+                    Expr newTypeFormula = Controller.Instance.Z3.projectAway(postStateFixed, projectAway);
+                    SymmetricType newType = new SymmetricType(t.TN, newTypeFormula); // copy old type count
+                    typesToIds.Add(newType, typesToIds[t]);
+                    newTypes.Add(newType);
+                }
+
+                // convert constants back to functions
+                foreach (var t in newTypes)
+                {
+                    Expr idxBound = Controller.Instance.Indices[typesToIds[t]];
 
                     foreach (var v in Controller.Instance.Sys.HybridAutomata[0].Variables)
                     {
-                        //projectAway.Add(Controller.Instance.Z3.MkConst( v.Name + "_" + typesToIds[ot], v.TypeSort ));
-                        projectAway.Add(Controller.Instance.Z3.MkConst(v.Name + Controller.PRIME_SUFFIX + "_" + typesToIds[ot], v.TypeSort));
-                    }
-
-                    foreach (var v in Controller.Instance.Sys.Variables)
-                    {
-                        //projectAway.Add(Controller.Instance.Z3.MkConst(v.Name + "_" + typesToIds[ot], v.TypeSort));
-                        projectAway.Add(Controller.Instance.Z3.MkConst(v.Name + "_" + typesToIds[ot] + Controller.PRIME_SUFFIX, v.TypeSort));
+                        Expr varConst = Controller.Instance.Z3.MkConst(v.Name + "_" + typesToIds[t], v.TypeSort);
+                        Expr varConstPost = Controller.Instance.Z3.MkConst(v.NamePrimed + "_" + typesToIds[t], v.TypeSort);
+                        t.Formula = t.Formula.Substitute(varConst, Controller.Instance.Z3.MkApp(v.Value, idxBound));
+                        t.Formula = t.Formula.Substitute(varConstPost, Controller.Instance.Z3.MkApp(v.ValuePrimed, idxBound));
                     }
                 }
 
-                // do the projection, create the type
-                Expr newTypeFormula = Controller.Instance.Z3.projectAway(postStateFixed, projectAway);
-                SymmetricType newType = new SymmetricType(t.TN, newTypeFormula); // copy old type count
-                typesToIds.Add(newType, typesToIds[t]);
-                newTypes.Add(newType);
-            }
-
-            // convert constants back to functions
-            foreach (var t in newTypes)
-            {
-                Expr idxBound = Controller.Instance.Indices[typesToIds[t]];
-
-                foreach (var v in Controller.Instance.Sys.HybridAutomata[0].Variables)
+                // convert globals back
+                foreach (var v in Controller.Instance.Sys.Variables)
                 {
-                    Expr varConst = Controller.Instance.Z3.MkConst(v.Name + "_" + typesToIds[t], v.TypeSort);
-                    Expr varConstPost = Controller.Instance.Z3.MkConst(v.NamePrimed + "_" + typesToIds[t], v.TypeSort);
-                    t.Formula = t.Formula.Substitute(varConst, Controller.Instance.Z3.MkApp(v.Value, idxBound));
-                    t.Formula = t.Formula.Substitute(varConstPost, Controller.Instance.Z3.MkApp(v.ValuePrimed, idxBound));
+                    //bound.Add(Controller.Instance.GlobalVariables[v.Name]);
+                    foreach (var t in newTypes)
+                    {
+                        t.Formula = t.Formula.Substitute(gvToExpr[new Tuple<Variable, string>(v, typesToIds[t])], Controller.Instance.GlobalVariables[v.Name]);
+                        t.Formula = t.Formula.Substitute(gvToExprPost[new Tuple<Variable, string>(v, typesToIds[t])], Controller.Instance.GlobalVariablesPrimed[v.Name]);
+                    }
                 }
-            }
 
-            // convert globals back
-            foreach (var v in Controller.Instance.Sys.Variables)
-            {
-                //bound.Add(Controller.Instance.GlobalVariables[v.Name]);
                 foreach (var t in newTypes)
                 {
-                    t.Formula = t.Formula.Substitute(gvToExpr[new Tuple<Variable, string>(v, typesToIds[t])], Controller.Instance.GlobalVariables[v.Name]);
-                    t.Formula = t.Formula.Substitute(gvToExprPost[new Tuple<Variable, string>(v, typesToIds[t])], Controller.Instance.GlobalVariablesPrimed[v.Name]);
+                    Expr postStateFinal = Controller.Instance.Z3.copyExpr(t.Formula);
+                    Controller.Instance.Z3.unprimeAllVariables(ref postStateFinal); // unprime
+                    t.Formula = postStateFinal;
                 }
-            }
-
-            foreach (var t in newTypes)
-            {
-                Expr postStateFinal = Controller.Instance.Z3.copyExpr(t.Formula);
-                Controller.Instance.Z3.unprimeAllVariables(ref postStateFinal); // unprime
-                t.Formula = postStateFinal;
-            }
 
 
-            // convert names back
-            foreach (var t in newTypes)
-            {
-                if (typesToIds[t] != "i")
+                // convert names back
+                foreach (var t in newTypes)
                 {
-                    t.Formula = t.Formula.Substitute(Controller.Instance.Indices[typesToIds[t]], Controller.Instance.Indices["i"]);
+                    if (typesToIds[t] != "i")
+                    {
+                        t.Formula = t.Formula.Substitute(Controller.Instance.Indices[typesToIds[t]], Controller.Instance.Indices["i"]);
+                    }
+
+                    // set continuuos creation type
+                    t.CreatedHow = SymmetricType.CreationType.Continuous;
                 }
 
-                // set continuuos creation type
-                t.CreatedHow = SymmetricType.CreationType.Continuous;
+                //newTypes.Add(new SymmetricType(N, postStateFinal));
+
+                SymmetricState newState = new SymmetricState(N, this, newTypes.ToArray());
+                newState.CreatedByTime = true;
+                newStates.Add(newState);
             }
-
-            //newTypes.Add(new SymmetricType(N, postStateFinal));
-
-            SymmetricState newState = new SymmetricState(N, newTypes.ToArray());
-            return newState;
+            return newStates;
         }
 
         /// <summary>
@@ -826,6 +925,7 @@ namespace passel.model
                 Boolean maybe = false;
                 foreach (var tt in this.Types)
                 {
+                    //if (ct.Formula == tt.Formula || Controller.Instance.Z3.CheckEqual(ct.Formula, tt.Formula)) // needs to be prove
                     if (ct.Formula == tt.Formula || Controller.Instance.Z3.ProveEqual(ct.Formula, tt.Formula))
                     {
                         maybe = true;
@@ -859,8 +959,9 @@ namespace passel.model
                 {
                     // TODO: add option to toggle this, OR BETTER YET, set up another cache to map all equal formulas
                     //          DICTIONARY from EXPR to EXPR: given an EXPR, if it is in dictionary, returns expression it has been proven equal to (will save lots of sat checks)
-                    //if (ct.TN == tt.TN && (ct.Formula == tt.Formula || Controller.Instance.Z3.ProveContains(tt.Formula, ct.Formula)))
-                    if (ct.TN == tt.TN && (ct.Formula == tt.Formula || Controller.Instance.Z3.ProveEqual(ct.Formula, tt.Formula)))
+                    if (ct.TN == tt.TN && (ct.Formula == tt.Formula || Controller.Instance.Z3.ProveContains(tt.Formula, ct.Formula)))
+                    //if (ct.TN == tt.TN && (ct.Formula == tt.Formula || Controller.Instance.Z3.ProveEqual(ct.Formula, tt.Formula)))
+                    //if (ct.TN == tt.TN && (ct.Formula == tt.Formula || Controller.Instance.Z3.CheckEqual(ct.Formula, tt.Formula))) // needs to be prove
                     {
                         maybe = true;
                         break; // short circuit
@@ -886,7 +987,8 @@ namespace passel.model
         {
             foreach (var t in this.Types)
             {
-                if (t.Formula == type.Formula || Controller.Instance.Z3.ProveEqual(t.Formula, type.Formula))
+                //if (t.Formula == type.Formula || Controller.Instance.Z3.ProveEqual(t.Formula, type.Formula))
+                if (t.Formula == type.Formula || Controller.Instance.Z3.ProveContains(t.Formula, type.Formula))
                 {
                     return true;
                 }
@@ -903,7 +1005,8 @@ namespace passel.model
         {
             foreach (var t in this.Types)
             {
-                if (t.Formula == formula || Controller.Instance.Z3.ProveEqual(t.Formula, formula))
+                //if (t.Formula == formula || Controller.Instance.Z3.ProveEqual(t.Formula, formula))
+                if (t.Formula == formula || Controller.Instance.Z3.ProveContains(t.Formula, formula))
                 {
                     return true;
                 }
@@ -919,14 +1022,17 @@ namespace passel.model
         {
             foreach (var t in this.Types)
             {
-                foreach (var s in this.Types)
+                foreach (var s in this.Types.Except(new SymmetricType[] { t }))
                 {
-                    if (s == t)
-                    {
-                        continue;
-                    }
+                    // better to remove t rather than find it (faster lookup)
+                    //if (s == t)
+                    //{
+                    //    continue;
+                    //}
 
-                    if (t.Formula == s.Formula || Controller.Instance.Z3.ProveEqual(t.Formula, s.Formula))
+                    if (t.Formula == s.Formula || Controller.Instance.Z3.ProveContains(t.Formula, s.Formula))
+                    //if (t.Formula == s.Formula || Controller.Instance.Z3.ProveEqual(t.Formula, s.Formula))
+                    //if (t.Formula == s.Formula || Controller.Instance.Z3.CheckEqual(t.Formula, s.Formula))
                     {
                         t.TN += s.TN;
                         s.TN = 0;
@@ -937,13 +1043,35 @@ namespace passel.model
             this.CheckTypeSum(N);
         }
 
+        public SymmetricState(uint N, params SymmetricType[] types)
+            : this(N, null, null, false, types)
+        {
+        }
+
+        public SymmetricState(uint N, SymmetricState pre, params SymmetricType[] types)
+            : this(N, pre, null, false, types)
+        {
+        }
+
+        public SymmetricState(uint N, Boolean init, params SymmetricType[] types)
+            : this(N, null, null, init, types)
+        {
+        }
+
+        public SymmetricState(uint N, SymmetricState pre, Transition tau, params SymmetricType[] types)
+            : this(N, pre, tau, false, types)
+        {
+        }
+
         /// <summary>
         /// 
         /// </summary>
         /// <param name="N"></param>
         /// <param name="types"></param>
-        public SymmetricState(uint N, params SymmetricType[] types)
+        public SymmetricState(uint N, SymmetricState pre, Transition tau = null, Boolean init = false, params SymmetricType[] types)
         {
+            this.PreState = pre;
+
             // copy input types
             this.Types = new HashSet<SymmetricType>();
             foreach (var t in types)
@@ -982,6 +1110,14 @@ namespace passel.model
             if (this._new)
             {
                 SymmetricState.AllStateTypes.Add(this);
+            }
+
+            this.CreatedBy = tau;
+            this.Initial = init;
+
+            if (pre != null)
+            {
+                ReachSymmetric.AddEdgeWithTransition(pre, this, tau);
             }
         }
 

@@ -1232,6 +1232,12 @@ namespace passel.controller.smt.z3
             return checkTerm(t, out m, out c);
         }
 
+        public Boolean checkTerm(Expr t, out Model model)
+        {
+            Expr[] c;
+            return checkTerm(t, out model, out c);
+        }
+
         /**
          * Check a term
          */
@@ -1283,6 +1289,23 @@ namespace passel.controller.smt.z3
             this.slvr.Pop(1);
 
             return ret;
+        }
+
+        public Boolean CheckEqual(Expr a, Expr b)
+        {
+            Controller.Instance.Z3.slvr.Push();
+            Expr eq = Controller.Instance.Z3.MkEq(a, b);
+            Boolean result = false;
+
+            // only try proving equal if checking equal is satisfiable (should be faster in general)
+            //if (Controller.Instance.Z3.checkTerm(eq))
+            //{
+            //result = Controller.Instance.Z3.proveTerm(eq);
+            //}
+
+            result = (Controller.Instance.Z3.checkTerm(eq));
+            Controller.Instance.Z3.slvr.Pop();
+            return result;
         }
 
         public Boolean ProveEqual(Expr a, Expr b)
