@@ -13,8 +13,7 @@ using passel.controller.parsing.math;
 
 namespace passel.model
 {
-    enum outmode { MODE_SPACEEX, MODE_PHAVER, MODE_HYTECH, MODE_UPPAAL };
-
+    public enum outmode { MODE_PHAVER, MODE_SPACEEX, MODE_HYTECH, MODE_UPPAAL, MODE_LATEX };
 
     /**
      * Hybrid automaton object
@@ -339,14 +338,12 @@ namespace passel.model
         /**
         * Generate a specification of N (for a fixed natural number) automata for Phaver
         */
-        public String outputPhaverN(string fnall, uint N, String output_path, String newInitial, uint iteration)
+        public String outputNetworkN(string fnall, uint N, String output_path, String newInitial, uint iteration, outmode mode)
         {
             String spec = "";
             String tmp = "";
 
             ConcreteHybridAutomaton h = (ConcreteHybridAutomaton)this;
-
-            outmode mode = outmode.MODE_PHAVER;
 
             System.Console.WriteLine("START: Generating phaver input file from Passel description for N = " + N);
 
@@ -418,7 +415,7 @@ namespace passel.model
                     spec += p.Key + " := ";
                     if (Controller.Instance.ParamsAssumps.ContainsKey(p.Key))
                     {
-                        spec += Controller.Instance.Z3.ToStringFormatted(Controller.Instance.ParamsAssumps[p.Key].Args[1], controller.smt.z3.Z3Wrapper.PrintFormatMode.phaver, true);
+                        spec += Controller.Instance.Z3.ToStringFormatted(Controller.Instance.ParamsAssumps[p.Key].Args[1], outmode.MODE_PHAVER, true);
                         // TODO: HACK, ASSUMES ASSUMPTION IS OF THE FORM: PARAMNAME RELATION PARAMVALUE, e.g., N == 3
                     }
                     else
@@ -595,7 +592,7 @@ namespace passel.model
                     //todo: convert to appropriate format: l.Invariant;
                     if (l.Invariant != null)
                     {
-                        tmp = Controller.Instance.Z3.ToStringFormatted(l.Invariant, controller.smt.z3.Z3Wrapper.PrintFormatMode.phaver, true);
+                        tmp = Controller.Instance.Z3.ToStringFormatted(l.Invariant, outmode.MODE_PHAVER, true);
                         tmp = tmp.Replace("[i]", "_" + i.ToString());
                         spec += tmp;
                         spec += " & ";
@@ -732,7 +729,7 @@ namespace passel.model
                                         Expr tmpt = t.Guard;
                                         Expr indexConst = Controller.Instance.Z3.MkNumeral(i, Controller.Instance.IndexType);
                                         tmpt = tmpt.Substitute(Controller.Instance.Indices["i"], indexConst); // replace i with actual number i (e.g., i by 1, i by 2, etc)
-                                        tmp = Controller.Instance.Z3.ToStringFormatted(tmpt, controller.smt.z3.Z3Wrapper.PrintFormatMode.phaver, true); // todo: format appropriately
+                                        tmp = Controller.Instance.Z3.ToStringFormatted(tmpt, outmode.MODE_PHAVER, true); // todo: format appropriately
 
                                         bool notnull = false;
                                         if (hasPointer)
@@ -808,7 +805,7 @@ namespace passel.model
                                         Expr tmpt = l.Invariant;
                                         Expr indexConst = Controller.Instance.Z3.MkNumeral(i, Controller.Instance.IndexType);
                                         tmpt = tmpt.Substitute(Controller.Instance.Indices["i"], indexConst); // replace i with actual number i (e.g., i by 1, i by 2, etc)
-                                        tmp = Controller.Instance.Z3.ToStringFormatted(tmpt, controller.smt.z3.Z3Wrapper.PrintFormatMode.phaver, true); // todo: format appropriately
+                                        tmp = Controller.Instance.Z3.ToStringFormatted(tmpt, outmode.MODE_PHAVER, true); // todo: format appropriately
                                         tmp = tmp.Replace("[i]", "_" + i.ToString());
                                         tmp = tmp.Replace("[" + i.ToString() + "]", "_" + i.ToString());
                                         spec += tmp;
@@ -827,7 +824,7 @@ namespace passel.model
                                                 Expr tmpt = Controller.Instance.Z3.copyExpr(t.UGuard);
                                                 Expr jIndexConst = Controller.Instance.Z3.MkNumeral(j, Controller.Instance.IndexType);
                                                 tmpt = tmpt.Substitute(Controller.Instance.Indices["j"], jIndexConst); // replace j by j value
-                                                tmp += "(" + Controller.Instance.Z3.ToStringFormatted(tmpt, controller.smt.z3.Z3Wrapper.PrintFormatMode.phaver, true) + ")";
+                                                tmp += "(" + Controller.Instance.Z3.ToStringFormatted(tmpt, outmode.MODE_PHAVER, true) + ")";
 
                                                 //System.Console.WriteLine("UGUARD BEFORE CHANGE (expr): " + tmpt);
                                                 //System.Console.WriteLine("UGUARD BEFORE CHANGE (str ): " + tmp);
@@ -919,7 +916,7 @@ namespace passel.model
                                     Expr tmpt = t.Reset;
                                     Expr indexConst = Controller.Instance.Z3.MkNumeral(i, Controller.Instance.IndexType);
                                     tmpt = tmpt.Substitute(Controller.Instance.Indices["i"], indexConst); // replace i with actual number i (e.g., i by 1, i by 2, etc)
-                                    tmp = Controller.Instance.Z3.ToStringFormatted(tmpt, controller.smt.z3.Z3Wrapper.PrintFormatMode.phaver); // todo: format appropriately
+                                    tmp = Controller.Instance.Z3.ToStringFormatted(tmpt, outmode.MODE_PHAVER); // todo: format appropriately
                                     tmp = tmp.Replace("[i]", "_" + i.ToString());
                                     tmp = tmp.Replace("[" + i.ToString() + "]", "_" + i.ToString());
                                     IList<Variable> globals = new List<Variable>();
@@ -1231,7 +1228,7 @@ namespace passel.model
             String init = "";
             foreach (var v in this.Parent.Variables)
             {
-                init += Controller.Instance.Z3.ToStringFormatted(v.Initially, controller.smt.z3.Z3Wrapper.PrintFormatMode.phaver) + " & ";
+                init += Controller.Instance.Z3.ToStringFormatted(v.Initially, outmode.MODE_PHAVER) + " & ";
             }
             if (indexed)
             {
@@ -1241,7 +1238,7 @@ namespace passel.model
                     {
                         continue;
                     }
-                    init += Controller.Instance.Z3.ToStringFormatted(v.Initially, controller.smt.z3.Z3Wrapper.PrintFormatMode.phaver) + " & ";
+                    init += Controller.Instance.Z3.ToStringFormatted(v.Initially, outmode.MODE_PHAVER) + " & ";
                 }
             }
             if (init.Length == 0)

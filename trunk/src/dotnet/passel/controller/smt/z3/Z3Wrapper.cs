@@ -18,8 +18,6 @@ namespace passel.controller.smt.z3
     [ContractVerification(true)]
     public class Z3Wrapper : Microsoft.Z3.Context
     {
-        public enum PrintFormatMode { latex, phaver };
-
         public Z3Wrapper(Dictionary<string,string> c)
             : base(c)
         {
@@ -1526,7 +1524,7 @@ namespace passel.controller.smt.z3
          * 
          * Limitations: not all terms can be converted to Phaver input syntax
          */
-        public String ToStringFormatted(Expr t, PrintFormatMode o, bool paren = false)
+        public String ToStringFormatted(Expr t, outmode o, bool paren = false)
         {
             if (t == null)
             {
@@ -1643,7 +1641,7 @@ namespace passel.controller.smt.z3
                                         {
                                             switch (o)
                                             {
-                                                case PrintFormatMode.phaver:
+                                                case outmode.MODE_PHAVER:
                                                     {
                                                         s += " ! ";
                                                         if (paren)
@@ -1657,7 +1655,7 @@ namespace passel.controller.smt.z3
                                                         }
                                                         break;
                                                     }
-                                                case PrintFormatMode.latex: // pass through
+                                                case outmode.MODE_LATEX: // pass through
                                                 default:
                                                     {
                                                         s += " \\neg";
@@ -1750,7 +1748,7 @@ namespace passel.controller.smt.z3
         /**
          * Convert a declaration kind to string
          */
-        public String DeclKindToString(Z3_decl_kind dk, PrintFormatMode o)
+        public String DeclKindToString(Z3_decl_kind dk, outmode o)
         {
             String s = "";
             switch (dk)
@@ -1758,12 +1756,13 @@ namespace passel.controller.smt.z3
                 case Z3_decl_kind.Z3_OP_ADD:
                     switch (o)
                     {
-                        case PrintFormatMode.phaver:
+                        case outmode.MODE_SPACEEX:
+                        case outmode.MODE_PHAVER:
                             {
                                 s += " + ";
                                 break;
                             }
-                        case PrintFormatMode.latex: // pass through
+                        case outmode.MODE_LATEX: // pass through
                         default:
                             {
                                 s += " + ";
@@ -1774,12 +1773,17 @@ namespace passel.controller.smt.z3
                 case Z3_decl_kind.Z3_OP_AND:
                     switch (o)
                     {
-                        case PrintFormatMode.phaver:
+                        case outmode.MODE_SPACEEX:
+                            {
+                                s += " &amp; ";
+                                break;
+                            }
+                        case outmode.MODE_PHAVER:
                             {
                                 s += " & ";
                                 break;
                             }
-                        case PrintFormatMode.latex: // pass through
+                        case outmode.MODE_LATEX: // pass through
                         default:
                             {
                                 s += " \\wedge ";
@@ -1790,12 +1794,12 @@ namespace passel.controller.smt.z3
                 case Z3_decl_kind.Z3_OP_RA_COMPLEMENT: // TODO: check
                     switch (o)
                     {
-                        case PrintFormatMode.phaver:
+                        case outmode.MODE_PHAVER:
                             {
                                 s += " ! ";
                                 break;
                             }
-                        case PrintFormatMode.latex: // pass through
+                        case outmode.MODE_LATEX: // pass through
                         default:
                             {
                                 s += " \\not ";
@@ -1807,12 +1811,12 @@ namespace passel.controller.smt.z3
                 case Z3_decl_kind.Z3_OP_SET_DIFFERENCE:
                     switch (o)
                     {
-                        case PrintFormatMode.phaver:
+                        case outmode.MODE_PHAVER:
                             {
                                 s += " - "; // TODO: no equivalent
                                 break;
                             }
-                        case PrintFormatMode.latex: // pass through
+                        case outmode.MODE_LATEX: // pass through
                         default:
                             {
                                 s += " \\setminus ";
@@ -1820,17 +1824,19 @@ namespace passel.controller.smt.z3
                             }
                     }
                     break;
-                case Z3_decl_kind.Z3_OP_DISTINCT:
+                case Z3_decl_kind.Z3_OP_DISTINCT: // TODO:
+                    s += "distinct ";
                     break;
                 case Z3_decl_kind.Z3_OP_DIV:
                     switch (o)
                     {
-                        case PrintFormatMode.phaver:
+                        case outmode.MODE_SPACEEX:
+                        case outmode.MODE_PHAVER:
                             {
                                 s += " / ";
                                 break;
                             }
-                        case PrintFormatMode.latex: // pass through
+                        case outmode.MODE_LATEX: // pass through
                         default:
                             {
                                 s += " / ";
@@ -1841,12 +1847,13 @@ namespace passel.controller.smt.z3
                 case Z3_decl_kind.Z3_OP_EQ:
                     switch (o)
                     {
-                        case PrintFormatMode.phaver:
+                        case outmode.MODE_SPACEEX:
+                        case outmode.MODE_PHAVER:
                             {
                                 s += " == ";
                                 break;
                             }
-                        case PrintFormatMode.latex: // pass through
+                        case outmode.MODE_LATEX: // pass through
                         default:
                             {
                                 s += " = ";
@@ -1857,12 +1864,12 @@ namespace passel.controller.smt.z3
                 case Z3_decl_kind.Z3_OP_BNEG:
                     switch (o)
                     {
-                        case PrintFormatMode.phaver:
+                        case outmode.MODE_PHAVER:
                             {
                                 s += " != ";
                                 break;
                             }
-                        case PrintFormatMode.latex: // pass through
+                        case outmode.MODE_LATEX: // pass through
                         default:
                             {
                                 s += " \neq ";
@@ -1873,12 +1880,12 @@ namespace passel.controller.smt.z3
                 case Z3_decl_kind.Z3_OP_FALSE:
                     switch (o)
                     {
-                        case PrintFormatMode.phaver:
+                        case outmode.MODE_PHAVER:
                             {
                                 s += " false ";
                                 break;
                             }
-                        case PrintFormatMode.latex: // pass through
+                        case outmode.MODE_LATEX: // pass through
                         default:
                             {
                                 s += " \\false ";
@@ -1889,12 +1896,17 @@ namespace passel.controller.smt.z3
                 case Z3_decl_kind.Z3_OP_GE:
                     switch (o)
                     {
-                        case PrintFormatMode.phaver:
+                        case outmode.MODE_SPACEEX:
+                            {
+                                s += " &gt;= ";
+                                break;
+                            }
+                        case outmode.MODE_PHAVER:
                             {
                                 s += " >= ";
                                 break;
                             }
-                        case PrintFormatMode.latex: // pass through
+                        case outmode.MODE_LATEX: // pass through
                         default:
                             {
                                 s += " \\geq ";
@@ -1905,12 +1917,17 @@ namespace passel.controller.smt.z3
                 case Z3_decl_kind.Z3_OP_GT:
                     switch (o)
                     {
-                        case PrintFormatMode.phaver:
+                        case outmode.MODE_SPACEEX:
+                            {
+                                s += " &gt; ";
+                                break;
+                            }
+                        case outmode.MODE_PHAVER:
                             {
                                 s += " > ";
                                 break;
                             }
-                        case PrintFormatMode.latex: // pass through
+                        case outmode.MODE_LATEX: // pass through
                         default:
                             {
                                 s += " > ";
@@ -1933,12 +1950,17 @@ namespace passel.controller.smt.z3
                 case Z3_decl_kind.Z3_OP_LE:
                     switch (o)
                     {
-                        case PrintFormatMode.phaver:
+                        case outmode.MODE_SPACEEX:
+                            {
+                                s += " &lt;= ";
+                                break;
+                            }
+                        case outmode.MODE_PHAVER:
                             {
                                 s += " <= ";
                                 break;
                             }
-                        case PrintFormatMode.latex: // pass through
+                        case outmode.MODE_LATEX: // pass through
                         default:
                             {
                                 s += " \\leq ";
@@ -1949,12 +1971,17 @@ namespace passel.controller.smt.z3
                 case Z3_decl_kind.Z3_OP_LT:
                     switch (o)
                     {
-                        case PrintFormatMode.phaver:
+                        case outmode.MODE_SPACEEX:
+                            {
+                                s += " &lt; ";
+                                break;
+                            }
+                        case outmode.MODE_PHAVER:
                             {
                                 s += " < ";
                                 break;
                             }
-                        case PrintFormatMode.latex: // pass through
+                        case outmode.MODE_LATEX: // pass through
                         default:
                             {
                                 s += " < ";
@@ -1966,12 +1993,12 @@ namespace passel.controller.smt.z3
                 case Z3_decl_kind.Z3_OP_MUL:
                     switch (o)
                     {
-                        case PrintFormatMode.phaver:
+                        case outmode.MODE_PHAVER:
                             {
                                 s += " * ";
                                 break;
                             }
-                        case PrintFormatMode.latex: // pass through
+                        case outmode.MODE_LATEX: // pass through
                         default:
                             {
                                 s += " * ";
@@ -1982,12 +2009,12 @@ namespace passel.controller.smt.z3
                 case Z3_decl_kind.Z3_OP_NOT:
                     switch (o)
                     {
-                        case PrintFormatMode.phaver:
+                        case outmode.MODE_PHAVER:
                             {
                                 s += " ! ";
                                 break;
                             }
-                        case PrintFormatMode.latex: // pass through
+                        case outmode.MODE_LATEX: // pass through
                         default:
                             {
                                 s += " \\neg ";
@@ -1998,12 +2025,12 @@ namespace passel.controller.smt.z3
                 case Z3_decl_kind.Z3_OP_OR:
                     switch (o)
                     {
-                        case PrintFormatMode.phaver:
+                        case outmode.MODE_PHAVER:
                             {
                                 s += " | ";
                                 break;
                             }
-                        case PrintFormatMode.latex: // pass through
+                        case outmode.MODE_LATEX: // pass through
                         default:
                             {
                                 s += " \\vee ";
@@ -2016,12 +2043,12 @@ namespace passel.controller.smt.z3
                 case Z3_decl_kind.Z3_OP_SUB:
                     switch (o)
                     {
-                        case PrintFormatMode.phaver:
+                        case outmode.MODE_PHAVER:
                             {
                                 s += " - ";
                                 break;
                             }
-                        case PrintFormatMode.latex: // pass through
+                        case outmode.MODE_LATEX: // pass through
                         default:
                             {
                                 s += " - ";
@@ -2035,12 +2062,12 @@ namespace passel.controller.smt.z3
                 case Z3_decl_kind.Z3_OP_TRUE:
                     switch (o)
                     {
-                        case PrintFormatMode.phaver:
+                        case outmode.MODE_PHAVER:
                             {
                                 s += " true ";
                                 break;
                             }
-                        case PrintFormatMode.latex: // pass through
+                        case outmode.MODE_LATEX: // pass through
                         default:
                             {
                                 s += " \\true ";
