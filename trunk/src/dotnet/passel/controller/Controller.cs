@@ -162,8 +162,8 @@ namespace passel.controller
         public String PhaverPathWindows;
         public String PhaverPathLinux;
         public String MemtimePathLinux;
-        public String PhaverInputPath; // os-independent path to phaver input files (use windows path on windows, use linux path on linu)
-        public String PhaverInputPathLinux; // linux-dependent path to phaver input files (for calling phaver via linux)
+        public String ExternalToolInputPath; // os-independent path to phaver input files (use windows path on windows, use linux path on linu)
+        public String ExternalToolInputPathLinux; // linux-dependent path to phaver input files (for calling phaver via linux)
         public String OutPath; // passel output file path (logs, phaver input files, etc.)
         public String InputPath; // passel input file path
 
@@ -292,17 +292,17 @@ namespace passel.controller
                 this.OutPath = this.InOutPath + ".." + Path.DirectorySeparatorChar + "output" + Path.DirectorySeparatorChar;
             }
 
-            this.PhaverInputPath = this.OutPath + "phaver" + Path.DirectorySeparatorChar;
+            this.ExternalToolInputPath = this.OutPath + "phaver" + Path.DirectorySeparatorChar;
             
             if (Controller.IsWindows)
             {
                 this.PhaverPathLinux = this.PathsLinux["PhaverDirectory"];
                 this.MemtimePathLinux = this.PathsLinux["MemtimePath"];
-                this.PhaverInputPathLinux = this.PathsLinux["PhaverInputFileDirectory"];
+                this.ExternalToolInputPathLinux = this.PathsLinux["PhaverInputFileDirectory"];
 
                 this.PhaverPathWindows = this.PathsWindows["PhaverDirectory"];
-                this.ReachPathLinux = this.PhaverInputPathLinux + "reach/";
-                this.ReachPathWindows = this.PhaverInputPath + "reach" + Path.DirectorySeparatorChar;
+                this.ReachPathLinux = this.ExternalToolInputPathLinux + "reach/";
+                this.ReachPathWindows = this.ExternalToolInputPath + "reach" + Path.DirectorySeparatorChar;
             }
             else if (Controller.IsLinux)
             {
@@ -322,8 +322,8 @@ namespace passel.controller
                 {
                     Instance.PhaverInputPathLinux = Instance.OutPath + Path.DirectorySeparatorChar + Path.DirectorySeparatorChar;
                 }*/
-                this.PhaverInputPathLinux = this.PhaverInputPath;
-                System.Console.WriteLine("PHAVER INPUT FILES PATH: " + Instance.PhaverInputPathLinux);
+                this.ExternalToolInputPathLinux = this.ExternalToolInputPath;
+                System.Console.WriteLine("PHAVER INPUT FILES PATH: " + Instance.ExternalToolInputPathLinux);
             }
         }
 
@@ -881,10 +881,12 @@ this.Config.Add("pp.simplify_implies", "false"); // try true
 
         public IDictionary<String, Expr> ExistentialConstants;
 
-        enum IOSTATE { SELECT_CASE_STUDY, SELECT_N, SELECT_OPERATION, EXECUTE_OPERATION };
+        enum IOSTATE { SELECT_CASE_STUDY, SELECT_N, SELECT_OPERATION, SELECT_EXTERNAL_TOOL, EXECUTE_OPERATION };
 
-        enum PROGRAM_MODE { INDUCTIVE_INVARIANT, OUTPUT_PHAVER, INPUT_PHAVER, INVISIBLE_INVARIANTS, SPLIT_INVARIANTS, BMC, BMC_SYMMETRIC, DRAW_SYSTEM };
+        enum PROGRAM_MODE { INDUCTIVE_INVARIANT, OUTPUT_EXTERNAL_TOOL, INPUT_REACHSET, INVISIBLE_INVARIANTS, SPLIT_INVARIANTS, BMC, BMC_SYMMETRIC, DRAW_SYSTEM };
         private PROGRAM_MODE OPERATION;
+
+        private passel.model.outmode EXTERNAL_TOOL;
 
         public view.View View;
 
@@ -940,7 +942,7 @@ this.Config.Add("pp.simplify_implies", "false"); // try true
         public static void Main(String[] args)
         {
             String choice;
-            Boolean selected_file = false, selected_n = false, selected_operation = false, terminate = false;
+            Boolean selected_file = false, selected_n = false, selected_external = false, selected_operation = false, terminate = false;
             Dictionary<int, string> inputFiles = new Dictionary<int, string>();
             int inputFileCount = 0;
 
@@ -953,6 +955,7 @@ this.Config.Add("pp.simplify_implies", "false"); // try true
             Instance.CommandLineArguments.Add("i", "");
             Instance.CommandLineArguments.Add("s", null);
             Instance.CommandLineArguments.Add("b", null);
+            Instance.CommandLineArguments.Add("T", outmode.MODE_PHAVER);
 
             String currentCommandLineArgument = null;
             bool followingArgument = false;
@@ -1416,8 +1419,47 @@ this.Config.Add("pp.simplify_implies", "false"); // try true
 
                                 if (selected_operation)
                                 {
+                                    switch (Instance.OPERATION) {
+                                        case PROGRAM_MODE.OUTPUT_EXTERNAL_TOOL:
+                                            {
+                                                iostate = IOSTATE.SELECT_EXTERNAL_TOOL;
+                                                break;
+                                            }
+                                        default:
+                                            {
+                                                iostate = IOSTATE.EXECUTE_OPERATION;
+                                                terminate = true;
+                                                break;
+                                            }
+                                    }
+                                }
+                                break;
+                            }
+                        case IOSTATE.SELECT_EXTERNAL_TOOL:
+                            {
+                                Console.WriteLine("Specify an external tool to use (phaver = " + (int)outmode.MODE_PHAVER + ", spaceex = " + (int)outmode.MODE_SPACEEX + "):");
+
+                                choice = Console.ReadLine();
+
+                                try
+                                {
+                                    if (choice != null)
+                                    {
+                                        choice = choice.Trim();
+                                        Enum.TryParse<outmode>(choice, true, out Instance.EXTERNAL_TOOL);
+                                        Console.WriteLine("Using external tool:" + Instance.EXTERNAL_TOOL);
+                                        selected_external = true;
+                                    }
+                                }
+                                catch (Exception e)
+                                {
+                                }
+
+                                if (selected_external)
+                                {
                                     iostate = IOSTATE.EXECUTE_OPERATION;
-                                    terminate = true;
+                                    choice = null;
+                                    continue;
                                 }
                                 break;
                             }
@@ -1425,6 +1467,7 @@ this.Config.Add("pp.simplify_implies", "false"); // try true
                             {
                                 // error: should be unreachable
                                 terminate = true;
+                                //throw new Exception("ERROR: I/O state machine reached bad state.");
                                 break;
                             }
                     }
@@ -1434,7 +1477,7 @@ this.Config.Add("pp.simplify_implies", "false"); // try true
             String phaverBashScript = "#!/bin/bash\n\n" +
                 "ext=\".pha\"\n\n" +
                 "# iterate over all benchmarks (supposing in subdirectories, e.g., bmname/thrust.pha)\n" +
-                "for bm in " + Instance.PhaverInputPathLinux + "*$ext\n" +
+                "for bm in " + Instance.ExternalToolInputPathLinux + "*$ext\n" +
                 "do\n" +
                 "   for mode in 0\n" +
                 "   do\n" +
@@ -1527,7 +1570,7 @@ this.Config.Add("pp.simplify_implies", "false"); // try true
 
                             break;
                         }
-                    case PROGRAM_MODE.OUTPUT_PHAVER:
+                    case PROGRAM_MODE.OUTPUT_EXTERNAL_TOOL:
                         {
                             for (uint nval = lb; nval <= ub; nval++)
                             {
@@ -1540,11 +1583,11 @@ this.Config.Add("pp.simplify_implies", "false"); // try true
 
                                 Instance.appendMeasurement("starting", expName);
 
-                                Controller.OutputPhaver(fnall, Instance.PhaverInputPath + fnall, expName, Instance.BatchProcess, "", 0);
+                                Controller.OutputNetwork(fnall, Instance.ExternalToolInputPath + fnall, expName, Instance.BatchProcess, "", 0, Instance.EXTERNAL_TOOL);
                             }
                             break;
                         }
-                    case PROGRAM_MODE.INPUT_PHAVER:
+                    case PROGRAM_MODE.INPUT_REACHSET:
                         {
                             Console.WriteLine("Performing operations assuming N = " + Instance.IndexNValue);
                             String expName = AutomatonName + "_N=" + Instance.IndexNValue;
@@ -1572,8 +1615,8 @@ this.Config.Add("pp.simplify_implies", "false"); // try true
 
                                 string fnall = fn + "_" + "N=" + Instance.IndexNValue + "_" + now + ".pha";
 
-                                Controller.OutputPhaver(fnall, Instance.PhaverInputPath + fnall, expName, Instance.BatchProcess, "", 0);
-                                Controller.CallPhaver(fnall, expName);
+                                Controller.OutputNetwork(fnall, Instance.ExternalToolInputPath + fnall, expName, Instance.BatchProcess, "", 0, Instance.EXTERNAL_TOOL);
+                                Controller.CallExternalTool(fnall, expName, Instance.EXTERNAL_TOOL);
 
                                 Controller.InputReach(fnall, nval, expName, true, null, false, null);
                                 Controller.projectAllProperties(Instance.IndexNValue);
@@ -1630,8 +1673,8 @@ this.Config.Add("pp.simplify_implies", "false"); // try true
 
                                         string fnall = fn + "_" + "N=" + Instance.IndexNValue + "_" + now + ".pha";
 
-                                        Controller.OutputPhaver(fnall, Instance.PhaverInputPath + fnall, expName, Instance.BatchProcess, nis, iteration);
-                                        Controller.CallPhaver(fnall, expName);
+                                        Controller.OutputNetwork(fnall, Instance.ExternalToolInputPath + fnall, expName, Instance.BatchProcess, nis, iteration, Instance.EXTERNAL_TOOL);
+                                        Controller.CallExternalTool(fnall, expName, Instance.EXTERNAL_TOOL);
                                         List<Expr> pgcreachset = Controller.InputReach(fnall, nval, expName, true, null, true, prevSplit);
 
                                         Console.WriteLine("PREVIOUS SPLIT: ");
@@ -1858,11 +1901,11 @@ this.Config.Add("pp.simplify_implies", "false"); // try true
                                 String logname = fnall + ".pha_PHAVER_LOG.txt";
                                 if (Controller.IsWindows)
                                 {
-                                    logname = Instance.PhaverInputPath + logname;
+                                    logname = Instance.ExternalToolInputPath + logname;
                                 }
                                 else
                                 {
-                                    logname = Instance.PhaverInputPathLinux + logname;
+                                    logname = Instance.ExternalToolInputPathLinux + logname;
                                 }
 
                                 System.Console.WriteLine("Memtime and phaver log file: " + logname);
@@ -2080,7 +2123,7 @@ this.Config.Add("pp.simplify_implies", "false"); // try true
             {
                 String reachname = "";
                 //reachname += Instance.Sys.HybridAutomata[0].Name + "_N=" + N + ".reach";
-                reachname += Instance.PhaverInputPath + "reach" + Path.DirectorySeparatorChar + fnall + ".reach";
+                reachname += Instance.ExternalToolInputPath + "reach" + Path.DirectorySeparatorChar + fnall + ".reach";
                 System.Console.WriteLine("Opening phaver output (reach set) file: " + reachname);
                 reachset = ParsePhaverOutput.ParseReach(reachname, false); // parse reach set
             }
@@ -2726,7 +2769,7 @@ this.Config.Add("pp.simplify_implies", "false"); // try true
                     //System.Console.WriteLine("SECOND ARGUMENT ITERATION");
                     //String stmp = scc.ToString(); // minimal clause
                     String sout = "";
-                    sout = Instance.Z3.ToStringFormatted(scc, Z3Wrapper.PrintFormatMode.phaver);
+                    sout = Instance.Z3.ToStringFormatted(scc, outmode.MODE_PHAVER);
 
                     if (sout.Contains("q"))
                     {
@@ -2792,37 +2835,38 @@ this.Config.Add("pp.simplify_implies", "false"); // try true
         }
 
         /**
-         * Generate PHAVer input files
+         * Generate PHAVer/SpaceEx/HyTech input files
          */
-        public static void OutputPhaver(string fnall, string phaver_out_filename, string expName, bool batch, string newInitial, uint iteration)
+        public static void OutputNetwork(string fnall, string out_filename, string expName, bool batch, string newInitial, uint iteration, outmode out_mode)
         {
             if (Instance.IndexNValue > 0)
             {
-                String out_phaver = Instance.Sys.HybridAutomata[0].outputPhaverN(fnall, Instance.IndexNValue, Instance.PhaverInputPathLinux, newInitial, iteration); // todo: generalize if more than 1 automaton
-                StreamWriter writer = new StreamWriter(phaver_out_filename);
-                writer.Write(out_phaver);
+                String out_string = Instance.Sys.HybridAutomata[0].outputNetworkN(fnall, Instance.IndexNValue, Instance.ExternalToolInputPathLinux, newInitial, iteration, out_mode); // todo: generalize if more than 1 automaton
+                StreamWriter writer = new StreamWriter(out_filename);
+                writer.Write(out_string);
                 writer.Close();
 
-                System.Console.WriteLine("FINISHED: Generating phaver input file from Passel description for N = " + Instance.IndexNValue + ": " + phaver_out_filename);
+                System.Console.WriteLine("FINISHED: Generating " + out_mode.ToString() + " input file from Passel description for N = " + Instance.IndexNValue + ": " + out_filename);
             }
             else
             {
-                Console.WriteLine("ERROR: generating PHAVer output requires selecting a finite value for N.");
+                Console.WriteLine("ERROR: generating " + out_mode.ToString() + " output requires selecting a finite value for N.");
             }
         }
 
         /**
          * Call PHAVer in virtual machine (via VIX) when running on Windows, and via a process thread when executed via Mono on Linux/OSX
          */
-        public static void CallPhaver(string fnall, string expName)
+        public static void CallExternalTool(string fnall, string expName, outmode external_tool)
         {
             string exePath = Instance.MemtimePathLinux;
 
-            System.Console.WriteLine("Calling PHAVer with: " + exePath);
+            System.Console.WriteLine("Calling " + external_tool + " with: " + exePath);
 
             if (Controller.IsWindows)
             {
-                string exeParameters = " " + Instance.PhaverPathLinux + "phaver" + " " + Instance.PhaverInputPathLinux + fnall + " &> " + Instance.PhaverInputPathLinux + fnall + "_PHAVER_LOG.txt";
+                // TODO: switch directories based on external_tool value
+                string exeParameters = " " + Instance.PhaverPathLinux + "phaver" + " " + Instance.ExternalToolInputPathLinux + fnall + " &> " + Instance.ExternalToolInputPathLinux + fnall + "_PHAVER_LOG.txt";
                 System.Console.WriteLine("Calling PHAVer with: " + exeParameters);
 
                 // from: http://tranxcoder.wordpress.com/2008/05/14/using-the-vixcom-library/
@@ -2927,7 +2971,7 @@ this.Config.Add("pp.simplify_implies", "false"); // try true
             }
             else if (Controller.IsLinux)
             {
-                string exeParameters = " " + Instance.PhaverPathLinux + "phaver" + " " + Instance.PhaverInputPathLinux + fnall;
+                string exeParameters = " " + Instance.PhaverPathLinux + "phaver" + " " + Instance.ExternalToolInputPathLinux + fnall;
                 System.Console.WriteLine("Calling phaver with: " + exeParameters);
 
                 System.Console.WriteLine("Calling PHAVer via command line: " + Environment.NewLine + exePath + " " + exeParameters);
@@ -2942,7 +2986,7 @@ this.Config.Add("pp.simplify_implies", "false"); // try true
                     p.StartInfo.RedirectStandardError = true;
                     p.StartInfo.RedirectStandardOutput = true;
 
-                    string outFilename = Instance.PhaverInputPathLinux + fnall + "_PHAVER_LOG.txt";
+                    string outFilename = Instance.ExternalToolInputPathLinux + fnall + "_PHAVER_LOG.txt";
 
                     StreamWriter fileOutput = new StreamWriter(
                         new FileStream(outFilename, FileMode.Create)
