@@ -1200,6 +1200,7 @@ this.Config.Add("pp.simplify_implies", "false"); // try true
                     {
                         case IOSTATE.SELECT_CASE_STUDY:
                             {
+                                Console.WriteLine("Using Z3 Version: " + Microsoft.Z3.Version.ToString());
                                 Console.WriteLine("Using directory path: " + Instance.InOutPath);
                                 Console.WriteLine("Assuming input files in path: " + Instance.InputPath);
 

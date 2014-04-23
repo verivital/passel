@@ -137,6 +137,54 @@
   <PropertyGroup>
     <RunPostBuildEvent>Always</RunPostBuildEvent>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'bin-mono-z3|x86'">
+    <DebugSymbols>true</DebugSymbols>
+    <OutputPath>bin\x86\bin-mono-z3\</OutputPath>
+    <DefineConstants>TRACE;DEBUG</DefineConstants>
+    <CheckForOverflowUnderflow>true</CheckForOverflowUnderflow>
+    <Optimize>true</Optimize>
+    <DebugType>full</DebugType>
+    <PlatformTarget>x86</PlatformTarget>
+    <ErrorReport>prompt</ErrorReport>
+    <CodeAnalysisIgnoreGeneratedCode>false</CodeAnalysisIgnoreGeneratedCode>
+    <CodeAnalysisRuleSet>ExtendedCorrectnessRules.ruleset</CodeAnalysisRuleSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'bin-mono-z3-unstable|x86'">
+    <DebugSymbols>true</DebugSymbols>
+    <OutputPath>bin\x86\bin-mono-z3-unstable\</OutputPath>
+    <DefineConstants>TRACE;DEBUG</DefineConstants>
+    <CheckForOverflowUnderflow>true</CheckForOverflowUnderflow>
+    <Optimize>true</Optimize>
+    <DebugType>full</DebugType>
+    <PlatformTarget>x86</PlatformTarget>
+    <ErrorReport>prompt</ErrorReport>
+    <CodeAnalysisIgnoreGeneratedCode>false</CodeAnalysisIgnoreGeneratedCode>
+    <CodeAnalysisRuleSet>ExtendedCorrectnessRules.ruleset</CodeAnalysisRuleSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'bin-win-z3|x86'">
+    <DebugSymbols>true</DebugSymbols>
+    <OutputPath>bin\x86\bin-win-z3\</OutputPath>
+    <DefineConstants>TRACE;DEBUG</DefineConstants>
+    <CheckForOverflowUnderflow>true</CheckForOverflowUnderflow>
+    <Optimize>true</Optimize>
+    <DebugType>full</DebugType>
+    <PlatformTarget>x86</PlatformTarget>
+    <ErrorReport>prompt</ErrorReport>
+    <CodeAnalysisIgnoreGeneratedCode>false</CodeAnalysisIgnoreGeneratedCode>
+    <CodeAnalysisRuleSet>ExtendedCorrectnessRules.ruleset</CodeAnalysisRuleSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'bin-win-z3-unstable|x86'">
+    <DebugSymbols>true</DebugSymbols>
+    <OutputPath>bin\x86\bin-win-z3-unstable\</OutputPath>
+    <DefineConstants>TRACE;DEBUG</DefineConstants>
+    <CheckForOverflowUnderflow>true</CheckForOverflowUnderflow>
+    <Optimize>true</Optimize>
+    <DebugType>full</DebugType>
+    <PlatformTarget>x86</PlatformTarget>
+    <ErrorReport>prompt</ErrorReport>
+    <CodeAnalysisIgnoreGeneratedCode>false</CodeAnalysisIgnoreGeneratedCode>
+    <CodeAnalysisRuleSet>ExtendedCorrectnessRules.ruleset</CodeAnalysisRuleSet>
+  </PropertyGroup>
   <ItemGroup>
     <Compile Include="controller\Controller.cs" />
     <Compile Include="controller\output\Debug.cs" />
@@ -207,24 +255,40 @@
     <Reference Include="Antlr3.Runtime.Debug">
       <HintPath>..\..\..\lib\antlr\Antlr3.Runtime.Debug.dll</HintPath>
     </Reference>
-    <Reference Include="GraphSharp">
-      <HintPath>..\..\..\..\..\..\graph#\repos\graphsharp\Source\Graph#\obj\Debug\GraphSharp.dll</HintPath>
-    </Reference>
-    <Reference Include="Microsoft.Z3, Version=4.3.2.0, Culture=neutral, processorArchitecture=MSIL">
+    <Reference Include="GraphSharp, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\..\..\..\..\..\z3\z3-4.1\hscc2013\passel\bin\Microsoft.Z3.dll</HintPath>
+      <HintPath>lib\GraphSharp.dll</HintPath>
     </Reference>
-    <Reference Include="QuickGraph">
-      <HintPath>packages\QuickGraph.3.6.61119.7\lib\net4\QuickGraph.dll</HintPath>
+    <Reference Include="GraphSharp.Controls">
+      <HintPath>lib\GraphSharp.Controls.dll</HintPath>
     </Reference>
-    <Reference Include="QuickGraph.Data">
-      <HintPath>packages\QuickGraph.3.6.61119.7\lib\net4\QuickGraph.Data.dll</HintPath>
+    <Reference Include="Microsoft.Z3, Version=4.1.0.0" Condition="'$(Configuration)'=='bin-win-z3'">
+      <HintPath>lib\Microsoft.Z3.dll</HintPath>
     </Reference>
-    <Reference Include="QuickGraph.Graphviz">
-      <HintPath>packages\QuickGraph.3.6.61119.7\lib\net4\QuickGraph.Graphviz.dll</HintPath>
+    <Reference Include="Microsoft.Z3, Version=4.1.0.0" Condition="'$(Configuration)'=='bin-mono-z3'">
+      <HintPath>lib\Microsoft.Z3.dll</HintPath>
     </Reference>
-    <Reference Include="QuickGraph.Serialization">
-      <HintPath>packages\QuickGraph.3.6.61119.7\lib\net4\QuickGraph.Serialization.dll</HintPath>
+    <Reference Include="Microsoft.Z3, Version=4.3.2.0" Condition="'$(Configuration)'=='bin-win-z3-unstable'">
+      <HintPath>lib\unstable\Microsoft.Z3.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.Z3, Version=4.3.2.0" Condition="'$(Configuration)'=='bin-mono-z3-unstable'">
+      <HintPath>lib\unstable\Microsoft.Z3.dll</HintPath>
+    </Reference>
+    <Reference Include="QuickGraph, Version=3.6.61114.0, Culture=neutral, PublicKeyToken=f3fb40175eec2af3, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>lib\QuickGraph.dll</HintPath>
+    </Reference>
+    <Reference Include="QuickGraph.Data, Version=3.6.61114.0, Culture=neutral, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>lib\QuickGraph.Data.dll</HintPath>
+    </Reference>
+    <Reference Include="QuickGraph.Graphviz, Version=3.6.61114.0, Culture=neutral, PublicKeyToken=f3fb40175eec2af3, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>lib\QuickGraph.Graphviz.dll</HintPath>
+    </Reference>
+    <Reference Include="QuickGraph.Serialization, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>lib\QuickGraph.Serialization.dll</HintPath>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.configuration" />
@@ -272,6 +336,10 @@
     <None Include="app.config">
       <SubType>Designer</SubType>
     </None>
+    <None Include="config\app.bin-mono-z3-unstable.config" />
+    <None Include="config\app.bin-mono-z3.config" />
+    <None Include="config\app.bin-win-z3-unstable.config" />
+    <None Include="config\app.bin-win-z3.config" />
     <None Include="config\app.bin-win.config">
       <SubType>Designer</SubType>
     </None>
@@ -301,14 +369,40 @@
   <ItemGroup>
     <WCFMetadata Include="Service References\" />
   </ItemGroup>
-  <ItemGroup>
-    <None Include="libz3.dll">
+  <ItemGroup Condition="'$(Configuration)'=='bin-win-z3'">
+    <None Include="lib\libz3.dll">
+      <Link>libz3.dll</Link>
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       <Visible>True</Visible>
     </None>
   </ItemGroup>
-  <ItemGroup>
-    <None Include="libz3.so">
+  <ItemGroup Condition="'$(Configuration)'=='bin-win-z3-unstable'">
+    <None Include="lib\unstable\libz3.dll">
+      <Link>libz3.dll</Link>
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      <Visible>True</Visible>
+    </None>
+  </ItemGroup>
+  <ItemGroup Condition="'$(Configuration)'=='bin-mono-z3'">
+    <None Include="lib\libz3.so">
+      <Link>libz3.so</Link>
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      <Visible>True</Visible>
+    </None>
+    <None Include="lib\libz3.dll">
+      <Link>libz3.dll</Link>
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      <Visible>True</Visible>
+    </None>
+  </ItemGroup>
+  <ItemGroup Condition="'$(Configuration)'=='bin-mono-z3-unstable'">
+    <None Include="lib\unstable\libz3.so">
+      <Link>libz3.so</Link>
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      <Visible>True</Visible>
+    </None>
+    <None Include="lib\unstable\libz3.dll">
+      <Link>libz3.dll</Link>
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       <Visible>True</Visible>
     </None>
@@ -335,6 +429,6 @@
     <Copy SourceFiles="$(ProjectDir)\config\app.$(Configuration).config" DestinationFiles="$(TargetDir)$(TargetFileName).config" />
     <Copy SourceFiles="$(ProjectDir)\config\app.$(Configuration).config" DestinationFiles="$(TargetDir)passel.vshost.exe.config" />
     <!-- copy and rename libz3.dll to z3.dll ; not sure why, but it seems like Microsoft.Z3.dll requires it to be named z3.dll, whereas it is usually named libz3.dll -->
-    <Copy SourceFiles="$(ProjectDir)\libz3.dll" DestinationFiles="$(TargetDir)z3.dll" />
+    <Copy SourceFiles="$(TargetDir)\libz3.dll" DestinationFiles="$(TargetDir)z3.dll" />
   </Target>
 </Project>
