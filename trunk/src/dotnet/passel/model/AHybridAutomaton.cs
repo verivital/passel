@@ -345,7 +345,7 @@ namespace passel.model
 
             ConcreteHybridAutomaton h = (ConcreteHybridAutomaton)this;
 
-            System.Console.WriteLine("START: Generating phaver input file from Passel description for N = " + N);
+            System.Console.WriteLine("START: Generating phaver/spaceex input file from Passel description for N = " + N);
 
             const string PHAVER_AUTOMATON = "automaton";
             const string PHAVER_VAR_CONTR = "contr_var";
@@ -357,6 +357,17 @@ namespace passel.model
             const string PHAVER_INVARIANT = "while";
             const string PHAVER_GUARD = "when";
             const string PHAVER_SYNC = "sync";
+
+            const string SPACEEX_AUTOMATON = "automaton";
+            const string SPACEEX_VAR_CONTR = "contr_var";
+            const string SPACEEX_VAR_INPUT = "input_var";
+            const string SPACEEX_SYNC_LABEL = "synclabs";
+            const string SPACEEX_ENDLINE = ";";
+            const string SPACEEX_SEPARATOR = ":";
+            const string SPACEEX_LOCATION = "loc";
+            const string SPACEEX_INVARIANT = "while";
+            const string SPACEEX_GUARD = "when";
+            const string SPACEEX_SYNC = "sync";
 
             string out_automaton;
             string out_var_contr;
@@ -376,6 +387,20 @@ namespace passel.model
 
             switch (mode)
             {
+                case outmode.MODE_SPACEEX:
+                    {
+                        out_automaton = SPACEEX_AUTOMATON;
+                        out_var_contr = SPACEEX_VAR_CONTR;
+                        out_var_input = SPACEEX_VAR_INPUT;
+                        out_endline = SPACEEX_ENDLINE;
+                        out_separator = SPACEEX_SEPARATOR;
+                        out_sync = SPACEEX_SYNC;
+                        out_sync_label = SPACEEX_SYNC_LABEL;
+                        out_location = SPACEEX_LOCATION;
+                        out_invariant = SPACEEX_INVARIANT;
+                        out_guard = SPACEEX_GUARD;
+                        break;
+                    }
                 case outmode.MODE_PHAVER:
                 default:
                     {
@@ -394,18 +419,21 @@ namespace passel.model
                     }
             }
 
-            if (this.Variables.All(v => v.UpdateType != Variable.VarUpdateType.continuous) && this.Parent.Variables.All(v => v.UpdateType != Variable.VarUpdateType.continuous))
+            if (mode == outmode.MODE_PHAVER)
             {
-                spec += "ELAPSE_TIME = false; // no continuously updated variables found, preventing time-elapse (trajectories)" + newline;
-            }
+                if (this.Variables.All(v => v.UpdateType != Variable.VarUpdateType.continuous) && this.Parent.Variables.All(v => v.UpdateType != Variable.VarUpdateType.continuous))
+                {
+                    spec += "ELAPSE_TIME = false; // no continuously updated variables found, preventing time-elapse (trajectories)" + newline;
+                }
 
-            spec += "REACH_USE_CONVEX_HULL = false; // not possible with global index variables" + newline +
-                    "REACH_MAX_ITER = 0; " + newline +
-                    "REACH_USE_BBOX = false;" + newline +
-                    "//USE_HIOA_AUTOMATA = true;" + newline +
-                    "COMPOSE_USE_CONVEX_HULL_FOR_REACH = false;" + newline +
-                    "//COMPOSE_WITH_REACH_MIN = true;" + newline +
-                    "CHEAP_CONTAIN_RETURN_OTHERS = false;" + newline + newline;
+                spec += "REACH_USE_CONVEX_HULL = false; // not possible with global index variables" + newline +
+                        "REACH_MAX_ITER = 0; " + newline +
+                        "REACH_USE_BBOX = false;" + newline +
+                        "//USE_HIOA_AUTOMATA = true;" + newline +
+                        "COMPOSE_USE_CONVEX_HULL_FOR_REACH = false;" + newline +
+                        "//COMPOSE_WITH_REACH_MIN = true;" + newline +
+                        "CHEAP_CONTAIN_RETURN_OTHERS = false;" + newline + newline;
+            }
 
             // global constants
             if (Controller.Instance.Params.Count > 0)

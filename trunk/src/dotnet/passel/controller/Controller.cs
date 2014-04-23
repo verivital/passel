@@ -8,14 +8,24 @@ using System.Threading;
 
 using System.IO;
 
-using QuickGraph;
+using QuickGraph; // graph algorithms and data structures
+using GraphSharp; // graph visualization
 
 using Microsoft.Z3;
+
+
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Windows;
+
+
+
 
 //using VixCOM;
 
 using passel.controller;
-
 using passel.model;
 using passel.controller.output;
 using passel.controller.smt;
@@ -1171,6 +1181,9 @@ this.Config.Add("pp.simplify_implies", "false"); // try true
                 inputFiles.Add(inputFileCount++, "hscc-example.xml");
                 inputFiles.Add(inputFileCount++, "clock-sync.xml");
                 inputFiles.Add(inputFileCount++, "prelim.xml");
+                inputFiles.Add(inputFileCount++, "satsaiaa.xml");
+                inputFiles.Add(inputFileCount++, "sats_fm2014.xml");
+
 
                 //System.Console.WriteLine(System.Environment.MachineName.ToLower());
 
@@ -1856,8 +1869,19 @@ this.Config.Add("pp.simplify_implies", "false"); // try true
                                 //ReachSymmetric r = new ReachSymmetric();
                                 //r.ComputeReach(Instance.Sys, nval);
                                 ReachSymmetric.ComputeReach(Instance.Sys, nval);
-                                var gviz = new QuickGraph.Graphviz.GraphvizAlgorithm<SymmetricState, IEdge<SymmetricState>>(ReachSymmetric.ReachGraph);
+
+                                var gviz = new QuickGraph.Graphviz.GraphvizAlgorithm<SymmetricState, TaggedEdge<SymmetricState,Transition>>(ReachSymmetric.ReachGraph);
+                                gviz.FormatVertex += gviz_FormatVertex;
+                                gviz.FormatEdge += gviz_FormatEdge;
+                                //QuickGraph.Graphviz.GraphvizAlgorithm<
+                                
+
+                                //var g = new GraphSharp.CompoundGraph<SymmetricState, IEdge<SymmetricState>>();
+                                //g.AddVerticesAndEdge(ReachSymmetric.ReachGraph);
+
                                 string gvizoutput = gviz.Generate();
+                                
+                                
                                 //var fviz = File.Create("out.gviz");
                                 StreamWriter writer = new StreamWriter("out.gviz");
                                 writer.Write(gvizoutput);
@@ -2101,6 +2125,18 @@ this.Config.Add("pp.simplify_implies", "false"); // try true
             {
                 Console.ReadLine();
             }
+        }
+
+        static void gviz_FormatEdge(object sender, QuickGraph.Graphviz.FormatEdgeEventArgs<SymmetricState, TaggedEdge<SymmetricState, Transition>> e)
+        {
+            e.EdgeFormatter.Label.Value = e.Edge.Tag.ToString();
+        }
+
+        static void gviz_FormatVertex(object sender, QuickGraph.Graphviz.FormatVertexEventArgs<SymmetricState> e)
+        {
+            e.VertexFormatter.Label = e.Vertex.ToString();
+            //throw new System.NotImplementedException();
+            //e.Vertex
         }
 
         /**
