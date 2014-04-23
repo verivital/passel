@@ -196,6 +196,9 @@
     <Compile Include="view\View.Designer.cs">
       <DependentUpon>View.cs</DependentUpon>
     </Compile>
+    <Compile Include="view\ViewReach.cs">
+      <SubType>Form</SubType>
+    </Compile>
   </ItemGroup>
   <ItemGroup>
     <Reference Include="Antlr3.Runtime">
@@ -203,6 +206,9 @@
     </Reference>
     <Reference Include="Antlr3.Runtime.Debug">
       <HintPath>..\..\..\lib\antlr\Antlr3.Runtime.Debug.dll</HintPath>
+    </Reference>
+    <Reference Include="GraphSharp">
+      <HintPath>..\..\..\..\..\..\graph#\repos\graphsharp\Source\Graph#\obj\Debug\GraphSharp.dll</HintPath>
     </Reference>
     <Reference Include="Microsoft.Z3, Version=4.3.2.0, Culture=neutral, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>

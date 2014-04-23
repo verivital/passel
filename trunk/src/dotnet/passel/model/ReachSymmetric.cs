@@ -27,7 +27,7 @@ namespace passel.model
         /// <summary>
         /// 
         /// </summary>
-        public static AdjacencyGraph<SymmetricState, IEdge<SymmetricState>> ReachGraph = new AdjacencyGraph<SymmetricState, IEdge<SymmetricState>>();
+        public static AdjacencyGraph<SymmetricState, TaggedEdge<SymmetricState, Transition>> ReachGraph = new AdjacencyGraph<SymmetricState, TaggedEdge<SymmetricState, Transition>>();
 
         /// <summary>
         /// 
@@ -44,14 +44,11 @@ namespace passel.model
         /// <param name="tau"></param>
         public static void AddEdgeWithTransition(SymmetricState source, SymmetricState target, Transition tau)
         {
-            var edge = new Edge<SymmetricState>(source, target);
+            var edge = new TaggedEdge<SymmetricState,Transition>(source, target, tau);
             ReachGraph.AddVertex(source);
             ReachGraph.AddVertex(target);
             ReachGraph.AddEdge(edge);
-            if (tau != null)
-            {
-                ReachGraphTransitions.Add(edge, tau);
-            }
+            ReachGraphTransitions.Add(edge, tau);
         }
 
         /// <summary>
@@ -61,7 +58,6 @@ namespace passel.model
         /// <param name="N"></param>
         public static void ComputeReach(Holism sys, uint N)
         {
-
             AHybridAutomaton h = sys.HybridAutomata[0]; // todo: generalize for compositions
 
             HashSet<SymmetricState> Frontier = new HashSet<SymmetricState>();
@@ -515,6 +511,15 @@ namespace passel.model
 
                 Expr enabled = this.MakeTimePostFormula(N, false);
 
+                bool tmpstop = this.ToString().Trim().Contains("<2, (and (= (q i) idle) (= g 1) (not (<= (x i) 0.0)) (<= (x i) 5.0))>");
+
+            if (tmpstop)
+            {
+                tmpstop = false;
+
+                Expr enabledfake = this.MakeTimePostFormula(N, false);
+            }
+
                 System.Console.WriteLine("Time enabled query?: " + enabled.ToString());
                 Model m;
                 if (!Controller.Instance.Z3.checkTerm(enabled, out m))
@@ -886,7 +891,8 @@ namespace passel.model
 
                 //newTypes.Add(new SymmetricType(N, postStateFinal));
 
-                SymmetricState newState = new SymmetricState(N, this, newTypes.ToArray());
+                // TODO: add time "transitions" for every location that has a non-trivial (0 ode) flow
+                SymmetricState newState = new SymmetricState(N, this, Transition.TimeTransition, newTypes.ToArray());
                 newState.CreatedByTime = true;
                 newStates.Add(newState);
             }
@@ -1068,7 +1074,7 @@ namespace passel.model
         /// </summary>
         /// <param name="N"></param>
         /// <param name="types"></param>
-        public SymmetricState(uint N, SymmetricState pre, Transition tau = null, Boolean init = false, params SymmetricType[] types)
+        public SymmetricState(uint N, SymmetricState pre, Transition tau, Boolean init = false, params SymmetricType[] types)
         {
             this.PreState = pre;
 
@@ -1098,10 +1104,12 @@ namespace passel.model
             }
 
             this._new = true;
+            SymmetricState equal = null;
             foreach (var checkrs in SymmetricState.AllStateTypes)
             {
                 if (checkrs.Equals(this))
                 {
+                    equal = checkrs;
                     this._new = false;
                     break;
                 }
@@ -1117,7 +1125,17 @@ namespace passel.model
 
             if (pre != null)
             {
-                ReachSymmetric.AddEdgeWithTransition(pre, this, tau);
+                if (this._new)
+                {
+                    ReachSymmetric.AddEdgeWithTransition(pre, this, tau);
+                }
+                else // if not new, just add an edge, not another vertex
+                {
+                    if (equal != null)
+                    {
+                        ReachSymmetric.AddEdgeWithTransition(pre, equal, tau);
+                    }
+                }
             }
         }
 

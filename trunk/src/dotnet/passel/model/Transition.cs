@@ -96,7 +96,14 @@ namespace passel.model
 
         public String ToString()
         {
-            return this.TransitionTerm.ToString();
+            if (TransitionTerm == null)
+            {
+                return "time_flow";
+            }
+            else
+            {
+                return this.TransitionTerm.ToString();
+            }
         }
 
         /*public Expr Guard
