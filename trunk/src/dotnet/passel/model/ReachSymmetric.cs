@@ -541,6 +541,7 @@ namespace passel.model
         private Dictionary<Tuple<Variable, String>, Expr> gvToExpr = new Dictionary<Tuple<Variable, string>, Expr>();
         private Dictionary<Tuple<Variable, String>, Expr> gvToExprPost = new Dictionary<Tuple<Variable, string>, Expr>();
 
+
         /// <summary>
         /// Create formula for time post
         /// </summary>
@@ -1356,7 +1357,7 @@ namespace passel.model
             //, StringComparison.CurrentCultureIgnoreCase
             if (Formula.ToString().Contains("exists"))
             {
-                throw new Exception("ERROR: quantifier elimination failure.");
+                throw new Exception("ERROR: quantifier elimination failure (should not contain quantifiers at this step).");
             }
 
             AllTypes.Add(Formula); // todo: add formula -> typed state converter
@@ -1372,6 +1373,17 @@ namespace passel.model
         public override String ToString()
         {
             return "<" + TN + ", " + Formula.ToString() + ">";
+        }
+
+        /// <summary>
+        /// Quantify the formula for this type
+        /// </summary>
+        /// <returns></returns>
+        public Expr QuantifyFormula()
+        {
+            Expr i = Controller.Instance.Indices["i"];
+            Expr range = Controller.Instance.Z3.MkAnd(Controller.Instance.Z3.MkGe((ArithExpr)i, (ArithExpr)Controller.Instance.IndexOne), Controller.Instance.Z3.MkLe((ArithExpr)i, (ArithExpr)Controller.Instance.IndexN));
+            return Controller.Instance.Z3.MkForall(new Expr[] { i } , Controller.Instance.Z3.MkImplies((BoolExpr)range , (BoolExpr)this.Formula));
         }
 
         /// <summary>
