@@ -8,8 +8,10 @@ using System.Threading;
 
 using System.IO;
 
+#if !MONO
 using QuickGraph; // graph algorithms and data structures
 using GraphSharp; // graph visualization
+#endif
 
 using Microsoft.Z3;
 
@@ -268,9 +270,9 @@ namespace passel.controller
             }
         }
 
-        /**
-         * Detect if running under Windows
-         */
+        /// <summary>
+        /// Detect if running under Windows
+        /// </summary>
         public static bool IsWindows
         {
             get
@@ -279,15 +281,36 @@ namespace passel.controller
             }
         }
 
+        /// <summary>
+        /// Detect if running via Mono (by configuration file)
+        /// </summary>
+        public bool IsMono
+        {
+            get
+            {
+                return AppDomain.CurrentDomain.SetupInformation.ConfigurationFile.Contains("mono"); // TODO: generalize
+            }
+        }
+
         /**
          * Read settings (file paths, VM username / paths, etc.) from config.xml fi;e
          */
         private void ReadSettings()
         {
-            this.VirtualMachine = (NameValueCollection)System.Configuration.ConfigurationManager.GetSection("VirtualMachine");
+            if (IsWindows && this.IsMono)
+            {
+                Console.WriteLine("ERROR: cannot run on Windows via Mono.");
+                return;
+            }
+
             this.Paths = (NameValueCollection)System.Configuration.ConfigurationManager.GetSection("Paths");
-            this.PathsWindows = (NameValueCollection)System.Configuration.ConfigurationManager.GetSection("WindowsPaths");
-            this.PathsLinux = (NameValueCollection)System.Configuration.ConfigurationManager.GetSection("LinuxPaths");
+            this.PathsLinux = (NameValueCollection)System.Configuration.ConfigurationManager.GetSection("LinuxPaths"); // needed for both: Windows version calls Linux
+
+            if (Controller.IsWindows)
+            {
+                this.VirtualMachine = (NameValueCollection)System.Configuration.ConfigurationManager.GetSection("VirtualMachine");
+                this.PathsWindows = (NameValueCollection)System.Configuration.ConfigurationManager.GetSection("WindowsPaths");
+            }
 
             if (this.InteractionMode == INTERACTION_MODE.interactive)
             {
@@ -299,7 +322,7 @@ namespace passel.controller
             {
                 this.InOutPath = Directory.GetCurrentDirectory() + Path.DirectorySeparatorChar;
                 this.InputPath = this.InOutPath + ".." + Path.DirectorySeparatorChar + "input" + Path.DirectorySeparatorChar;
-                this.OutPath = this.InOutPath + ".." + Path.DirectorySeparatorChar + "output" + Path.DirectorySeparatorChar;
+                this.OutPath = this.InOutPath + ".." + Path.DirectorySeparatorChar + ".." + Path.DirectorySeparatorChar + "output" + Path.DirectorySeparatorChar;
             }
 
             this.ExternalToolInputPath = this.OutPath + "phaver" + Path.DirectorySeparatorChar;
@@ -568,6 +591,7 @@ namespace passel.controller
                 this.Config.Add("model", "true"); // model generation
 
 
+                
                 /*
                 this.Config.Add("smt.mbqi", "true"); // model-based quantifier instantiation (MBQI)  (see http://research.microsoft.com/en-us/um/redmond/projects/z3/mbqi-tutorial/)
                 this.Config.Add("sat.minimize_lemmas", "true");
@@ -648,6 +672,13 @@ this.Config.Add("pp.simplify_implies", "false"); // try true
             }
 
             this.Z3 = new Z3Wrapper(this.Config);
+
+            // have to set here now... really hope they stop changing how this works
+            if (!Controller.OldApiParameters())
+            {
+                //this.Z3.UpdateParamValue("smt.mbqi", "true"); // also doesn't work...
+            }
+
             this.Z3.PrintMode = Z3_ast_print_mode.Z3_PRINT_SMTLIB2_COMPLIANT;
 
             /*
@@ -1200,6 +1231,8 @@ this.Config.Add("pp.simplify_implies", "false"); // try true
                     {
                         case IOSTATE.SELECT_CASE_STUDY:
                             {
+                                Console.WriteLine("Operating System: " + (Controller.IsWindows ? "Windows" : "Linux/OS X"));
+                                Console.WriteLine("Configuration File: " + AppDomain.CurrentDomain.SetupInformation.ConfigurationFile);
                                 Console.WriteLine("Using Z3 Version: " + Microsoft.Z3.Version.ToString());
                                 Console.WriteLine("Using directory path: " + Instance.InOutPath);
                                 Console.WriteLine("Assuming input files in path: " + Instance.InputPath);
@@ -1542,7 +1575,9 @@ this.Config.Add("pp.simplify_implies", "false"); // try true
 
                 output.Debug.Write("STATUS: Start time " + Instance.StartTime.ToString("s"), output.Debug.MINIMAL);
                 output.Debug.Write("STATUS: File: " + Instance.InputFilePath + Environment.NewLine, output.Debug.MINIMAL);
-                output.Debug.Write("STATUS: Using Microsoft Z3 version " + Microsoft.Z3.Version.Major + "." + Microsoft.Z3.Version.Minor + "." + Microsoft.Z3.Version.Build + "rv" + Microsoft.Z3.Version.Revision + Environment.NewLine, output.Debug.MINIMAL);
+                output.Debug.Write("STATUS: Operating System: " + (Controller.IsWindows ? "Windows" : "Linux/OS X") + Environment.NewLine, output.Debug.MINIMAL);
+                output.Debug.Write("STATUS: Configuration File: " + AppDomain.CurrentDomain.SetupInformation.ConfigurationFile + Environment.NewLine, output.Debug.MINIMAL);
+                output.Debug.Write("STATUS: Using Microsoft Z3 version " + Microsoft.Z3.Version.ToString() + Environment.NewLine, output.Debug.MINIMAL);
 
                 ParseHyXML.ParseInputFile(Instance.InputFilePath); // create Sys object
 
@@ -1871,6 +1906,35 @@ this.Config.Add("pp.simplify_implies", "false"); // try true
                                 //r.ComputeReach(Instance.Sys, nval);
                                 ReachSymmetric.ComputeReach(Instance.Sys, nval);
 
+
+                                // check all safety properties
+                                foreach (var p in Controller.Instance.Sys.Properties)
+                                {
+                                    foreach (var ss in ReachSymmetric.ReachedStates)
+                                    {
+                                        foreach (var st in ss.Types)
+                                        {
+                                            Expr quant_st = st.QuantifyFormula();
+                                            Expr unsafe_intersection = Controller.Instance.Z3.MkAnd((BoolExpr)quant_st, Controller.Instance.Z3.MkNot((BoolExpr)p.Formula));
+
+                                            Console.WriteLine("Property status for: " + p.ToString());
+                                            if (Controller.Instance.Z3.checkTerm(unsafe_intersection))
+                                            {
+                                                Console.WriteLine("UNSAFE (reach set intersects property)");
+                                                Console.WriteLine(unsafe_intersection);
+                                                p.Status = StatusTypes.disproved;
+                                                continue;
+                                            }
+                                            else
+                                            {
+                                                p.Status = StatusTypes.inductiveInvariant; // TODO: add a safety type, is an invariant, may be not inductive invariant
+                                            }
+                                        }
+                                    }
+                                }
+
+
+#if !MONO
                                 var gviz = new QuickGraph.Graphviz.GraphvizAlgorithm<SymmetricState, TaggedEdge<SymmetricState,Transition>>(ReachSymmetric.ReachGraph);
                                 gviz.FormatVertex += gviz_FormatVertex;
                                 gviz.FormatEdge += gviz_FormatEdge;
@@ -1889,6 +1953,7 @@ this.Config.Add("pp.simplify_implies", "false"); // try true
                                 writer.Close();
                                 
                                 //ReachSymmetric.ReachGraph.ToString
+#endif
                             }
                             //String expNameL = AutomatonName + "_N=" + Instance.IndexNValue;
                             //Controller.InputPhaver(expNameL);
@@ -2128,6 +2193,7 @@ this.Config.Add("pp.simplify_implies", "false"); // try true
             }
         }
 
+#if !MONO
         static void gviz_FormatEdge(object sender, QuickGraph.Graphviz.FormatEdgeEventArgs<SymmetricState, TaggedEdge<SymmetricState, Transition>> e)
         {
             e.EdgeFormatter.Label.Value = e.Edge.Tag.ToString();
@@ -2139,6 +2205,7 @@ this.Config.Add("pp.simplify_implies", "false"); // try true
             //throw new System.NotImplementedException();
             //e.Vertex
         }
+#endif
 
         /**
          * Use phaver input file for invisible invariants
@@ -2904,7 +2971,7 @@ this.Config.Add("pp.simplify_implies", "false"); // try true
             {
                 // TODO: switch directories based on external_tool value
                 string exeParameters = " " + Instance.PhaverPathLinux + "phaver" + " " + Instance.ExternalToolInputPathLinux + fnall + " &> " + Instance.ExternalToolInputPathLinux + fnall + "_PHAVER_LOG.txt";
-                System.Console.WriteLine("Calling PHAVer with: " + exeParameters);
+                System.Console.WriteLine("Calling " + external_tool + " with: " + exeParameters);
 
                 // from: http://tranxcoder.wordpress.com/2008/05/14/using-the-vixcom-library/
                 string hostName = "localhost";
@@ -2916,8 +2983,11 @@ this.Config.Add("pp.simplify_implies", "false"); // try true
                 {
                     VixWrapper vix = new VixWrapper();
 
+                    hostUser = Instance.VirtualMachine["Username"];
+                    hostPassword = Instance.VirtualMachine["Password"];
+
                     //
-                    // Connect to the VMWare Server
+                    // Connect to the VMWare Server (host where VM API [i.e., VIX] is running)
                     //
                     if (vix.Connect(hostName, hostUser, hostPassword))
                     {
@@ -2960,6 +3030,7 @@ this.Config.Add("pp.simplify_implies", "false"); // try true
                                         else
                                         {
                                             // The test FAILED!
+                                            System.Console.WriteLine("ERROR: could not run external tool " + external_tool + " in virtual machine.");
                                             returnValue = false;
                                         }
                                     }
@@ -2973,6 +3044,7 @@ this.Config.Add("pp.simplify_implies", "false"); // try true
                                 else
                                 {
                                     // Unable to login to the virtual machine
+                                    System.Console.WriteLine("ERROR: could not login to virtual machine.");
                                 }
 
                                 //vix.PowerOff();
@@ -2980,6 +3052,7 @@ this.Config.Add("pp.simplify_implies", "false"); // try true
                             else
                             {
                                 // Unable to power on the virtual machine
+                                System.Console.WriteLine("ERROR: could not power on virtual machine.");
                             }
                             //}
                             //else
@@ -2990,11 +3063,13 @@ this.Config.Add("pp.simplify_implies", "false"); // try true
                         else
                         {
                             // Unable to open the VMX file
+                            System.Console.WriteLine("ERROR: could not open virtual machine image.");
                         }
                     }
                     else
                     {
                         // Unable to connect to the host
+                        System.Console.WriteLine("ERROR: could not connect to virtual machine.");
                     }
 
                     //return returnValue;
