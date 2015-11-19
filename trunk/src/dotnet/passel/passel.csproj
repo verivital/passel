@@ -244,9 +244,7 @@
     <Compile Include="view\View.Designer.cs">
       <DependentUpon>View.cs</DependentUpon>
     </Compile>
-    <Compile Include="view\ViewReach.cs">
-      <SubType>Form</SubType>
-    </Compile>
+    <Compile Include="view\ViewReach.cs" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="Antlr3.Runtime">
@@ -261,15 +259,6 @@
     </Reference>
     <Reference Include="GraphSharp.Controls">
       <HintPath>lib\GraphSharp.Controls.dll</HintPath>
-    </Reference>
-    <Reference Include="Microsoft.Z3, Version=4.1.0.0" Condition="'$(Configuration)'=='bin-win-z3'">
-      <HintPath>lib\Microsoft.Z3.dll</HintPath>
-    </Reference>
-    <Reference Include="Microsoft.Z3, Version=4.1.0.0" Condition="'$(Configuration)'=='bin-mono-z3'">
-      <HintPath>lib\Microsoft.Z3.dll</HintPath>
-    </Reference>
-    <Reference Include="Microsoft.Z3, Version=4.3.2.0" Condition="'$(Configuration)'=='bin-win-z3-unstable'">
-      <HintPath>lib\unstable\Microsoft.Z3.dll</HintPath>
     </Reference>
     <Reference Include="Microsoft.Z3, Version=4.3.2.0" Condition="'$(Configuration)'=='bin-mono-z3-unstable'">
       <HintPath>lib\unstable\Microsoft.Z3.dll</HintPath>
@@ -349,7 +338,9 @@
     <None Include="config\app.Release.config">
       <SubType>Designer</SubType>
     </None>
-    <None Include="packages.config" />
+    <None Include="packages.config">
+      <SubType>Designer</SubType>
+    </None>
     <None Include="Properties\Settings.settings">
       <Generator>SettingsSingleFileGenerator</Generator>
       <LastGenOutput>Settings.Designer.cs</LastGenOutput>
